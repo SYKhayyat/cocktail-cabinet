@@ -64,6 +64,11 @@ button:hover { border-color: var(--accent); }
 .screen-frame { overflow: hidden; border: 1px solid #334155; border-radius: 12px; background: var(--canvas-bg); box-shadow: inset 0 0 60px #0008; }
 canvas { display: block; width: 100%; height: auto; aspect-ratio: 10 / 7; touch-action: none; }
 .machine-footer { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 0.75rem; padding-top: 12px; }
+.settings-panel { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; border: 1px solid var(--line); border-radius: 12px; background: #111a2b; padding: 12px; margin-top: 14px; color: var(--muted); font-size: 0.82rem; }
+.settings-panel strong { color: var(--ink); }
+.settings-panel label { display: inline-flex; align-items: center; gap: 6px; }
+.settings-panel select { min-width: 0; padding: 6px 8px; }
+.checkbox-label input { accent-color: var(--accent); }
 .chat-panel { border: 1px solid var(--line); border-radius: 12px; background: #0c1220; margin-top: 14px; overflow: hidden; }
 .chat-messages { max-height: 180px; overflow-y: auto; padding: 10px 12px; display: grid; gap: 8px; }
 .chat-message { border-left: 3px solid #64748b; padding: 5px 8px; background: #111827; border-radius: 4px; }

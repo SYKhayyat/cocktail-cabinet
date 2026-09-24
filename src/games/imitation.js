@@ -1,5 +1,5 @@
 import { drawText } from "../engine.js";
-import { loadLocalModel, localModelSupport } from "../ai/on-device.js";
+import { loadLocalModel } from "../ai/on-device.js";
 
 const CHANNEL_NAME = "cocktail-cabinet-imitation-v2";
 
@@ -27,7 +27,7 @@ export class ImitationGame {
     this.aiClock = 0;
     this.aiReady = false;
     this.lastModelStatus = "";
-    this.addMessage("System", this.side === "ai" ? "AI companion online. The local model loads on your first message." : "Looking for another tab…");
+    this.addMessage("System", this.side === "ai" ? "AI companion ready. Say hello when you are ready." : "Looking for another tab…");
     if (this.side === "human") this.connectChannel();
   }
   closeChannel() { this.channel?.close(); this.channel = null; }
@@ -65,9 +65,7 @@ export class ImitationGame {
   }
   async askAi(text) {
     try {
-      const support = localModelSupport();
-      if (!support.ok) throw new Error(support.reason);
-      if (!this.aiReady) this.addMessage("System", "Loading the local Llama model…");
+      if (!this.aiReady) this.addMessage("System", "Getting the conversation ready…");
       const engine = await loadLocalModel((report) => {
         if (report?.text && report.text !== this.lastModelStatus) {
           this.lastModelStatus = report.text;
@@ -77,26 +75,20 @@ export class ImitationGame {
       this.aiReady = true;
       const reply = await engine.chat.completions.create({
         messages: [
-          { role: "system", content: "You are a friendly companion in a small arcade game. Reply in one or two short sentences. Do not claim to be Claude." },
+          { role: "system", content: "You are a friendly, general-purpose chat companion. Reply naturally in one or two short sentences. Do not mention this website or games unless the user asks." },
           { role: "user", content: text },
         ],
         temperature: 0.7,
         max_tokens: 90,
       });
-      this.addMessage("AI", reply?.choices?.[0]?.message?.content?.trim() || this.chooseAiReply(text));
-    } catch (error) {
-      this.addMessage("System", `${error.message} Using the offline companion.`);
-      this.addMessage("AI", this.chooseAiReply(text));
+      await wait(700 + Math.random() * 900);
+      const response = reply?.choices?.[0]?.message?.content?.trim();
+      if (response) this.addMessage("AI", response);
+      else this.addMessage("System", "The AI returned no response. Try again.");
+    } catch {
+      await wait(800 + Math.random() * 900);
+      this.addMessage("System", "The AI companion could not start in this browser. Try a current desktop Chrome or Edge.");
     }
-  }
-  chooseAiReply(text) {
-    const lower = text.toLowerCase();
-    if (lower.includes("name")) return "I am the Cocktail Cabinet's local AI companion. What should I call you?";
-    if (lower.includes("game") || lower.includes("play")) return "I like Breakout, but Snake has excellent apple placement. Which one do you want to try?";
-    if (lower.includes("hello") || lower.includes("hi")) return "Hello! I am listening. Ask me about the cabinet or tell me what you are building.";
-    if (lower.includes("python")) return "Python is a great language for readable game logic. JavaScript is what the browser understands here.";
-    if (lower.includes("?")) return "That is a thoughtful question. I can chat, pattern-match, and help you explore the cabinet, but I am a small local responder rather than a giant cloud model.";
-    return "I heard you. Tell me a little more, or ask me about games, Python, or the cabinet.";
   }
   update(dt) {
     if (this.side === "human" && !this.peerId) this.matchmaking = Math.max(0, this.matchmaking - dt);
@@ -104,29 +96,13 @@ export class ImitationGame {
   draw(context) {
     context.fillStyle = "#080d18"; context.fillRect(0, 0, 800, 560);
     const title = this.side === "ai" ? "AI COMPANION" : this.peerId ? "SECOND TAB CONNECTED" : `SEARCHING · ${Math.ceil(this.matchmaking)}s`;
-    drawText(context, title, 28, 38, 16, "#22d3ee");
-    const visible = this.chatLog.slice(-7);
-    visible.forEach((message, index) => {
-      const y = 78 + index * 58;
-      const color = message.sender === "You" ? "#fbbf24" : message.sender === "AI" ? "#a78bfa" : message.sender === "System" ? "#64748b" : "#22d3ee";
-      drawText(context, `${message.sender} · ${message.time}`, 28, y, 12, color);
-      wrapText(context, message.text, 28, y + 22, 730, 18, "#e2e8f0");
-    });
+    drawText(context, title, 28, 48, 18, "#22d3ee");
+    drawText(context, this.side === "ai" ? "Your conversation is in the chat panel below." : this.peerId ? "Messages appear in the chat panel below." : "Open this page in a second tab to join.", 28, 88, 16, "#cbd5e1");
+    drawText(context, "Type below and press Enter or Send.", 28, 120, 14, "#64748b");
   }
   publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? "Local AI companion · no API key" : this.peerId ? "Two tabs are connected" : "Open this page in a second tab to join", chatRevision: this.chatRevision }; }
 }
 
-function wrapText(context, text, x, y, maxWidth, lineHeight, color) {
-  context.font = "700 16px system-ui, sans-serif";
-  const words = text.split(" ");
-  let line = "";
-  let lineY = y;
-  for (const word of words) {
-    const candidate = line ? `${line} ${word}` : word;
-    if (context.measureText(candidate).width > maxWidth && line) {
-      drawText(context, line, x, lineY, 16, color);
-      line = word; lineY += lineHeight;
-    } else line = candidate;
-  }
-  if (line) drawText(context, line, x, lineY, 16, color);
+function wait(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }

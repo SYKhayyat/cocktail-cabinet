@@ -4,7 +4,7 @@ export class MissileCommandGame {
   constructor() {
     this.id = "missile";
     this.title = "Missile Command";
-    this.description = "Defend the cities, or attack them. The machine launches and intercepts real projectiles.";
+    this.description = "Normal play: move the mouse to aim, then press Space to launch blue interceptors at red missiles before the cities are hit.";
     this.side = "defender";
     this.score = 0;
   }
@@ -54,7 +54,8 @@ export class MissileCommandGame {
     this.bases.forEach((base) => { context.fillStyle = base.alive ? "#38bdf8" : "#475569"; context.beginPath(); context.arc(base.x, base.y, base.radius, 0, Math.PI * 2); context.fill(); });
     this.enemyMissiles.forEach((missile) => drawMissile(context, missile)); this.interceptors.forEach((missile) => drawMissile(context, missile));
     if (this.side === "defender") { context.strokeStyle = "#fbbf24"; context.beginPath(); context.arc(this.target.x, this.target.y, 12, 0, Math.PI * 2); context.stroke(); }
-    drawText(context, this.side === "defender" ? "Move pointer to aim · Space to intercept" : "Click above the cities to launch a missile", 16, 28, 14, "#cbd5e1");
+    drawText(context, this.side === "defender" ? "Move the mouse to aim · press Space to launch a blue interceptor" : "Click above the cities to launch a red missile · blue interceptors defend", 16, 28, 14, "#cbd5e1");
+    drawText(context, "Red lines are incoming · blue lines are yours · protect the three city circles", 16, 542, 12, "#64748b");
   }
   publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "Each interceptor follows a real target and can miss." }; }
 }

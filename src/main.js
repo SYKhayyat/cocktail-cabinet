@@ -13,7 +13,7 @@ const gameFactories = [
   ["splat", "Splat", "Build a rising route", () => new SplatGame()],
   ["asteroids", "Asteroids", "Fly or launch rocks", () => new AsteroidsGame()],
   ["missile", "Missile Command", "Defend or attack", () => new MissileCommandGame()],
-  ["imitation", "Imitation", "Repeat the pattern", () => new ImitationGame()],
+  ["imitation", "Imitation", "Chat with AI or a second tab", () => new ImitationGame()],
   ["starfall", "Starfall", "Dodge or send stars", () => new StarfallGame()]
 ];
 
@@ -30,16 +30,20 @@ const chatPanel = document.querySelector("#chatPanel");
 const chatForm = document.querySelector("#chatForm");
 const chatInput = document.querySelector("#chatInput");
 const chatMessages = document.querySelector("#chatMessages");
+const settingsPanel = document.querySelector("#settingsPanel");
+const snakeBoard = document.querySelector("#snakeBoard");
+const snakeLength = document.querySelector("#snakeLength");
+const snakeWrap = document.querySelector("#snakeWrap");
 let lastChatRevision = -1;
 
 const sideOptions = {
-  snake: [["apples", "Computer snake vs you — place apples"], ["snake", "You vs computer — steer the snake"]],
-  breakout: [["bottom", "Computer paddle vs you — bottom paddle"], ["top", "You vs computer — top paddle"]],
-  splat: [["layout", "Computer climber vs you — lay columns"], ["climber", "You vs computer — climb the columns"]],
-  asteroids: [["rocks", "Computer ship vs you — send asteroids"], ["ship", "You vs computer — fly the ship"]],
-  missile: [["defender", "Computer attack vs you — defend cities"], ["attacker", "You vs computer — attack cities"]],
+  snake: [["snake", "You vs computer — steer the snake"], ["apples", "Computer vs you — place apples"]],
+  breakout: [["bottom", "You vs computer — bottom paddle"], ["blocks", "Computer vs you — drag the blocks"]],
+  splat: [["climber", "You vs computer — climb the columns"], ["layout", "Computer vs you — lay out columns"]],
+  asteroids: [["ship", "You vs computer — fly the ship"], ["rocks", "Computer vs you — send asteroids"]],
+  missile: [["defender", "You vs computer — defend cities"], ["attacker", "Computer vs you — attack cities"]],
   imitation: [["ai", "Chat with the local AI"], ["human", "Chat with a second tab"]],
-  starfall: [["stars", "Computer runner vs you — send stars"], ["runner", "You vs computer — guide the runner"]]
+  starfall: [["runner", "You vs computer — guide the runner"], ["stars", "Computer vs you — send stars"]]
 };
 
 function renderChat(game) {
@@ -57,6 +61,17 @@ function renderChat(game) {
     chatMessages.append(row);
   }
   chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function readSnakeSettings() {
+  const [cols, rows] = snakeBoard.value.split("x").map(Number);
+  return { cols, rows, startingLength: Number(snakeLength.value), wrap: snakeWrap.checked };
+}
+
+function applySnakeSettings() {
+  if (activeId !== "snake") return;
+  games.get("snake").setSettings(readSnakeSettings());
+  engine.restart();
 }
 
 let activeId = "snake";
@@ -90,6 +105,8 @@ function loadGame(id) {
   title.textContent = game.title;
   description.textContent = game.description;
   renderSideOptions(game);
+  settingsPanel.hidden = id !== "snake";
+  if (id === "snake") game.setSettings(readSnakeSettings());
   chatPanel.hidden = id !== "imitation";
   lastChatRevision = -1;
   engine.load(game);
@@ -118,6 +135,7 @@ sideSelect.addEventListener("change", () => {
   lastChatRevision = -1;
   engine.setSide(sideSelect.value);
 });
+[snakeBoard, snakeLength, snakeWrap].forEach((control) => control.addEventListener("change", applySnakeSettings));
 restartButton.addEventListener("click", () => engine.restart());
 chatForm.addEventListener("submit", (event) => {
   event.preventDefault();

@@ -16,6 +16,8 @@ export class GameEngine {
     };
 
     this.handleKeyDown = (event) => {
+      const tagName = event.target?.tagName;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(tagName) || event.target?.isContentEditable) return;
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) {
         event.preventDefault();
       }

@@ -16,11 +16,15 @@ test("shared helpers clamp and measure ordinary game values", () => {
 
 test("Snake creates a playable state and grows when it reaches an apple", () => {
   const game = new SnakeGame();
+  assert.equal(game.side, "snake");
+  game.setSettings({ cols: 30, rows: 20, startingLength: 5, wrap: true });
   game.reset();
-  assert.equal(game.snake.length, 3);
+  assert.equal(game.snake.length, 5);
+  assert.equal(game.wrap, true);
+  assert.equal(game.snake.length, 5);
   game.apple = { x: game.snake[0].x + 1, y: game.snake[0].y };
-  for (let index = 0; index < 20 && game.snake.length === 3; index += 1) game.update(0.2, { keys: new Set(), pressed: new Set(), pointer: { clicked: false } });
-  assert.equal(game.snake.length, 4);
+  for (let index = 0; index < 20 && game.snake.length === 5; index += 1) game.update(0.2, { keys: new Set(), pressed: new Set(), pointer: { clicked: false, down: false } });
+  assert.equal(game.snake.length, 6);
   assert.equal(game.score, 1);
 });
 

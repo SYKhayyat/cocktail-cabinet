@@ -1,47 +1,57 @@
 import { clamp, drawText } from "../engine.js";
 
-const CELL = 20;
-const COLS = 40;
-const ROWS = 28;
-
 export class SnakeGame {
   constructor() {
     this.id = "snake";
     this.title = "Snake";
-    this.description = "You can grow the snake or feed it. The machine makes every move honestly.";
-    this.side = "apples";
+    this.description = "Guide the snake with the mouse or keyboard. The computer places apples in the flipped mode.";
+    this.side = "snake";
     this.score = 0;
     this.snake = [];
     this.apple = null;
     this.direction = { x: 1, y: 0 };
     this.nextDirection = { x: 1, y: 0 };
-    this.elapsed = 0;
     this.aiClock = 0;
+    this.cols = 40;
+    this.rows = 28;
+    this.startingLength = 3;
+    this.wrap = false;
+    this.gameOver = false;
   }
 
   sideLabel() { return this.side === "apples" ? "You place apples" : "You steer the snake"; }
   setSide(side) { this.side = side; }
+  setSettings(settings) {
+    this.cols = Number(settings.cols) || 40;
+    this.rows = Number(settings.rows) || 28;
+    this.startingLength = clamp(Number(settings.startingLength) || 3, 3, 12);
+    this.wrap = Boolean(settings.wrap);
+  }
+  cellWidth() { return 800 / this.cols; }
+  cellHeight() { return 560 / this.rows; }
   reset() {
     this.score = 0;
-    this.snake = [{ x: 20, y: 14 }, { x: 19, y: 14 }, { x: 18, y: 14 }];
+    this.gameOver = false;
+    const startX = Math.floor(this.cols / 2);
+    const startY = Math.floor(this.rows / 2);
+    this.snake = Array.from({ length: this.startingLength }, (_, index) => ({ x: startX - index, y: startY }));
     this.direction = { x: 1, y: 0 };
     this.nextDirection = { x: 1, y: 0 };
-    this.elapsed = 0;
     this.aiClock = 0;
-    this.apple = this.side === "apples" ? { x: 28, y: 7 } : this.freeApple();
+    this.apple = this.side === "apples" ? { x: Math.min(this.cols - 3, startX + 6), y: Math.max(2, startY - 6) } : this.freeApple();
   }
   freeApple() {
     const open = [];
-    for (let y = 0; y < ROWS; y += 1) for (let x = 0; x < COLS; x += 1) {
+    for (let y = 0; y < this.rows; y += 1) for (let x = 0; x < this.cols; x += 1) {
       if (!this.snake.some((part) => part.x === x && part.y === y)) open.push({ x, y });
     }
     return open[Math.floor(Math.random() * open.length)] || { x: 0, y: 0 };
   }
   update(dt, input) {
-    this.elapsed += dt;
+    if (this.gameOver) return;
     if (this.side === "apples" && input.pointer.clicked) {
-      const x = clamp(Math.floor(input.pointer.x / CELL), 0, COLS - 1);
-      const y = clamp(Math.floor(input.pointer.y / CELL), 0, ROWS - 1);
+      const x = clamp(Math.floor(input.pointer.x / this.cellWidth()), 0, this.cols - 1);
+      const y = clamp(Math.floor(input.pointer.y / this.cellHeight()), 0, this.rows - 1);
       if (!this.snake.some((part) => part.x === x && part.y === y)) this.apple = { x, y };
     }
     if (this.side === "snake") {
@@ -49,53 +59,62 @@ export class SnakeGame {
       if (input.pressed.has("ArrowDown") || input.pressed.has("s")) this.nextDirection = { x: 0, y: 1 };
       if (input.pressed.has("ArrowLeft") || input.pressed.has("a")) this.nextDirection = { x: -1, y: 0 };
       if (input.pressed.has("ArrowRight") || input.pressed.has("d")) this.nextDirection = { x: 1, y: 0 };
-    } else {
-      this.chooseDirection();
-    }
+      if (input.pointer.down) this.steerToward(input.pointer.x, input.pointer.y);
+    } else this.chooseDirection();
     if (this.nextDirection.x + this.direction.x !== 0 || this.nextDirection.y + this.direction.y !== 0) this.direction = this.nextDirection;
     this.aiClock += dt;
     const interval = Math.max(0.07, 0.17 - this.score * 0.002);
     if (this.aiClock < interval) return;
     this.aiClock = 0;
     const head = this.snake[0];
-    const next = { x: (head.x + this.direction.x + COLS) % COLS, y: (head.y + this.direction.y + ROWS) % ROWS };
+    let next = { x: head.x + this.direction.x, y: head.y + this.direction.y };
+    if (this.wrap) next = { x: (next.x + this.cols) % this.cols, y: (next.y + this.rows) % this.rows };
+    else if (next.x < 0 || next.x >= this.cols || next.y < 0 || next.y >= this.rows) { this.gameOver = true; return; }
+    if (this.snake.some((part) => part.x === next.x && part.y === next.y)) { this.gameOver = true; return; }
     if (next.x === this.apple?.x && next.y === this.apple?.y) {
       this.score += 1;
       this.snake.unshift(next);
-      this.apple = this.side === "apples" ? this.freeApple() : this.freeApple();
+      this.apple = this.freeApple();
       return;
     }
     this.snake.unshift(next);
     this.snake.pop();
   }
+  steerToward(pointerX, pointerY) {
+    const head = this.snake[0];
+    const dx = pointerX / this.cellWidth() - head.x - 0.5;
+    const dy = pointerY / this.cellHeight() - head.y - 0.5;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+    const direction = Math.abs(dx) > Math.abs(dy) ? { x: Math.sign(dx), y: 0 } : { x: 0, y: Math.sign(dy) };
+    if (direction.x + this.direction.x || direction.y + this.direction.y) this.nextDirection = direction;
+  }
   chooseDirection() {
     const head = this.snake[0];
     const apple = this.apple;
     if (!apple) return;
-    const choices = [
-      { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }
-    ].filter((direction) => !(direction.x + this.direction.x === 0 && direction.y + this.direction.y === 0));
-    choices.sort((a, b) => {
-      const scoreA = this.routeScore(head, a, apple);
-      const scoreB = this.routeScore(head, b, apple);
-      return scoreA - scoreB;
-    });
+    const choices = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }].filter((direction) => !(direction.x + this.direction.x === 0 && direction.y + this.direction.y === 0));
+    choices.sort((a, b) => this.routeScore(head, a, apple) - this.routeScore(head, b, apple));
     this.nextDirection = choices[0];
   }
   routeScore(head, direction, apple) {
     const next = { x: head.x + direction.x, y: head.y + direction.y };
-    if (next.x < 0 || next.x >= COLS || next.y < 0 || next.y >= ROWS) return 10000;
-    if (this.snake.some((part) => part.x === next.x && part.y === next.y)) return 5000;
-    return Math.abs(next.x - apple.x) + Math.abs(next.y - apple.y);
+    const x = this.wrap ? (next.x + this.cols) % this.cols : next.x;
+    const y = this.wrap ? (next.y + this.rows) % this.rows : next.y;
+    if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return 10000;
+    if (this.snake.some((part) => part.x === x && part.y === y)) return 5000;
+    return Math.abs(x - apple.x) + Math.abs(y - apple.y);
   }
   draw(context) {
+    const cellWidth = this.cellWidth();
+    const cellHeight = this.cellHeight();
     context.fillStyle = "#080d18"; context.fillRect(0, 0, 800, 560);
     context.strokeStyle = "#1e293b"; context.lineWidth = 1;
-    for (let x = 0; x <= 800; x += CELL) { context.beginPath(); context.moveTo(x, 0); context.lineTo(x, 560); context.stroke(); }
-    for (let y = 0; y <= 560; y += CELL) { context.beginPath(); context.moveTo(0, y); context.lineTo(800, y); context.stroke(); }
-    if (this.apple) { context.fillStyle = "#fb7185"; context.beginPath(); context.arc(this.apple.x * CELL + 10, this.apple.y * CELL + 10, 8, 0, Math.PI * 2); context.fill(); }
-    this.snake.forEach((part, index) => { context.fillStyle = index === 0 ? "#22d3ee" : "#0e7490"; context.fillRect(part.x * CELL + 2, part.y * CELL + 2, CELL - 4, CELL - 4); });
-    drawText(context, this.side === "apples" ? "Click anywhere to place the next apple" : "Arrow keys / WASD to steer", 16, 28, 14, "#cbd5e1");
+    for (let x = 0; x <= this.cols; x += 1) { context.beginPath(); context.moveTo(x * cellWidth, 0); context.lineTo(x * cellWidth, 560); context.stroke(); }
+    for (let y = 0; y <= this.rows; y += 1) { context.beginPath(); context.moveTo(0, y * cellHeight); context.lineTo(800, y * cellHeight); context.stroke(); }
+    if (this.apple) { context.fillStyle = "#fb7185"; context.beginPath(); context.arc(this.apple.x * cellWidth + cellWidth / 2, this.apple.y * cellHeight + cellHeight / 2, Math.min(cellWidth, cellHeight) * 0.38, 0, Math.PI * 2); context.fill(); }
+    this.snake.forEach((part, index) => { context.fillStyle = index === 0 ? "#22d3ee" : "#0e7490"; context.fillRect(part.x * cellWidth + 2, part.y * cellHeight + 2, cellWidth - 4, cellHeight - 4); });
+    drawText(context, this.gameOver ? "Game over — press New round" : this.side === "apples" ? "Click to place apples · computer steers" : "Hold the mouse to steer · arrow keys also work", 16, 28, 14, "#cbd5e1");
+    drawText(context, `${this.cols} × ${this.rows} board · ${this.wrap ? "walls wrap" : "walls end the round"} · starts at ${this.startingLength}`, 16, 542, 12, "#64748b");
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "The snake grows a little faster each apple." }; }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "The computer makes every move from the same collision rules you do." }; }
 }
