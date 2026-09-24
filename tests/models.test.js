@@ -641,6 +641,35 @@ test("Asteroids mouse movement swivels and click or hold fires", () => {
   assert.equal(game.model.bullets.length, 2);
 });
 
+test("Asteroids drag trajectory persists and click placement is randomized", () => {
+  const game = new AsteroidsModel();
+  game.setSide("rocks");
+  game.reset();
+  game.asteroids = [];
+  game.computerShotClock = 99;
+  game.update(1 / 60, { pointer: { x: 100, y: 100, down: true, released: false, dragDistance: 20, dragDeltaX: 10, dragDeltaY: 20 } });
+  assert.equal(game.asteroids.length, 1);
+  game.update(1 / 60, { pointer: { x: 120, y: 120, down: false, released: true, dragDistance: 20, dragDeltaX: 0, dragDeltaY: 0 } });
+  assert.equal(game.asteroids.length, 1);
+  assert.ok(game.asteroids[0].vx > 0);
+  assert.ok(game.asteroids[0].vy > 0);
+});
+
+test("Asteroids versus gives both pilots scores and lives", () => {
+  const game = new AsteroidsModel();
+  game.setSide("versus");
+  game.reset();
+  game.computerShotClock = 99;
+  game.bullets = [{ x: game.computerShip.x, y: game.computerShip.y, vx: 0, vy: 0, life: 1, owner: "human" }];
+  game.update(0, { pointer: null, fire: false });
+  assert.equal(game.playerLives.computer, 2);
+  assert.equal(game.scores.human, 110);
+  game.bullets = [{ x: game.ship.x, y: game.ship.y, vx: 0, vy: 0, life: 1, owner: "computer" }];
+  game.update(0, { pointer: null, fire: false });
+  assert.equal(game.playerLives.human, 2);
+  assert.equal(game.lifeLost, true);
+});
+
 test("Missile Command: aiming, launching, interception, targeting, and base loss", () => {
   const game = new MissileModel();
   game.reset();

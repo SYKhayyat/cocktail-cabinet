@@ -53,7 +53,7 @@ const sideOptions = {
   snake: [["snake", "You vs computer — steer the snake"], ["apples", "Computer vs you — place apples"]],
   breakout: [["bottom", "You vs computer — bottom paddle"], ["blocks", "Computer vs you — drag the blocks"], ["versus", "You vs computer — central brick duel"]],
   splat: [["builder", "You vs computer — place columns"], ["race", "You vs computer — two-ball race"], ["layout", "Computer vs you — place columns"]],
-  asteroids: [["ship", "You vs computer — fly the ship"], ["rocks", "Computer vs you — send asteroids"]],
+  asteroids: [["ship", "You vs computer — fly the ship"], ["versus", "You vs computer — both ships"], ["rocks", "Computer vs you — send asteroids"]],
   missile: [["defender", "You vs computer — defend cities"], ["attacker", "Computer vs you — attack cities"]],
   imitation: [["ai", "Chat with the local AI"], ["human", "Chat with a second tab"]],
   starfall: [["runner", "You vs computer — guide the runner"], ["stars", "Computer vs you — send stars"]]
