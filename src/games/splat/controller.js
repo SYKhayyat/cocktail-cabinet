@@ -13,5 +13,5 @@ export class SplatController {
       placeColumnX: input.pointer.clicked ? input.pointer.x : undefined,
     });
   }
-  handleReadyInput(input) { this.model.handleBuilderInput(input); }
+  handleReadyInput(input) { if (this.model.side === "builder" || this.model.side === "layout") this.model.handleBuilderInput(input); }
 }

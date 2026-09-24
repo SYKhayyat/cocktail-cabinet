@@ -394,6 +394,9 @@ test("Splat defaults to the human-controlled run", () => {
   const startX = game.model.player.x;
   game.update(0.1, input());
   assert.ok(game.model.player.x > startX);
+  const columnCount = game.model.columns.length;
+  game.handleReadyInput({ pointer: pointer({ x: 500, y: 200, released: true, dragDistance: 0 }) });
+  assert.equal(game.model.columns.length, columnCount);
 });
 
 test("Splat: automatic rightward motion, gaps, scoring, and collisions", () => {
