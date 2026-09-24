@@ -73,9 +73,10 @@ export class SnakeGame {
       if (input.pressed.has("ArrowLeft") || input.pressed.has("a")) this.nextDirection = { x: -1, y: 0 };
       if (input.pressed.has("ArrowRight") || input.pressed.has("d")) this.nextDirection = { x: 1, y: 0 };
       if (input.pointer.down) this.steerToward(input.pointer.x, input.pointer.y);
-    } else if (this.aiClock >= interval) this.chooseDirection();
-    if (this.nextDirection.x + this.direction.x !== 0 || this.nextDirection.y + this.direction.y !== 0) this.direction = this.nextDirection;
+    }
     this.aiClock += dt;
+    if (this.side !== "snake" && this.aiClock >= interval) this.chooseDirection();
+    if (this.nextDirection.x + this.direction.x !== 0 || this.nextDirection.y + this.direction.y !== 0) this.direction = this.nextDirection;
     if (this.aiClock < interval) return;
     this.aiClock = 0;
     const head = this.snake[0];
@@ -106,11 +107,12 @@ export class SnakeGame {
     if (!apple) return;
     const choices = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }].filter((direction) => !(direction.x + this.direction.x === 0 && direction.y + this.direction.y === 0));
     choices.sort((a, b) => this.routeScore(head, a, apple) - this.routeScore(head, b, apple));
-    if (this.aiErrorSteps <= 0) {
-      this.aiErrorSteps = 3 + Math.floor(Math.random() * 5);
-      this.nextDirection = choices[Math.min(1, choices.length - 1)];
-    } else {
+    const current = choices.find((direction) => direction.x === this.direction.x && direction.y === this.direction.y);
+    if (this.aiErrorSteps > 0 && current && this.routeScore(head, current, apple) < 1000) {
       this.aiErrorSteps -= 1;
+      this.nextDirection = current;
+    } else {
+      this.aiErrorSteps = 2 + Math.floor(Math.random() * 3);
       this.nextDirection = choices[0];
     }
   }

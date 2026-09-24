@@ -33,6 +33,15 @@ test("Snake creates a playable state and grows when it reaches an apple", () => 
   assert.equal(game.score, 1);
 });
 
+test("Snake computer follows apples with a short reaction delay", () => {
+  const game = new SnakeGame();
+  game.setSide("apples");
+  game.reset();
+  const input = { keys: new Set(), pressed: new Set(), pointer: { clicked: false, down: false } };
+  for (let index = 0; index < 3000; index += 1) game.update(0.05, input);
+  assert.ok(game.score > 0);
+});
+
 test("Breakout keeps the ball inside the screen after a step", () => {
   const game = new BreakoutGame();
   game.reset();

@@ -70,13 +70,27 @@ function renderChat(game) {
 }
 
 function readSnakeSettings() {
-  return { cols: Number(snakeCols.value), rows: Number(snakeRows.value), startingLength: Number(snakeLength.value), wrap: snakeWrap.checked };
+  const cols = Number(snakeCols.value);
+  const rows = Number(snakeRows.value);
+  const startingLength = Number(snakeLength.value);
+  if (!Number.isInteger(cols) || cols < 10 || cols > 60 || !Number.isInteger(rows) || rows < 8 || rows > 44 || !Number.isInteger(startingLength) || startingLength < 3 || startingLength > 12 || startingLength >= Math.min(cols, rows)) return null;
+  return { cols, rows, startingLength, wrap: snakeWrap.checked };
 }
 
 function applySnakeSettings() {
   if (activeId !== "snake") return;
-  games.get("snake").setSettings(readSnakeSettings());
-  status.textContent = "Settings saved for the next game.";
+  const settings = readSnakeSettings();
+  if (!settings) {
+    message.textContent = "Use whole numbers: columns 10–60, rows 8–44, and start length 3–12, smaller than both board dimensions.";
+    return;
+  }
+  const game = games.get("snake");
+  game.setSettings(settings);
+  if (engine.ready) {
+    game.applyPendingSettings();
+    game.reset();
+    message.textContent = "Preview updated. Press New game when ready.";
+  } else message.textContent = "Settings saved for the next game.";
 }
 
 let activeId = "snake";

@@ -91,7 +91,7 @@ export class GameEngine {
 
   setLives(value) {
     this.maxLives = Math.max(1, Math.min(9, Number(value) || 3));
-    if (!this.running || this.ready || !this.game) this.lives = this.maxLives;
+    if (!this.game) this.lives = this.maxLives;
     this.onLives?.(this.lives, this.maxLives);
   }
 

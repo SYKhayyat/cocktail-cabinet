@@ -25,3 +25,9 @@
 - **Requested:** Make Snake settings use separate X/Y selectors, queue changes until the next game, show score/lives below the board, require New game before starting, pause after a lost life, and make the computer opponent imperfect.
 - **Produced:** Separate columns/rows selectors, queued settings, X/Y life display, READY/PAUSE/LIFE LOST overlays, queued lives, a speed ramp per apple, and occasional safe-but-imperfect computer decisions.
 - **Verification:** Five tests pass, all JavaScript syntax checks pass, and the headless browser shows the READY state and settings panel before New game is pressed.
+
+## Snake numeric settings pass
+
+- **Requested:** Use numeric columns/rows/length inputs with validation, preview settings before starting, make the computer competent but slightly delayed, fit the board on screen, place score/lives opposite each other, and queue lives/settings for the next game.
+- **Produced:** Validated number inputs, READY preview updates, queued mid-round settings, `lives x/y`, a fit-to-viewport board, and a delayed-but-competent computer path.
+- **Verification:** Six tests pass, including a computer-apple acquisition test; all JavaScript syntax checks pass; the headless browser renders the updated READY screen.
