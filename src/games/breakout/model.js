@@ -102,10 +102,13 @@ export class BreakoutModel {
     this.human.targetX = input.mode === "keyboard" || keyDirection ? this.human.x + keyDirection * this.human.speed * dt : input.pointer.moved ? pointerTarget : this.human.x;
     this.human.targetX = clamp(this.human.targetX, 8, 792 - this.human.width);
     this.human.x = moveToward(this.human.x, this.human.targetX, 720 * dt);
-    const computerBall = this.balls.find((ball) => ball.owner === "computer");
-    if (computerBall) {
-      const timeToPaddle = computerBall.vy < 0 ? Math.max(0, (computerBall.y - (this.computer.y + this.computer.height)) / -computerBall.vy) : 0;
-      const targetX = timeToPaddle > 0 ? predictBallX(computerBall, timeToPaddle) : computerBall.x;
+    const incomingBalls = this.balls
+      .filter((ball) => ball.vy < 0 && ball.y > this.computer.y + this.computer.height)
+      .map((ball) => ({ ball, timeToPaddle: (ball.y - (this.computer.y + this.computer.height)) / -ball.vy }))
+      .sort((left, right) => left.timeToPaddle - right.timeToPaddle);
+    const incoming = incomingBalls[0];
+    if (incoming) {
+      const targetX = predictBallX(incoming.ball, incoming.timeToPaddle);
       this.computer.targetX = clamp(targetX - this.computer.width / 2, 8, 792 - this.computer.width);
       this.computer.x = moveToward(this.computer.x, this.computer.targetX, 480 * dt);
     }
