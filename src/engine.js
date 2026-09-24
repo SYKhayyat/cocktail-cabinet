@@ -18,8 +18,9 @@ export class GameEngine {
     this.input = {
       keys: new Set(),
       pressed: new Set(),
-      pointer: { x: 0, y: 0, down: false, clicked: false, moved: false },
-      mode: "keyboard"
+      pointer: { x: 0, y: 0, down: false, clicked: false, moved: false, released: false, dragStartX: 0, dragStartY: 0, lastX: 0, lastY: 0, dragDeltaX: 0, dragDistance: 0 },
+      mode: "keyboard",
+      scrollDeltaX: 0
     };
 
     this.handleKeyDown = (event) => {
@@ -37,20 +38,42 @@ export class GameEngine {
       this.input.mode = "mouse";
       this.input.pointer.moved = true;
       const bounds = this.canvas.getBoundingClientRect();
+      const previousX = this.input.pointer.x;
       this.input.pointer.x = (event.clientX - bounds.left) * this.canvas.width / bounds.width;
       this.input.pointer.y = (event.clientY - bounds.top) * this.canvas.height / bounds.height;
+      this.input.pointer.lastX = this.input.pointer.x;
+      this.input.pointer.lastY = this.input.pointer.y;
+      if (this.input.pointer.down) {
+        this.input.pointer.dragDeltaX += this.input.pointer.x - previousX;
+        this.input.pointer.dragDistance += Math.abs(this.input.pointer.x - previousX);
+      }
     };
     this.handlePointerDown = (event) => {
       this.handlePointerMove(event);
       this.input.pointer.down = true;
       this.input.pointer.clicked = true;
+      this.input.pointer.released = false;
+      this.input.pointer.dragStartX = this.input.pointer.x;
+      this.input.pointer.dragStartY = this.input.pointer.y;
+      this.input.pointer.lastX = this.input.pointer.x;
+      this.input.pointer.lastY = this.input.pointer.y;
+      this.input.pointer.dragDeltaX = 0;
+      this.input.pointer.dragDistance = 0;
     };
-    this.handlePointerUp = () => { this.input.pointer.down = false; };
+    this.handlePointerUp = (event) => {
+      if (event) this.handlePointerMove(event);
+      this.input.pointer.down = false;
+      this.input.pointer.released = true;
+    };
+    this.handleWheel = (event) => {
+      this.input.scrollDeltaX += Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    };
 
     window.addEventListener("keydown", this.handleKeyDown);
     window.addEventListener("keyup", this.handleKeyUp);
     canvas.addEventListener("pointermove", this.handlePointerMove);
     canvas.addEventListener("pointerdown", this.handlePointerDown);
+    canvas.addEventListener("wheel", this.handleWheel, { passive: true });
     window.addEventListener("pointerup", this.handlePointerUp);
   }
 
@@ -117,7 +140,7 @@ export class GameEngine {
       this.game.update(delta, this.input);
       if (this.game.won) {
         this.stopped = true;
-        this.onMessage?.("You cleared every brick — you win!");
+        this.onMessage?.(this.game.winMessage?.() || "You cleared every brick — you win!");
       } else if (this.game.lifeLost || this.game.gameOver) {
         this.game.lifeLost = false;
         const customLifeLoss = this.game.handleLifeLoss?.();
@@ -151,14 +174,19 @@ export class GameEngine {
     if (this.ready) this.game.handleReadyInput?.(this.input);
     this.game.draw(this.context);
     if (this.ready || this.countdown > 0 || this.stopped) {
-      const heading = this.ready ? "READY" : this.countdown > 0 ? "GET READY" : this.game.won ? "YOU WIN" : this.game.gameOver ? "OUT OF LIVES" : "PAUSED";
-      const instruction = this.ready ? "Press New game to start" : this.countdown > 0 ? `Starting in ${Math.ceil(this.countdown)}…` : this.game.won ? "Press New game to play again" : this.game.gameOver ? "Press New game to try again" : "Press Continue to resume";
+      const winner = this.game.winner;
+      const heading = this.ready ? "READY" : this.countdown > 0 ? "GET READY" : this.game.won ? winner === "computer" ? "COMPUTER WINS" : "YOU WIN" : this.game.gameOver && winner ? winner === "human" ? "YOU WIN" : "COMPUTER WINS" : this.game.gameOver ? "OUT OF LIVES" : "PAUSED";
+      const instruction = this.ready ? "Press New game to start" : this.countdown > 0 ? `Starting in ${Math.ceil(this.countdown)}…` : this.game.won || this.game.gameOver && winner ? "Press New game to play again" : this.game.gameOver ? "Press New game to try again" : "Press Continue to resume";
       drawText(this.context, heading, 400, 275, 24, "#fbbf24", "center");
       drawText(this.context, `Score: ${this.game.score}    Lives: ${this.lives}/${this.maxLives}`, 400, 310, 16, "#f8fafc", "center");
       drawText(this.context, instruction, 400, 340, 14, "#cbd5e1", "center");
     }
     this.input.pressed.clear();
     this.input.pointer.clicked = false;
+    this.input.pointer.released = false;
+    this.input.pointer.dragDeltaX = 0;
+    this.input.pointer.dragDistance = 0;
+    this.input.scrollDeltaX = 0;
     this.input.pointer.moved = false;
     this.onState?.(this.game.publicState());
     this.onScore?.(this.game.score);
@@ -198,6 +226,7 @@ export class GameEngine {
     window.removeEventListener("keyup", this.handleKeyUp);
     this.canvas.removeEventListener("pointermove", this.handlePointerMove);
     this.canvas.removeEventListener("pointerdown", this.handlePointerDown);
+    this.canvas.removeEventListener("wheel", this.handleWheel);
     window.removeEventListener("pointerup", this.handlePointerUp);
   }
 }

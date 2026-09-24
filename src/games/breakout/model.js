@@ -28,6 +28,8 @@ export class BreakoutModel {
     const startingLives = this.engine?.maxLives ?? 3;
     this.playerLives = { human: startingLives, computer: startingLives };
     this.lastLifeLossOwner = null;
+    this.lifeLossOwner = null;
+    this.pendingLifeLossOwners = [];
     this.winner = null;
     this.versusRoundOver = false;
     if (this.side === "versus") {
@@ -56,9 +58,11 @@ export class BreakoutModel {
   }
   resetAfterLife() {
     if (this.side === "versus") {
-      this.human = { x: 350, targetX: 350, y: 520, width: 112, height: 16, speed: 460 };
-      this.computer = { x: 350, targetX: 350, y: 40, width: 112, height: 16 };
-      this.balls = [this.newBall(350, 450, 180, -200, "human"), this.newBall(450, 110, -180, 200, "computer")];
+      const owner = this.lifeLossOwner || "human";
+      const otherBall = this.balls.find((ball) => ball.owner !== owner);
+      const newBall = owner === "computer" ? this.newBall(450, 110, -180, 200, "computer") : this.newBall(350, 450, 180, -200, "human");
+      this.balls = otherBall ? [newBall, otherBall] : [newBall];
+      this.lifeLossOwner = null;
     } else {
       this.human = { x: 350, targetX: 350, y: 520, width: 112, height: 16, speed: 460 };
       this.computer = { x: 350, targetX: 350, y: 520, width: 112, height: 16 };
@@ -81,10 +85,10 @@ export class BreakoutModel {
   }
   createVersusLayout() {
     this.bricks = [];
-    const special = { 3: "extraLife", 7: "shortBar", 10: "double", 14: "speed", 18: "longBar" };
-    for (let row = 0; row < 5; row += 1) for (let column = 0; column < 4; column += 1) {
-      const index = row * 4 + column;
-      this.bricks.push({ x: 302 + column * 50, y: 140 + row * 28, width: 44, height: 20, hits: 1, type: special[index] || "normal", active: true, phaseOffset: special[index] ? (index * 0.73) % 2.4 : 0, period: special[index] ? 1.6 + (index % 4) * 0.65 : 0, owner: null });
+    const special = { 3: "extraLife", 7: "shortBar", 12: "double", 16: "speed", 21: "longBar" };
+    for (let row = 0; row < 5; row += 1) for (let column = 0; column < 5; column += 1) {
+      const index = row * 5 + column;
+      this.bricks.push({ x: 250 + column * 60, y: 140 + row * 28, width: 54, height: 20, hits: 1, type: special[index] || "normal", active: true, phaseOffset: special[index] ? (index * 0.73) % 2.4 : 0, period: special[index] ? 1.6 + (index % 4) * 0.65 : 0, owner: null });
     }
   }
   newBall(x, y, vx, vy, owner = null) { return { x, y, vx, vy, radius: 8, owner, lastPaddle: owner, dead: false }; }
@@ -97,7 +101,9 @@ export class BreakoutModel {
     this.human.x = moveToward(this.human.x, this.human.targetX, 720 * dt);
     const computerBall = this.balls.find((ball) => ball.owner === "computer");
     if (computerBall) {
-      this.computer.targetX = clamp(computerBall.x - this.computer.width / 2, 8, 792 - this.computer.width);
+      const timeToPaddle = computerBall.vy > 0 ? Math.max(0, (this.computer.y - computerBall.y) / computerBall.vy) : 0;
+      const targetX = timeToPaddle > 0 ? predictBallX(computerBall, timeToPaddle) : computerBall.x;
+      this.computer.targetX = clamp(targetX - this.computer.width / 2, 8, 792 - this.computer.width);
       this.computer.x = moveToward(this.computer.x, this.computer.targetX, 480 * dt);
     }
   }
@@ -202,11 +208,14 @@ export class BreakoutModel {
       if (ball.y > 545) {
         ball.dead = true;
         this.paddleMisses += 1;
-        this.lastLifeLossOwner = this.side === "versus" ? (ball.owner || "human") : null;
+        if (this.side === "versus") this.pendingLifeLossOwners.push(ball.owner || "human");
       }
     }
     this.balls = this.balls.filter((ball) => !ball.dead);
-    if (!this.balls.length) this.lifeLost = true;
+    if (this.side === "versus" && this.pendingLifeLossOwners.length) {
+      this.lastLifeLossOwner = this.pendingLifeLossOwners.shift();
+      this.lifeLost = true;
+    } else if (!this.balls.length) this.lifeLost = true;
     if (this.bricks.every((brick) => !brick.hits)) {
       if (this.side === "versus") this.finishVersus();
       else this.won = true;
@@ -262,6 +271,7 @@ export class BreakoutModel {
     if (this.versusRoundOver) return { gameOver: true, message: this.winner ? `${this.winner === "human" ? "You win" : "Computer wins"} the duel.` : "The duel ended in a tie." };
     if (this.side !== "versus") return null;
     const owner = this.lastLifeLossOwner || "human";
+    this.lifeLossOwner = owner;
     this.playerLives[owner] = Math.max(0, this.playerLives[owner] - 1);
     this.lastLifeLossOwner = null;
     if (this.playerLives[owner] === 0) {

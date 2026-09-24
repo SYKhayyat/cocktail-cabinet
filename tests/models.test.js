@@ -164,7 +164,8 @@ test("Breakout versus mode gives each side a paddle, ball, and central bricks", 
   assert.deepEqual(game.balls.map((ball) => ball.owner), ["human", "computer"]);
   assert.equal(game.human.y, 520);
   assert.equal(game.computer.y, 40);
-  assert.ok(game.bricks.every((brick) => brick.x > 250 && brick.x < 550));
+  assert.equal(game.bricks.length, 25);
+  assert.ok(game.bricks.every((brick) => brick.x >= 250 && brick.x <= 550 && brick.width === 54));
 });
 
 test("Breakout versus awards a brick to the paddle that last hit its ball", () => {
@@ -219,6 +220,23 @@ test("Breakout versus charges a miss to the ball owner and ends at zero lives", 
   const result = game.handleLifeLoss();
   assert.equal(result.gameOver, true);
   assert.equal(game.winner, "computer");
+});
+
+test("Breakout versus replaces only the fallen owner's ball", () => {
+  const game = new BreakoutModel();
+  game.setSide("versus");
+  game.reset();
+  const humanBall = game.balls.find((ball) => ball.owner === "human");
+  const computerBall = game.balls.find((ball) => ball.owner === "computer");
+  humanBall.y = 545;
+  humanBall.vy = 300;
+  game.update(0.02, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  assert.equal(game.lifeLost, true);
+  assert.equal(game.handleLifeLoss().gameOver, false);
+  game.resetAfterLife();
+  assert.equal(game.balls.length, 2);
+  assert.ok(game.balls.includes(computerBall));
+  assert.ok(game.balls.some((ball) => ball.owner === "human"));
 });
 
 test("Splat: automatic rightward motion, gaps, scoring, and collisions", () => {
@@ -317,6 +335,36 @@ test("Splat releasing held drift stops the upward velocity", () => {
   assert.equal(game.model.player.y, heldY);
   game.update(0.016, input());
   assert.ok(game.model.player.y > heldY);
+});
+
+test("Splat builder adds columns, draws gaps, and drags columns", () => {
+  const game = new SplatModel();
+  game.setSide("builder");
+  game.reset();
+  const initialCount = game.columns.length;
+  game.update(1 / 60, { pointer: pointer({ x: 500, y: 200, released: true, dragDistance: 0 }) });
+  assert.equal(game.columns.length, initialCount + 1);
+  const added = game.columns.find((column) => column.x === 500);
+  game.setTool("gap");
+  game.update(1 / 60, { pointer: pointer({ x: added.x, y: 260, down: true, dragStartX: added.x, dragStartY: 200 }) });
+  game.update(1 / 60, { pointer: pointer({ x: added.x, y: 350, released: true, dragStartX: added.x, dragStartY: 200 }) });
+  assert.equal(added.gapY, 200);
+  assert.equal(added.gapHeight, 150);
+  game.setTool("column");
+  const oldX = added.x;
+  game.update(1 / 60, { pointer: pointer({ x: oldX + 40, y: 100, down: true, dragStartX: oldX, dragStartY: 100, dragDistance: 40 }) });
+  game.update(1 / 60, { pointer: pointer({ x: oldX + 40, y: 100, released: true, dragStartX: oldX, dragStartY: 100, dragDistance: 40 }) });
+  assert.equal(added.x, oldX + 40);
+});
+
+test("Splat race creates one human and one computer ball", () => {
+  const game = new SplatModel();
+  game.setSide("race");
+  game.reset();
+  assert.ok(game.player);
+  assert.ok(game.computerPlayer);
+  assert.equal(game.player.columnsPassed, 0);
+  assert.equal(game.computerPlayer.columnsPassed, 0);
 });
 
 test("Splat computer can steer through a generated route", () => {

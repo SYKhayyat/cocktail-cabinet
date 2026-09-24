@@ -17,6 +17,8 @@ export class BreakoutGame {
   get computer() { return this.model.computer; }
   get balls() { return this.model.balls; }
   get bricks() { return this.model.bricks; }
+  get playerLives() { return this.model.playerLives; }
+  get winner() { return this.model.winner; }
   get gameOver() { return this.model.gameOver; }
   set gameOver(value) { this.model.gameOver = value; }
   get lifeLost() { return this.model.lifeLost; }
@@ -28,6 +30,8 @@ export class BreakoutGame {
   setSide(side) { this.model.setSide(side); }
   reset(keepScore) { this.model.reset(keepScore); }
   resetAfterLife() { this.model.resetAfterLife(); }
+  handleLifeLoss() { return this.model.handleLifeLoss(); }
+  winMessage() { return this.model.winner === "computer" ? "Computer wins the duel!" : "You win the duel!"; }
   update(dt, input) { this.controller.update(dt, input); }
   handleReadyInput(input) { this.controller.handleReadyInput(input); }
   draw(context) { draw(this.model, context); }

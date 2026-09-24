@@ -31,6 +31,9 @@ const restartButton = document.querySelector("#restartButton");
 const pauseButton = document.querySelector("#pauseButton");
 const continueButton = document.querySelector("#continueButton");
 const gameActions = document.querySelector("#gameActions");
+const splatTools = document.querySelector("#splatTools");
+const splatAddColumn = document.querySelector("#splatAddColumn");
+const splatAddGap = document.querySelector("#splatAddGap");
 const chatPanel = document.querySelector("#chatPanel");
 const chatForm = document.querySelector("#chatForm");
 const chatInput = document.querySelector("#chatInput");
@@ -49,7 +52,7 @@ let lastChatRevision = -1;
 const sideOptions = {
   snake: [["snake", "You vs computer — steer the snake"], ["apples", "Computer vs you — place apples"]],
   breakout: [["bottom", "You vs computer — bottom paddle"], ["blocks", "Computer vs you — drag the blocks"], ["versus", "You vs computer — central brick duel"]],
-  splat: [["climber", "You vs computer — guide the fall"], ["layout", "Computer vs you — place the columns"]],
+  splat: [["builder", "You vs computer — place columns"], ["race", "You vs computer — two-ball race"], ["layout", "Computer vs you — place columns"]],
   asteroids: [["ship", "You vs computer — fly the ship"], ["rocks", "Computer vs you — send asteroids"]],
   missile: [["defender", "You vs computer — defend cities"], ["attacker", "Computer vs you — attack cities"]],
   imitation: [["ai", "Chat with the local AI"], ["human", "Chat with a second tab"]],
@@ -143,9 +146,18 @@ function renderSideOptions(game) {
   sideSelect.value = game.side;
 }
 
+function updateSplatTools() {
+  const game = games.get("splat");
+  const show = activeId === "splat" && ["builder", "layout"].includes(game.side);
+  splatTools.hidden = !show;
+  splatAddColumn.classList.toggle("active", game.tool === "column");
+  splatAddGap.classList.toggle("active", game.tool === "gap");
+}
+
 function loadGame(id) {
   activeId = id;
   const game = games.get(id);
+  if (id === "splat" && game.side === "climber") game.setSide("builder");
   renderCards();
   title.textContent = game.title;
   description.textContent = game.description;
@@ -166,6 +178,7 @@ function loadGame(id) {
   chatPanel.hidden = id !== "imitation";
   lastChatRevision = -1;
   engine.load(game);
+  updateSplatTools();
   restartButton.blur();
 }
 
@@ -191,9 +204,12 @@ const engine = new GameEngine(canvas, {
 sideSelect.addEventListener("change", () => {
   lastChatRevision = -1;
   engine.setSide(sideSelect.value);
+  updateSplatTools();
 });
 [snakeCols, snakeRows, snakeLength, snakeWrap].forEach((control) => control.addEventListener("change", applySnakeSettings));
 splatSpacing.addEventListener("change", applySplatSettings);
+splatAddColumn.addEventListener("click", () => { games.get("splat").setTool("column"); updateSplatTools(); });
+splatAddGap.addEventListener("click", () => { games.get("splat").setTool("gap"); updateSplatTools(); });
 restartButton.addEventListener("click", () => engine.restart());
 pauseButton.addEventListener("click", () => engine.pauseGame());
 continueButton.addEventListener("click", () => engine.continueGame());

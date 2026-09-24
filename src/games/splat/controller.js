@@ -8,6 +8,8 @@ export class SplatController {
     this.model.update(dt, {
       drift,
       bounce,
+      pointer: input.pointer,
+      scrollDeltaX: input.scrollDeltaX || 0,
       placeColumnX: input.pointer.clicked ? input.pointer.x : undefined,
     });
   }

@@ -32,5 +32,5 @@ export function draw(model, context) {
     context.beginPath(); context.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2); context.fill();
   });
   drawText(context, model.side === "versus" ? "Both paddles are live · each ball carries points for the paddle that last hit it" : model.side === "bottom" ? "Move the mouse or use A/D to control the bottom paddle" : "Click a block to cycle its type · drag to rearrange · the computer returns the ball", 16, model.side === "versus" ? 68 : 28, 14, "#cbd5e1");
-  drawText(context, "Green +1 life · Pink 2 balls · Yellow speed · Purple short bar · Orange long bar · Red danger", 16, 542, 12, "#cbd5e1");
+  drawText(context, "Green +1 life · Pink 2 balls · Yellow speed · Purple short bar · Orange long bar · Red danger", 16, 528, 12, "#cbd5e1");
 }
