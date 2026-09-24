@@ -8,14 +8,15 @@ const MAX_COLUMN_SPACING = 240;
 const GAP_HEIGHT = 112;
 const HORIZONTAL_SPEED = 120;
 const GRAVITY = 220;
-const THRUST = 680;
+const DRIFT_SPEED = 260;
+const BOUNCE_SPEED = 700;
 const COMPUTER_MISTAKE_CHANCE = 0.002;
 
 export class SplatModel {
   constructor() {
     this.id = "splat";
     this.title = "Splat";
-    this.description = "The object moves right automatically. Click the upper or lower half of the screen to thrust up or down through the gaps.";
+    this.description = "The object moves right automatically. Hold Up/Down to drift and click the upper or lower half to bounce through the gaps.";
     this.side = "climber";
     this.score = 0;
     this.columnSpacing = DEFAULT_COLUMN_SPACING;
@@ -48,7 +49,7 @@ export class SplatModel {
   update(dt, input) {
     if (this.side === "layout" && input.placeColumnX !== undefined) this.addColumn(input.placeColumnX, this.player.y);
     this.player.vy += GRAVITY * dt;
-    if (this.side === "climber") this.applyPlayerThrust(input, dt); else this.moveComputer(dt);
+    if (this.side === "climber") this.applyPlayerInput(input); else this.moveComputer(dt);
     this.player.x += HORIZONTAL_SPEED * dt;
     this.player.y += this.player.vy * dt;
     this.player.y = clamp(this.player.y, 18, 542);
@@ -80,12 +81,12 @@ export class SplatModel {
     return column;
   }
   horizontalCollision(column) { return this.player.x + this.player.radius > column.x && this.player.x - this.player.radius < column.x + column.width; }
-  applyPlayerThrust(input, dt) {
-    const thrust = input.thrust || 0;
-    if (thrust < 0) this.player.vy = Math.min(this.player.vy - THRUST * dt, -260);
-    if (thrust > 0) this.player.vy = Math.max(this.player.vy + THRUST * dt, 260);
-    if (input.impulse < 0) this.player.vy = Math.min(this.player.vy, -420);
-    if (input.impulse > 0) this.player.vy = Math.max(this.player.vy, 260);
+  applyPlayerInput(input) {
+    const drift = input.drift || 0;
+    if (drift < 0) this.player.vy = Math.min(this.player.vy, -DRIFT_SPEED);
+    if (drift > 0) this.player.vy = Math.max(this.player.vy, DRIFT_SPEED);
+    if (input.bounce < 0) this.player.vy = Math.min(this.player.vy, -BOUNCE_SPEED);
+    if (input.bounce > 0) this.player.vy = Math.max(this.player.vy, BOUNCE_SPEED);
   }
   moveComputer(dt) {
     const column = this.columns.find((candidate) => !candidate.passed && candidate.x > this.player.x);

@@ -12,7 +12,7 @@ export function draw(model, context) {
   const playerX = model.player.x - model.cameraX;
   context.fillStyle = model.side === "climber" ? "#fbbf24" : "#fb7185";
   context.beginPath(); context.arc(playerX, model.player.y, model.player.radius, 0, Math.PI * 2); context.fill();
-  drawText(context, model.side === "climber" ? "Click the upper half to thrust up · click the lower half to thrust down" : "Click to place a column gap · the computer steers through the route", 16, 28, 14, "#cbd5e1");
+  drawText(context, model.side === "climber" ? "Hold Up/Down to drift · click the upper/lower half to bounce" : "Click to place a column gap · the computer steers through the route", 16, 28, 14, "#cbd5e1");
   context.fillStyle = "#111827";
   context.fillRect(270, 492, 260, 38);
   context.strokeStyle = "#334155";

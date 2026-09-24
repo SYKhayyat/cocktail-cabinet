@@ -272,15 +272,18 @@ test("Splat keeps furthest columns through life loss and clears them on new game
   assert.equal(game.furthestColumns, 0);
 });
 
-test("Splat up input reverses downward motion and click-up adds an impulse", () => {
+test("Splat held up input reverses downward motion and click-up adds a bounce", () => {
   const game = new SplatGame();
   game.reset();
   game.model.player.vy = 260;
   game.update(0.016, input({ keys: new Set(["ArrowUp"]) }));
   assert.ok(game.model.player.vy < 0);
+  game.model.player.vy = -260;
+  game.update(0.1, input({ keys: new Set(["ArrowUp"]) }));
+  assert.equal(game.model.player.vy, -260);
   game.model.player.vy = -300;
   game.update(0.016, input({ pointer: pointer({ clicked: true, y: 100 }) }));
-  assert.equal(game.model.player.vy, -420);
+  assert.equal(game.model.player.vy, -700);
   game.model.player.vy = -260;
   game.update(0.016, input({ keys: new Set(["ArrowDown"]) }));
   assert.ok(game.model.player.vy > 0);
