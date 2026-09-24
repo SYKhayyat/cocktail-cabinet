@@ -32,7 +32,11 @@
 - **Produced:** Validated number inputs, READY preview updates, queued mid-round settings, `lives x/y`, a fit-to-viewport board, and a delayed-but-competent computer path.
 - **Verification:** Six tests pass, including a computer-apple acquisition test; all JavaScript syntax checks pass; the headless browser renders the updated READY screen.
 
-## Snake countdown and pointer pass
+## Snake imperfect-opponent pass
+
+- **Requested:** Make the computer Snake good but not perfect, allowing occasional wall and body collisions.
+- **Produced:** The AI keeps delayed route planning but has a small chance of choosing a legal-but-dangerous direction on recalculation.
+- **Verification:** Six tests pass; a 20-run simulation confirms the computer reaches apples and can eventually lose.
 
 - **Requested:** Add a countdown after New game, Continue, and life loss; make invalid-size feedback persistent; centralize grid/pointer coordinates so clicked apples land exactly where clicked.
 - **Produced:** A three-second GET READY countdown, a non-letterboxed board mapping, shared Snake cell conversion helpers, and stronger numeric validation feedback.

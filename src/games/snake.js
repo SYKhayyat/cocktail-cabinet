@@ -126,7 +126,7 @@ export class SnakeGame {
       this.nextDirection = current;
     } else {
       this.aiErrorSteps = 2 + Math.floor(Math.random() * 3);
-      this.nextDirection = choices[0];
+      this.nextDirection = Math.random() < 0.2 ? choices[Math.floor(Math.random() * choices.length)] : choices[0];
     }
   }
   routeScore(head, direction, apple) {
