@@ -17,15 +17,16 @@ export class ImitationGame {
 
   sideLabel() { return this.side === "ai" ? "Chat with the AI companion" : "Chat with a second tab"; }
   setSide(side) { this.side = side; }
-  reset() {
+  reset(keepScore = false) {
     this.closeChannel();
-    this.score = 0;
+    if (!keepScore) this.score = 0;
     this.chatLog = [];
     this.phase = this.side === "ai" ? "ai" : "searching";
     this.matchmaking = 2.5;
     this.peerId = null;
     this.aiClock = 0;
     this.aiReady = false;
+    this.aiUnavailable = false;
     this.lastModelStatus = "";
     this.addMessage("System", this.side === "ai" ? "AI companion ready. Say hello when you are ready." : "Looking for another tab…");
     if (this.side === "human") this.connectChannel();
@@ -64,14 +65,9 @@ export class ImitationGame {
     else void this.askAi(clean);
   }
   async askAi(text) {
+    if (this.aiUnavailable) return;
     try {
-      if (!this.aiReady) this.addMessage("System", "Getting the conversation ready…");
-      const engine = await loadLocalModel((report) => {
-        if (report?.text && report.text !== this.lastModelStatus) {
-          this.lastModelStatus = report.text;
-          this.addMessage("System", `Model: ${report.text}`);
-        }
-      });
+      const engine = await loadLocalModel();
       this.aiReady = true;
       const reply = await engine.chat.completions.create({
         messages: [
@@ -86,8 +82,8 @@ export class ImitationGame {
       if (response) this.addMessage("AI", response);
       else this.addMessage("System", "The AI returned no response. Try again.");
     } catch {
-      await wait(800 + Math.random() * 900);
-      this.addMessage("System", "The AI companion could not start in this browser. Try a current desktop Chrome or Edge.");
+      this.aiUnavailable = true;
+      this.addMessage("System", "The AI companion is unavailable in this browser.");
     }
   }
   update(dt) {

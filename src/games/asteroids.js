@@ -10,8 +10,8 @@ export class AsteroidsGame {
   }
   sideLabel() { return this.side === "ship" ? "You fly the ship" : "You send the asteroids"; }
   setSide(side) { this.side = side; }
-  reset() {
-    this.score = 0;
+  reset(keepScore = false) {
+    if (!keepScore) this.score = 0;
     this.ship = { x: 400, y: 280, angle: -Math.PI / 2, speed: 0, radius: 13 };
     this.asteroids = []; this.bullets = []; this.spawnClock = 1.2; this.shotClock = 0; this.invulnerable = 1;
     for (let index = 0; index < 3; index += 1) this.spawnAsteroid();
@@ -28,8 +28,12 @@ export class AsteroidsGame {
     const turn = (input.keys.has("ArrowRight") || input.keys.has("d") ? 1 : 0) - (input.keys.has("ArrowLeft") || input.keys.has("a") ? 1 : 0);
     const thrust = input.keys.has("ArrowUp") || input.keys.has("w") ? 1 : 0;
     if (input.pointer.down) {
-      this.ship.angle = Math.atan2(input.pointer.y - this.ship.y, input.pointer.x - this.ship.x);
-      this.ship.speed = Math.min(this.ship.speed + 170 * dt, 220);
+      const dx = input.pointer.x - this.ship.x;
+      const dy = input.pointer.y - this.ship.y;
+      if (Math.hypot(dx, dy) > 24) {
+        this.ship.angle = Math.atan2(dy, dx);
+        this.ship.speed = Math.min(this.ship.speed + 170 * dt, 220);
+      } else this.ship.speed *= Math.pow(0.9, dt * 60);
     } else {
       this.ship.angle += turn * 3.2 * dt;
       this.ship.speed += thrust * 190 * dt;
@@ -59,7 +63,7 @@ export class AsteroidsGame {
     for (const bullet of this.bullets) for (const asteroid of this.asteroids) if (asteroid.radius && circleHitsCircle(bullet.x, bullet.y, 3, asteroid.x, asteroid.y, asteroid.radius)) { asteroid.radius = 0; bullet.life = 0; this.score += 10; }
     this.asteroids = this.asteroids.filter((asteroid) => asteroid.radius); this.bullets = this.bullets.filter((bullet) => bullet.life > 0);
     if (this.asteroids.length === 0) this.spawnAsteroid();
-    if (this.invulnerable === 0 && this.asteroids.some((asteroid) => circleHitsCircle(this.ship.x, this.ship.y, this.ship.radius, asteroid.x, asteroid.y, asteroid.radius))) { this.score = Math.max(0, this.score - 25); this.invulnerable = 1.5; this.ship.x = 400; this.ship.y = 280; }
+    if (this.invulnerable === 0 && this.asteroids.some((asteroid) => circleHitsCircle(this.ship.x, this.ship.y, this.ship.radius, asteroid.x, asteroid.y, asteroid.radius))) { this.lifeLost = true; }
   }
   spawnAsteroidAt(x, y) { this.asteroids.push({ x: clamp(x, 10, 790), y: clamp(y, 10, 550), vx: (Math.random() - 0.5) * 90, vy: (Math.random() - 0.5) * 90, radius: 20 + Math.random() * 10, rotation: 0, spin: (Math.random() - 0.5) * 1.8, shape: Array.from({ length: 9 }, () => 0.72 + Math.random() * 0.35), tone: Math.random() }); }
   draw(context) {

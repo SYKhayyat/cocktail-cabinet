@@ -10,17 +10,15 @@ export class StarfallGame {
   }
   sideLabel() { return this.side === "runner" ? "You guide the runner" : "You send the stars"; }
   setSide(side) { this.side = side; }
-  reset() {
-    this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3;
+  reset(keepScore = false) {
+    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3;
     for (let index = 0; index < 3; index += 1) this.gems.push({ x: 100 + index * 300, y: 80 + Math.random() * 120, collected: false });
   }
   update(dt, input) {
     if (this.side === "runner") {
-      if (input.pointer.x > 0) this.runner.x += clamp(input.pointer.x - this.runner.x, -1, 1) * 260 * dt;
-      else {
-        const direction = (input.keys.has("ArrowRight") || input.keys.has("d") ? 1 : 0) - (input.keys.has("ArrowLeft") || input.keys.has("a") ? 1 : 0);
-        this.runner.x += direction * 240 * dt;
-      }
+      const direction = (input.keys.has("ArrowRight") || input.keys.has("d") ? 1 : 0) - (input.keys.has("ArrowLeft") || input.keys.has("a") ? 1 : 0);
+      if (direction) this.runner.x += direction * 240 * dt;
+      else if (input.pointer.x > 0) this.runner.x += clamp(input.pointer.x - this.runner.x, -1, 1) * 260 * dt;
       this.runner.x = clamp(this.runner.x, 20, 780);
     } else {
       if (input.pointer.clicked && this.stars.length < 12) this.stars.push({ x: input.pointer.x, y: 20, vy: 130 + this.score * 2, radius: 10 });
@@ -32,7 +30,7 @@ export class StarfallGame {
     }
     for (const star of this.stars) star.y += star.vy * dt;
     for (const gem of this.gems) if (!gem.collected && circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, gem.x, gem.y, 10)) { gem.collected = true; this.score += 50; gem.x = 20 + Math.random() * 760; gem.y = 80 + Math.random() * 180; }
-    for (const star of this.stars) if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, star.x, star.y, star.radius)) { star.dead = true; this.score = Math.max(0, this.score - 15); }
+    for (const star of this.stars) if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, star.x, star.y, star.radius)) { star.dead = true; this.lifeLost = true; }
     this.stars = this.stars.filter((star) => !star.dead && star.y < 560);
   }
   aiRunner(dt) {

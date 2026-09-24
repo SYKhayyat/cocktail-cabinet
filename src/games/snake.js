@@ -29,8 +29,8 @@ export class SnakeGame {
   }
   cellWidth() { return 800 / this.cols; }
   cellHeight() { return 560 / this.rows; }
-  reset() {
-    this.score = 0;
+  reset(keepScore = false) {
+    if (!keepScore) this.score = 0;
     this.gameOver = false;
     const startX = Math.floor(this.cols / 2);
     const startY = Math.floor(this.rows / 2);

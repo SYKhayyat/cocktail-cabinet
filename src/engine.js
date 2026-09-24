@@ -1,12 +1,16 @@
 export class GameEngine {
-  constructor(canvas, { onState, onScore, onMessage } = {}) {
+  constructor(canvas, { onState, onScore, onMessage, onLives } = {}) {
     this.canvas = canvas;
     this.context = canvas.getContext("2d");
     this.onState = onState;
     this.onScore = onScore;
     this.onMessage = onMessage;
+    this.onLives = onLives;
     this.game = null;
     this.running = false;
+    this.stopped = false;
+    this.lives = 3;
+    this.maxLives = 3;
     this.lastTime = 0;
     this.animationFrame = 0;
     this.input = {
@@ -48,6 +52,8 @@ export class GameEngine {
     this.stop();
     this.game = game;
     game.engine = this;
+    this.stopped = false;
+    this.lives = this.maxLives;
     game.reset();
     this.onState?.(game.publicState());
     this.running = true;
@@ -57,15 +63,44 @@ export class GameEngine {
 
   stop() {
     this.running = false;
+    this.stopped = true;
     cancelAnimationFrame(this.animationFrame);
+  }
+
+  stopGame() {
+    this.stopped = true;
+    this.onMessage?.("Game stopped — press New round to play again.");
+  }
+
+  setLives(value) {
+    this.maxLives = Math.max(1, Math.min(9, Number(value) || 3));
+    this.lives = this.maxLives;
+    this.onLives?.(this.lives, this.maxLives);
   }
 
   frame(time) {
     if (!this.running) return;
     const delta = Math.min((time - this.lastTime) / 1000, 0.05);
     this.lastTime = time;
-    this.game.update(delta, this.input);
+    if (!this.stopped) {
+      this.game.update(delta, this.input);
+      if (this.game.lifeLost || this.game.gameOver) {
+        this.game.lifeLost = false;
+        this.lives -= 1;
+        this.onLives?.(this.lives, this.maxLives);
+        if (this.lives > 0) this.game.reset(true);
+        else {
+          this.game.gameOver = true;
+          this.stopped = true;
+          this.onMessage?.("Out of lives — press New round to try again.");
+        }
+      }
+    }
     this.game.draw(this.context);
+    if (this.stopped) {
+      drawText(this.context, this.game.gameOver ? "OUT OF LIVES" : "PAUSED", 400, 285, 24, "#fbbf24", "center");
+      drawText(this.context, "Press New round to play again", 400, 315, 14, "#cbd5e1", "center");
+    }
     this.input.pressed.clear();
     this.input.pointer.clicked = false;
     this.onState?.(this.game.publicState());
@@ -75,13 +110,23 @@ export class GameEngine {
 
   restart() {
     if (!this.game) return;
+    this.stopped = false;
+    this.lives = this.maxLives;
+    this.game.gameOver = false;
+    this.game.lifeLost = false;
     this.game.reset();
+    this.onLives?.(this.lives, this.maxLives);
     this.onMessage?.("Fresh round — good luck!");
   }
 
   setSide(side) {
     this.game?.setSide(side);
+    this.stopped = false;
+    this.lives = this.maxLives;
+    this.game.gameOver = false;
+    this.game.lifeLost = false;
     this.game?.reset();
+    this.onLives?.(this.lives, this.maxLives);
     this.onMessage?.(`${this.game.title}: ${this.game.sideLabel()}`);
   }
 

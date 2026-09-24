@@ -41,6 +41,11 @@ Imitation uses `BroadcastChannel` for a two-tab first draft. It waits through a 
 - Imitation uses one visible chat transcript, supports two tabs on one computer, and sends AI replies after a human-like delay. Its local model fallback never exposes WebGPU or model errors as a user-facing feature.
 - Chat typing keeps spaces and Enter/Submit behavior independent from arcade keyboard controls.
 
-## Deployment
+## Deployment and CI
 
-Netlify should publish the repository root as a static site. The public GitHub remote is configured at `https://github.com/SYKhayyat/cocktail-cabinet`. The custom domain to configure in Netlify is `siachshai.online`.
+Each of the three GitHub repositories has a push workflow that runs verification where applicable and deploys the static site to its matching Netlify site. Netlify credentials and site IDs are stored as GitHub Actions secrets, never in source files.
+
+- `cocktail-cabinet` → `games.siachshai.online`
+- `siach-quiz` → `quiz.siachshai.online`
+- `siach-portal` → `siachshai.online`
+

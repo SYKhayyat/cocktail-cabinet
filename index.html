@@ -25,8 +25,8 @@
         <div id="gameCards"></div>
         <section class="how-to-play">
           <h2>How to play</h2>
-          <p>Use the arrow keys or WASD. Click the board when a game asks you to place or aim. Every game has a machine opponent and a fair difficulty ramp.</p>
-          <p class="shortcut"><kbd>Space</kbd> launch / restart action</p>
+          <p>Use the mouse for most games, or use the arrow keys/WASD. Each arcade game has configurable lives, a live score, and a Stop button.</p>
+          <p class="shortcut"><kbd>Space</kbd> launch / fire · <kbd>Enter</kbd> send chat</p>
         </section>
       </aside>
 
@@ -41,12 +41,18 @@
             <span>Score</span>
             <strong id="score">0</strong>
           </div>
+          <div class="score-box lives-box">
+            <span>Lives</span>
+            <strong id="lives">3</strong>
+          </div>
         </div>
 
         <div class="controls-row">
           <label for="sideSelect">You control</label>
           <select id="sideSelect"></select>
+          <label class="lives-control" for="livesInput">Lives <input id="livesInput" type="number" min="1" max="9" value="3" /></label>
           <button id="restartButton" type="button">New round</button>
+          <button id="stopButton" type="button">Stop</button>
           <span id="message" class="message"></span>
         </div>
 
@@ -57,10 +63,6 @@
           <label class="checkbox-label"><input id="snakeWrap" type="checkbox" /> Wrap through walls</label>
         </div>
 
-        <div class="screen-frame">
-          <canvas id="gameCanvas" width="800" height="560" aria-label="Arcade game board"></canvas>
-        </div>
-
         <div id="chatPanel" class="chat-panel" hidden>
           <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
           <form id="chatForm" class="chat-form">
@@ -68,6 +70,10 @@
             <input id="chatInput" autocomplete="off" maxlength="240" placeholder="Type a message · Enter to send" />
             <button type="submit">Send</button>
           </form>
+        </div>
+
+        <div class="screen-frame">
+          <canvas id="gameCanvas" width="800" height="560" aria-label="Arcade game board"></canvas>
         </div>
 
         <div class="machine-footer">

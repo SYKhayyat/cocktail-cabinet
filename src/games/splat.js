@@ -10,8 +10,8 @@ export class SplatGame {
   }
   sideLabel() { return this.side === "climber" ? "You climb the columns" : "You lay out the columns"; }
   setSide(side) { this.side = side; }
-  reset() {
-    this.score = 0;
+  reset(keepScore = false) {
+    if (!keepScore) this.score = 0;
     this.climber = { x: 40, y: 500, width: 24, height: 32, vy: 0 };
     this.platforms = [{ x: 0, y: 520, width: 800, height: 40, color: "#334155" }];
     this.targetY = 470;
@@ -38,17 +38,16 @@ export class SplatGame {
       }
     }
     if (this.climber.y < 25) this.score += 100;
-    if (this.climber.y > 560) { this.reset(); this.score = 0; }
+    if (this.climber.y > 560) { this.lifeLost = true; return; }
     if (this.side === "climber" && this.platforms.length < 8 && this.climber.y < this.targetY + 120) this.aiClock += dt;
     if (this.side === "climber" && this.aiClock > 1.1) { this.aiClock = 0; this.addPlatform(this.nextX); }
   }
   moveClimber(input, dt) {
-    if (input.pointer.x > 0) {
+    const direction = (input.keys.has("ArrowRight") || input.keys.has("d") ? 1 : 0) - (input.keys.has("ArrowLeft") || input.keys.has("a") ? 1 : 0);
+    if (direction) this.climber.x += direction * 220 * dt;
+    else if (input.pointer.x > 0) {
       const target = input.pointer.x - this.climber.width / 2;
       this.climber.x += clamp(target - this.climber.x, -1, 1) * 220 * dt;
-    } else {
-      const direction = (input.keys.has("ArrowRight") || input.keys.has("d") ? 1 : 0) - (input.keys.has("ArrowLeft") || input.keys.has("a") ? 1 : 0);
-      this.climber.x += direction * 220 * dt;
     }
   }
   moveAiClimber(dt) {

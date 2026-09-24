@@ -22,10 +22,13 @@ const gameCards = document.querySelector("#gameCards");
 const title = document.querySelector("#gameTitle");
 const description = document.querySelector("#gameDescription");
 const score = document.querySelector("#score");
+const lives = document.querySelector("#lives");
+const livesInput = document.querySelector("#livesInput");
 const status = document.querySelector("#roundStatus");
 const message = document.querySelector("#message");
 const sideSelect = document.querySelector("#sideSelect");
 const restartButton = document.querySelector("#restartButton");
+const stopButton = document.querySelector("#stopButton");
 const chatPanel = document.querySelector("#chatPanel");
 const chatForm = document.querySelector("#chatForm");
 const chatInput = document.querySelector("#chatInput");
@@ -124,6 +127,7 @@ const engine = new GameEngine(canvas, {
     }
   },
   onScore: (value) => { score.textContent = value; },
+  onLives: (value) => { lives.textContent = value; },
   onMessage: (value) => {
     message.textContent = value;
     window.clearTimeout(engine.messageTimer);
@@ -137,6 +141,8 @@ sideSelect.addEventListener("change", () => {
 });
 [snakeBoard, snakeLength, snakeWrap].forEach((control) => control.addEventListener("change", applySnakeSettings));
 restartButton.addEventListener("click", () => engine.restart());
+stopButton.addEventListener("click", () => engine.stopGame());
+livesInput.addEventListener("change", () => engine.setLives(livesInput.value));
 chatForm.addEventListener("submit", (event) => {
   event.preventDefault();
   if (activeId !== "imitation") return;

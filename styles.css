@@ -13,6 +13,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -54,6 +55,9 @@ kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5p
 .score-box { min-width: 90px; border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; text-align: right; }
 .score-box span { display: block; color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em; }
 .score-box strong { display: block; color: var(--accent); font-size: 1.6rem; }
+.lives-box strong { color: var(--accent-2); }
+.lives-control { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 0.82rem; }
+.lives-control input { width: 48px; padding: 8px 6px; text-align: center; }
 .controls-row { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin: 22px 0 14px; }
 .controls-row label { color: var(--muted); font-size: 0.82rem; }
 select, button { border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--panel-2); padding: 9px 12px; font: inherit; }
