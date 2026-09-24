@@ -1,7 +1,7 @@
 import { clamp, circleHitsRect, drawText } from "../engine.js";
 
-const BRICK_COLORS = { normal: "#38bdf8", extraLife: "#4ade80", double: "#f472b6", speed: "#fbbf24", hazard: "#fb7185" };
-const BRICK_LABELS = { extraLife: "+1 LIFE", double: "2 BALLS", speed: "SPEED", hazard: "DANGER" };
+const BRICK_COLORS = { normal: "#38bdf8", extraLife: "#4ade80", double: "#f472b6", speed: "#fbbf24", shortBar: "#c084fc", longBar: "#fb923c", hazard: "#fb7185" };
+const BRICK_LABELS = { extraLife: "+1 LIFE", double: "2 BALLS", speed: "SPEED", shortBar: "SHORT", longBar: "LONG", hazard: "DANGER" };
 
 export class BreakoutGame {
   constructor() {
@@ -19,13 +19,21 @@ export class BreakoutGame {
     this.computer = { x: 350, targetX: 350, y: 520, width: 112, height: 16 };
     this.balls = [this.newBall(400, 280, 180, 210)];
     this.bricks = [];
-    const special = { 3: "extraLife", 17: "double", 22: "speed", 38: "hazard" };
+    const special = { 3: "extraLife", 8: "shortBar", 17: "double", 22: "speed", 28: "longBar", 38: "hazard" };
     for (let row = 0; row < 5; row += 1) for (let column = 0; column < 10; column += 1) {
       const index = row * 10 + column;
-      this.bricks.push({ x: 48 + column * 70, y: 90 + row * 25, width: 62, height: 18, hits: 1, type: special[index] || "normal" });
+      this.bricks.push({ x: 48 + column * 70, y: 90 + row * 25, width: 62, height: 18, hits: 1, type: special[index] || "normal", active: true });
     }
     this.dragIndex = null;
     this.dragOffset = { x: 0, y: 0 };
+    this.specialClock = 0;
+    this.won = false;
+  }
+  resetAfterLife() {
+    this.human = { x: 350, targetX: 350, y: 520, width: 112, height: 16, speed: 460 };
+    this.computer = { x: 350, targetX: 350, y: 520, width: 112, height: 16 };
+    this.balls = [this.newBall(400, 280, 180, 210)];
+    this.dragIndex = null;
     this.won = false;
   }
   newBall(x, y, vx, vy) { return { x, y, vx, vy, radius: 8, dead: false }; }
@@ -44,7 +52,10 @@ export class BreakoutGame {
     const keyDirection = (input.keys.has("ArrowRight") || input.keys.has("d") ? 1 : 0) - (input.keys.has("ArrowLeft") || input.keys.has("a") ? 1 : 0);
     const mouseTarget = input.pointer.x - this.human.width / 2;
     if (input.mode === "keyboard" || keyDirection) this.human.targetX = this.human.x + keyDirection * this.human.speed * dt;
-    else if (input.pointer.moved && Math.abs(mouseTarget - this.human.x) > 8) this.human.targetX = mouseTarget;
+    else {
+      const pointerOverBar = input.pointer.x >= this.human.x - 4 && input.pointer.x <= this.human.x + this.human.width + 4;
+      if (input.pointer.moved && !pointerOverBar && Math.abs(mouseTarget - this.human.x) > 8) this.human.targetX = mouseTarget;
+    }
     this.human.targetX = clamp(this.human.targetX, 8, 800 - this.human.width - 8);
     this.human.x += clamp(this.human.targetX - this.human.x, -1, 1) * 720 * dt;
   }
@@ -65,6 +76,8 @@ export class BreakoutGame {
     this.updateBlocks(input);
     this.moveHuman(dt, input);
     const paddle = this.activePaddle();
+    this.specialClock += dt;
+    for (const brick of this.bricks) brick.active = brick.type === "normal" || Math.floor(this.specialClock / 1.1) % 2 === 0;
     for (const ball of this.balls) {
       if (ball.dead) continue;
       const previousY = ball.y;
@@ -76,7 +89,7 @@ export class BreakoutGame {
       const horizontal = ball.x + ball.radius > paddle.x && ball.x - ball.radius < paddle.x + paddle.width;
       if (horizontal && ball.vy > 0 && previousY <= paddle.y - ball.radius && ball.y + ball.radius >= paddle.y) this.bounceFromPaddle(ball, paddle);
       for (const brick of this.bricks) {
-        if (!brick.hits || !circleHitsRect(ball, brick)) continue;
+        if (!brick.hits || (brick.type !== "normal" && !brick.active) || !circleHitsRect(ball, brick)) continue;
         brick.hits = 0;
         this.hitBrick(ball, brick);
         break;
@@ -99,6 +112,8 @@ export class BreakoutGame {
     if (brick.type === "extraLife") this.engine?.addLife?.();
     if (brick.type === "speed") for (const other of this.balls) { other.vx *= 1.12; other.vy *= 1.12; }
     if (brick.type === "double" && this.balls.length < 3) this.balls.push(this.newBall(ball.x, ball.y, -ball.vx * 0.82, ball.vy * 0.82));
+    if (brick.type === "shortBar") this.activePaddle().width = Math.max(64, this.activePaddle().width - 24);
+    if (brick.type === "longBar") this.activePaddle().width = Math.min(170, this.activePaddle().width + 32);
     if (brick.type === "hazard") this.lifeLost = true;
   }
   draw(context) {
@@ -106,15 +121,18 @@ export class BreakoutGame {
     context.strokeStyle = "#64748b"; context.lineWidth = 3; context.strokeRect(2, 2, 796, 556);
     this.bricks.forEach((brick) => {
       if (!brick.hits) return;
+      context.save();
+      context.globalAlpha = brick.type === "normal" || brick.active ? 1 : 0.25;
       context.fillStyle = this.dragIndex === this.bricks.indexOf(brick) ? "#fbbf24" : BRICK_COLORS[brick.type];
       context.fillRect(brick.x, brick.y, brick.width, brick.height);
       if (brick.type !== "normal") drawText(context, BRICK_LABELS[brick.type], brick.x + brick.width / 2, brick.y + 13, 7, "#07111f", "center");
+      context.restore();
     });
     const paddle = this.activePaddle();
     context.fillStyle = this.side === "bottom" ? "#fb7185" : "#fbbf24"; context.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
     this.balls.forEach((ball) => { context.fillStyle = "#f8fafc"; context.beginPath(); context.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2); context.fill(); });
     drawText(context, this.side === "bottom" ? "Move the mouse or use A/D to control the bottom paddle" : "Hold and drag any block · the red computer paddle returns the ball", 16, 28, 14, "#cbd5e1");
-    drawText(context, "Green +1 life · Pink 2 balls · Yellow speed · Red danger", 16, 542, 12, "#cbd5e1");
+    drawText(context, "Green +1 life · Pink 2 balls · Yellow speed · Purple short bar · Orange long bar · Red danger", 16, 542, 12, "#cbd5e1");
   }
   publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "Clear every brick to win. Special bricks change the round." }; }
 }
