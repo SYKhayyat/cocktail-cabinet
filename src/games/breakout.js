@@ -24,6 +24,8 @@ export class BreakoutGame {
     this.human = { x: 350, targetX: 350, y: 520, width: 112, height: 16, speed: 460 };
     this.computer = { x: 350, targetX: 350, y: 520, width: 112, height: 16 };
     this.computerReaction = 0.08;
+    this.computerLastVy = 0;
+    this.computerTargetError = 0;
     this.balls = [this.newBall(400, 280, 180, 210)];
     if (this.layout) {
       this.bricks = this.layout.map((brick) => ({ ...brick, hits: 1, active: true }));
@@ -47,6 +49,8 @@ export class BreakoutGame {
     this.human = { x: 350, targetX: 350, y: 520, width: 112, height: 16, speed: 460 };
     this.computer = { x: 350, targetX: 350, y: 520, width: 112, height: 16 };
     this.computerReaction = 0.08;
+    this.computerLastVy = 0;
+    this.computerTargetError = 0;
     this.balls = [this.newBall(400, 280, 180, 210)];
     this.dragIndex = null;
     this.won = false;
@@ -58,11 +62,16 @@ export class BreakoutGame {
     if (this.side === "blocks") {
       const leadBall = this.balls[0];
       this.computerReaction -= dt;
-      if (leadBall && this.computerReaction <= 0) {
-        const timeToPaddle = leadBall.vy > 0 ? Math.max(0, (this.computer.y - leadBall.y) / leadBall.vy) : 0.08;
-        const error = Math.random() < COMPUTER_ERROR_CHANCE ? (Math.random() - 0.5) * COMPUTER_ERROR_RANGE : 0;
-        this.computer.targetX = clamp(leadBall.x + leadBall.vx * timeToPaddle + error, 8, 800 - this.computer.width - 8);
-        this.computerReaction = COMPUTER_REACTION_MIN + Math.random() * (COMPUTER_REACTION_MAX - COMPUTER_REACTION_MIN);
+      if (leadBall) {
+        const incoming = leadBall.vy > 0;
+        if (incoming && this.computerLastVy <= 0) this.computerTargetError = Math.random() < COMPUTER_ERROR_CHANCE ? (Math.random() - 0.5) * COMPUTER_ERROR_RANGE : 0;
+        if (!incoming) this.computer.targetX = this.computer.x;
+        else if (this.computerReaction <= 0) {
+          const timeToPaddle = Math.max(0, (this.computer.y - leadBall.y) / leadBall.vy);
+          this.computer.targetX = clamp(leadBall.x + leadBall.vx * timeToPaddle + this.computerTargetError, 8, 800 - this.computer.width - 8);
+          this.computerReaction = COMPUTER_REACTION_MIN + Math.random() * (COMPUTER_REACTION_MAX - COMPUTER_REACTION_MIN);
+        }
+        this.computerLastVy = leadBall.vy;
       }
       this.computer.x = moveToward(this.computer.x, this.computer.targetX, COMPUTER_SPEED * dt);
       return;
@@ -78,7 +87,7 @@ export class BreakoutGame {
     this.human.targetX = clamp(this.human.targetX, 8, 800 - this.human.width - 8);
     this.human.x = moveToward(this.human.x, this.human.targetX, 720 * dt);
   }
-  saveLayout() { this.layout = this.bricks.map(({ x, y, type, phaseOffset, period }) => ({ x, y, type, phaseOffset, period })); }
+  saveLayout() { this.layout = this.bricks.map(({ x, y, width, height, type, phaseOffset, period }) => ({ x, y, width, height, type, phaseOffset, period })); }
   updateBlocks(input) {
     if (this.side !== "blocks") return;
     if (!input.pointer.down) {

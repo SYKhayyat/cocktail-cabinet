@@ -104,6 +104,8 @@ test("Breakout setup click cycles a block and drag rearranges it", () => {
   const arrangedX = brick.x;
   game.reset();
   assert.equal(game.bricks[0].x, arrangedX);
+  assert.equal(game.bricks[0].width, 62);
+  assert.equal(game.bricks[0].height, 18);
   assert.notEqual(game.bricks[0].type, "normal");
 });
 
