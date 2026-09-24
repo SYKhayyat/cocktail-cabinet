@@ -54,6 +54,15 @@
           <canvas id="gameCanvas" width="800" height="560" aria-label="Arcade game board"></canvas>
         </div>
 
+        <div id="chatPanel" class="chat-panel" hidden>
+          <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
+          <form id="chatForm" class="chat-form">
+            <label class="sr-only" for="chatInput">Message</label>
+            <input id="chatInput" autocomplete="off" maxlength="240" placeholder="Type a message…" />
+            <button type="submit">Send</button>
+          </form>
+        </div>
+
         <div class="machine-footer">
           <span id="roundStatus">Press a key or click to begin</span>
           <span>Static site · no server · no account</span>

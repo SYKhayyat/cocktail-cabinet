@@ -26,6 +26,11 @@ const status = document.querySelector("#roundStatus");
 const message = document.querySelector("#message");
 const sideSelect = document.querySelector("#sideSelect");
 const restartButton = document.querySelector("#restartButton");
+const chatPanel = document.querySelector("#chatPanel");
+const chatForm = document.querySelector("#chatForm");
+const chatInput = document.querySelector("#chatInput");
+const chatMessages = document.querySelector("#chatMessages");
+let lastChatRevision = -1;
 
 const sideOptions = {
   snake: [["apples", "Place apples"], ["snake", "Steer the snake"]],
@@ -36,6 +41,23 @@ const sideOptions = {
   imitation: [["ai", "Play the machine"], ["human", "Play a second tab"]],
   starfall: [["runner", "Guide the runner"], ["stars", "Send the stars"]]
 };
+
+function renderChat(game) {
+  if (!game) return;
+  chatMessages.replaceChildren();
+  for (const message of game.chatLog) {
+    const row = document.createElement("div");
+    row.className = `chat-message ${message.sender.toLowerCase()}`;
+    const meta = document.createElement("span");
+    meta.className = "chat-meta";
+    meta.textContent = `${message.sender} · ${message.time}`;
+    const text = document.createElement("p");
+    text.textContent = message.text;
+    row.append(meta, text);
+    chatMessages.append(row);
+  }
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
 
 let activeId = "snake";
 const games = new Map(gameFactories.map(([id, , , factory]) => [id, factory()]));
@@ -68,6 +90,8 @@ function loadGame(id) {
   title.textContent = game.title;
   description.textContent = game.description;
   renderSideOptions(game);
+  chatPanel.hidden = id !== "imitation";
+  lastChatRevision = -1;
   engine.load(game);
   restartButton.blur();
 }
@@ -77,6 +101,10 @@ const engine = new GameEngine(canvas, {
     title.textContent = state.title;
     description.textContent = state.description;
     status.textContent = state.status;
+    if (state.chatRevision !== undefined && state.chatRevision !== lastChatRevision) {
+      lastChatRevision = state.chatRevision;
+      renderChat(engine.game);
+    }
   },
   onScore: (value) => { score.textContent = value; },
   onMessage: (value) => {
@@ -86,6 +114,15 @@ const engine = new GameEngine(canvas, {
   }
 });
 
-sideSelect.addEventListener("change", () => engine.setSide(sideSelect.value));
+sideSelect.addEventListener("change", () => {
+  lastChatRevision = -1;
+  engine.setSide(sideSelect.value);
+});
 restartButton.addEventListener("click", () => engine.restart());
+chatForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (activeId !== "imitation") return;
+  engine.game.sendMessage(chatInput.value);
+  chatInput.value = "";
+});
 loadGame(activeId);

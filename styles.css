@@ -64,6 +64,19 @@ button:hover { border-color: var(--accent); }
 .screen-frame { overflow: hidden; border: 1px solid #334155; border-radius: 12px; background: var(--canvas-bg); box-shadow: inset 0 0 60px #0008; }
 canvas { display: block; width: 100%; height: auto; aspect-ratio: 10 / 7; touch-action: none; }
 .machine-footer { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 0.75rem; padding-top: 12px; }
+.chat-panel { border: 1px solid var(--line); border-radius: 12px; background: #0c1220; margin-top: 14px; overflow: hidden; }
+.chat-messages { max-height: 180px; overflow-y: auto; padding: 10px 12px; display: grid; gap: 8px; }
+.chat-message { border-left: 3px solid #64748b; padding: 5px 8px; background: #111827; border-radius: 4px; }
+.chat-message.you { border-color: var(--accent); }
+.chat-message.ai { border-color: #a78bfa; }
+.chat-message.partner { border-color: var(--accent-2); }
+.chat-meta { display: block; color: var(--muted); font-size: 0.68rem; }
+.chat-message p { color: var(--ink); font-size: 0.85rem; line-height: 1.4; }
+.chat-form { display: flex; gap: 8px; border-top: 1px solid var(--line); padding: 10px; }
+.chat-form input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; color: var(--ink); background: var(--panel-2); font: inherit; }
+.chat-form input:focus { outline: 2px solid var(--accent-2); }
+.chat-form button { border: 0; background: var(--accent-2); color: #082f49; font-weight: 800; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 @media (max-width: 800px) {
   .site-header { display: block; }
