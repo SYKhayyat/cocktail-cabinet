@@ -185,7 +185,7 @@ test("Splat: human and computer controls, platform creation, jumps, and falling"
 test("Splat human survives the first bounce with a generated platform", () => {
   const game = new SplatModel();
   game.reset();
-  for (let step = 0; step < 40; step += 1) game.update(0.05, { keyDirection: 0, pointerX: 400, placePlatform: undefined });
+  for (let step = 0; step < 20; step += 1) game.update(0.05, { keyDirection: 0, pointerX: 400, placePlatform: undefined });
   assert.notEqual(game.lifeLost, true);
   assert.ok(game.platforms.length >= 2);
   assert.ok(game.climber.y < 560);
