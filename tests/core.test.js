@@ -53,9 +53,13 @@ test("Breakout keeps the ball inside the screen after a step", () => {
   const game = new BreakoutGame();
   game.reset();
   const input = { keys: new Set(["ArrowRight"]), pressed: new Set(), pointer: { clicked: false } };
-  for (let index = 0; index < 100; index += 1) game.update(0.016, input);
-  assert.ok(game.ball.x >= 0 && game.ball.x <= 800);
-  assert.ok(game.ball.y >= 0 && game.ball.y <= 560);
+  for (let index = 0; index < 100; index += 1) {
+    game.update(0.016, input);
+    for (const ball of game.balls) {
+      assert.ok(ball.x >= 0 && ball.x <= 800);
+      assert.ok(ball.y >= 0 && ball.y <= 560);
+    }
+  }
 });
 
 test("Imitation keeps its stable game id for cabinet lookup", () => {

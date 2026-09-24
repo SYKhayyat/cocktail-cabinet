@@ -1,10 +1,13 @@
 import { clamp, circleHitsRect, drawText } from "../engine.js";
 
+const BRICK_COLORS = { normal: "#38bdf8", extraLife: "#4ade80", double: "#f472b6", speed: "#fbbf24", hazard: "#fb7185" };
+const BRICK_LABELS = { extraLife: "+1 LIFE", double: "2 BALLS", speed: "SPEED", hazard: "DANGER" };
+
 export class BreakoutGame {
   constructor() {
     this.id = "breakout";
     this.title = "Breakout";
-    this.description = "Normal play: move the bottom paddle and keep the bouncing ball alive. Setup play: drag the blocks while the computer controls the paddle.";
+    this.description = "Normal play: move the bottom paddle and keep the ball alive. Setup play: drag the blocks while the computer controls the paddle.";
     this.side = "bottom";
     this.score = 0;
   }
@@ -12,25 +15,37 @@ export class BreakoutGame {
   setSide(side) { this.side = side; }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;
-    this.human = { x: 350, y: 520, width: 112, height: 16, speed: 460 };
-    this.computer = { x: 350, y: 520, width: 112, height: 16, speed: 0 };
-    this.ball = { x: 400, y: 280, vx: 180, vy: 210, radius: 8 };
+    this.human = { x: 350, targetX: 350, y: 520, width: 112, height: 16, speed: 460 };
+    this.computer = { x: 350, targetX: 350, y: 520, width: 112, height: 16 };
+    this.balls = [this.newBall(400, 280, 180, 210)];
     this.bricks = [];
-    for (let row = 0; row < 5; row += 1) for (let column = 0; column < 10; column += 1) this.bricks.push({ x: 48 + column * 70, y: 90 + row * 25, width: 62, height: 18, hits: 1 });
+    const special = { 3: "extraLife", 17: "double", 22: "speed", 38: "hazard" };
+    for (let row = 0; row < 5; row += 1) for (let column = 0; column < 10; column += 1) {
+      const index = row * 10 + column;
+      this.bricks.push({ x: 48 + column * 70, y: 90 + row * 25, width: 62, height: 18, hits: 1, type: special[index] || "normal" });
+    }
     this.dragIndex = null;
     this.dragOffset = { x: 0, y: 0 };
+    this.won = false;
   }
+  newBall(x, y, vx, vy) { return { x, y, vx, vy, radius: 8, dead: false }; }
+  handleReadyInput(input) { this.updateBlocks(input); }
   activePaddle() { return this.side === "bottom" ? this.human : this.computer; }
   moveHuman(dt, input) {
     if (this.side === "blocks") {
-      const predictedX = clamp(this.ball.x + this.ball.vx * 0.18, 8, 800 - this.computer.width - 8);
-      this.computer.x += clamp(predictedX - this.computer.x, -1, 1) * 430 * dt;
+      const leadBall = this.balls[0];
+      if (leadBall) {
+        const timeToPaddle = leadBall.vy > 0 ? Math.max(0, (this.computer.y - leadBall.y) / leadBall.vy) : 0.08;
+        this.computer.targetX = clamp(leadBall.x + leadBall.vx * timeToPaddle, 8, 800 - this.computer.width - 8);
+      }
+      this.computer.x += clamp(this.computer.targetX - this.computer.x, -1, 1) * 900 * dt;
       return;
     }
     const keyDirection = (input.keys.has("ArrowRight") || input.keys.has("d") ? 1 : 0) - (input.keys.has("ArrowLeft") || input.keys.has("a") ? 1 : 0);
-    if (keyDirection) this.human.x += keyDirection * this.human.speed * dt;
-    else if (input.pointer.x > 0) this.human.x = input.pointer.x - this.human.width / 2;
-    this.human.x = clamp(this.human.x, 8, 800 - this.human.width - 8);
+    if (keyDirection) this.human.targetX = this.human.x + keyDirection * this.human.speed * dt;
+    else if (input.pointer.x > 0) this.human.targetX = input.pointer.x - this.human.width / 2;
+    this.human.targetX = clamp(this.human.targetX, 8, 800 - this.human.width - 8);
+    this.human.x += clamp(this.human.targetX - this.human.x, -1, 1) * 720 * dt;
   }
   updateBlocks(input) {
     if (!input.pointer.down) { this.dragIndex = null; return; }
@@ -49,29 +64,58 @@ export class BreakoutGame {
     this.updateBlocks(input);
     this.moveHuman(dt, input);
     const paddle = this.activePaddle();
-    const previousY = this.ball.y;
-    this.ball.x += this.ball.vx * dt;
-    this.ball.y += this.ball.vy * dt;
-    if (this.ball.x < this.ball.radius || this.ball.x > 800 - this.ball.radius) this.ball.vx *= -1;
-    if (this.ball.y < this.ball.radius) { this.ball.y = this.ball.radius; this.ball.vy *= -1; }
-    const horizontal = this.ball.x + this.ball.radius > paddle.x && this.ball.x - this.ball.radius < paddle.x + paddle.width;
-    if (horizontal && this.ball.vy > 0 && previousY <= paddle.y - this.ball.radius && this.ball.y + this.ball.radius >= paddle.y) {
-      this.ball.vy *= -1.02;
-      this.ball.vx += clamp((this.ball.x - (paddle.x + paddle.width / 2)) * 4, -200, 200);
-      this.ball.y = paddle.y - this.ball.radius - 1;
-      this.score += 1;
+    for (const ball of this.balls) {
+      if (ball.dead) continue;
+      const previousY = ball.y;
+      ball.x += ball.vx * dt;
+      ball.y += ball.vy * dt;
+      if (ball.x < ball.radius) { ball.x = ball.radius; ball.vx = Math.abs(ball.vx); }
+      if (ball.x > 800 - ball.radius) { ball.x = 800 - ball.radius; ball.vx = -Math.abs(ball.vx); }
+      if (ball.y < ball.radius) { ball.y = ball.radius; ball.vy = Math.abs(ball.vy); }
+      const horizontal = ball.x + ball.radius > paddle.x && ball.x - ball.radius < paddle.x + paddle.width;
+      if (horizontal && ball.vy > 0 && previousY <= paddle.y - ball.radius && ball.y + ball.radius >= paddle.y) this.bounceFromPaddle(ball, paddle);
+      for (const brick of this.bricks) {
+        if (!brick.hits || !circleHitsRect(ball, brick)) continue;
+        brick.hits = 0;
+        this.hitBrick(ball, brick);
+        break;
+      }
+      if (ball.y > 545) ball.dead = true;
     }
-    for (const brick of this.bricks) if (brick.hits && circleHitsRect(this.ball, brick)) { brick.hits = 0; this.ball.vy *= -1; this.score += 10; break; }
-    if (this.ball.y > 545) { this.lifeLost = true; this.ball = { x: 400, y: 280, vx: 180, vy: 210, radius: 8 }; }
+    this.balls = this.balls.filter((ball) => !ball.dead);
+    if (!this.balls.length) this.lifeLost = true;
+    if (this.bricks.every((brick) => !brick.hits)) this.won = true;
+  }
+  bounceFromPaddle(ball, paddle) {
+    ball.vy *= -1.02;
+    ball.vx += clamp((ball.x - (paddle.x + paddle.width / 2)) * 4, -200, 200);
+    ball.y = paddle.y - ball.radius - 1;
+    this.score += 1;
+  }
+  hitBrick(ball, brick) {
+    ball.vy *= -1;
+    this.score += brick.type === "normal" ? 10 : 25;
+    if (brick.type === "extraLife") this.engine?.addLife?.();
+    if (brick.type === "speed") for (const other of this.balls) { other.vx *= 1.12; other.vy *= 1.12; }
+    if (brick.type === "double" && this.balls.length < 3) this.balls.push(this.newBall(ball.x, ball.y, -ball.vx * 0.82, ball.vy * 0.82));
+    if (brick.type === "hazard") this.lifeLost = true;
   }
   draw(context) {
     context.fillStyle = "#080d18"; context.fillRect(0, 0, 800, 560);
-    this.bricks.forEach((brick) => { if (brick.hits) { context.fillStyle = this.dragIndex === this.bricks.indexOf(brick) ? "#fbbf24" : "#38bdf8"; context.fillRect(brick.x, brick.y, brick.width, brick.height); } });
+    context.strokeStyle = "#64748b"; context.lineWidth = 3; context.strokeRect(2, 2, 796, 556);
+    this.bricks.forEach((brick) => {
+      if (!brick.hits) return;
+      context.fillStyle = this.dragIndex === this.bricks.indexOf(brick) ? "#fbbf24" : BRICK_COLORS[brick.type];
+      context.fillRect(brick.x, brick.y, brick.width, brick.height);
+      if (brick.type !== "normal") drawText(context, BRICK_LABELS[brick.type], brick.x + brick.width / 2, brick.y + 13, 7, "#07111f", "center");
+    });
     const paddle = this.activePaddle();
     context.fillStyle = this.side === "bottom" ? "#fb7185" : "#fbbf24"; context.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
-    context.fillStyle = "#f8fafc"; context.beginPath(); context.arc(this.ball.x, this.ball.y, this.ball.radius, 0, Math.PI * 2); context.fill();
+    this.balls.forEach((ball) => { context.fillStyle = "#f8fafc"; context.beginPath(); context.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2); context.fill(); });
     drawText(context, this.side === "bottom" ? "Move the mouse or use A/D to control the bottom paddle" : "Hold and drag any block · the red computer paddle returns the ball", 16, 28, 14, "#cbd5e1");
-    drawText(context, this.side === "bottom" ? "The ball bounces off the blocks and walls. Do not let it cross the bottom." : "Arrange the blocks, then let the computer play. There is no top paddle.", 16, 542, 12, "#64748b");
+    drawText(context, "Green +1 life · Pink 2 balls · Yellow speed · Red danger", 16, 542, 12, "#cbd5e1");
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "The computer predicts the ball in setup mode; it does not teleport or skip collisions." }; }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "Clear every brick to win. Special bricks change the round." }; }
 }
+
+export { BRICK_LABELS };

@@ -41,3 +41,9 @@
 - **Requested:** Add a countdown after New game, Continue, and life loss; make invalid-size feedback persistent; centralize grid/pointer coordinates so clicked apples land exactly where clicked.
 - **Produced:** A three-second GET READY countdown, a non-letterboxed board mapping, shared Snake cell conversion helpers, and stronger numeric validation feedback.
 - **Verification:** Six tests pass, all JavaScript syntax checks pass, and the headless browser renders the board without coordinate letterboxing.
+
+## Breakout power-brick pass
+
+- **Requested:** Stabilize the paddle, keep balls fully visible, outline the box, add colored special bricks, support extra lives, double balls, speed-ups, danger/life loss, and a clear-wall win.
+- **Produced:** Smoothed paddle targeting, bounded multi-ball physics, a playfield outline, labeled colored special bricks, engine extra-life support, and a win overlay.
+- **Verification:** Six tests pass and all JavaScript syntax checks pass; a 600-frame setup-mode smoke run confirms the computer can return the ball while the human can drag blocks before starting.

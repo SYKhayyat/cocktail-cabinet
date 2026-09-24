@@ -96,6 +96,12 @@ export class GameEngine {
     this.onLives?.(this.lives, this.maxLives);
   }
 
+  addLife() {
+    this.maxLives = Math.min(9, this.maxLives + 1);
+    this.lives = Math.min(this.maxLives, this.lives + 1);
+    this.onLives?.(this.lives, this.maxLives);
+  }
+
   frame(time) {
     if (!this.running) return;
     const delta = Math.min((time - this.lastTime) / 1000, 0.05);
@@ -105,7 +111,10 @@ export class GameEngine {
       if (this.countdown <= 0) this.onMessage?.("Go!");
     } else if (!this.ready && !this.stopped) {
       this.game.update(delta, this.input);
-      if (this.game.lifeLost || this.game.gameOver) {
+      if (this.game.won) {
+        this.stopped = true;
+        this.onMessage?.("You cleared every brick — you win!");
+      } else if (this.game.lifeLost || this.game.gameOver) {
         this.game.lifeLost = false;
         const lossReason = this.game.lossReason || "collision";
         this.lives -= 1;
@@ -122,10 +131,11 @@ export class GameEngine {
         }
       }
     }
+    if (this.ready) this.game.handleReadyInput?.(this.input);
     this.game.draw(this.context);
     if (this.ready || this.countdown > 0 || this.stopped) {
-      const heading = this.ready ? "READY" : this.countdown > 0 ? "GET READY" : this.game.gameOver ? "OUT OF LIVES" : "PAUSED";
-      const instruction = this.ready ? "Press New game to start" : this.countdown > 0 ? `Starting in ${Math.ceil(this.countdown)}…` : this.game.gameOver ? "Press New game to try again" : "Press Continue to resume";
+      const heading = this.ready ? "READY" : this.countdown > 0 ? "GET READY" : this.game.won ? "YOU WIN" : this.game.gameOver ? "OUT OF LIVES" : "PAUSED";
+      const instruction = this.ready ? "Press New game to start" : this.countdown > 0 ? `Starting in ${Math.ceil(this.countdown)}…` : this.game.won ? "Press New game to play again" : this.game.gameOver ? "Press New game to try again" : "Press Continue to resume";
       drawText(this.context, heading, 400, 275, 24, "#fbbf24", "center");
       drawText(this.context, `Score: ${this.game.score}    Lives: ${this.lives}/${this.maxLives}`, 400, 310, 16, "#f8fafc", "center");
       drawText(this.context, instruction, 400, 340, 14, "#cbd5e1", "center");
