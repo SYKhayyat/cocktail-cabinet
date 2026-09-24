@@ -17,6 +17,6 @@ export function draw(model, context) {
   context.fillRect(270, 492, 260, 38);
   context.strokeStyle = "#334155";
   context.strokeRect(270, 492, 260, 38);
-  drawText(context, `Furthest: ${Math.floor(model.furthestX)} px`, 400, 516, 14, "#22d3ee", "center");
+  drawText(context, `Furthest: ${model.furthestColumns} columns`, 400, 516, 14, "#22d3ee", "center");
   drawText(context, `Score: ${model.score} · reach the far right to win`, 16, 542, 12, "#64748b");
 }

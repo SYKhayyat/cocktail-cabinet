@@ -236,6 +236,7 @@ test("Splat: automatic rightward motion, gaps, scoring, and collisions", () => {
   game.update(0.016, { thrust: 0, placeColumnX: undefined });
   assert.equal(column.passed, true);
   assert.equal(game.score, 1);
+  assert.equal(game.furthestColumns, 1);
   const collision = new SplatModel();
   collision.reset();
   const blockedColumn = collision.columns[0];
@@ -255,31 +256,34 @@ test("Splat settings apply configurable column spacing", () => {
   assert.equal(game.model.columnSpacing, 200);
 });
 
-test("Splat keeps furthest distance through life loss and clears it on new game", () => {
+test("Splat keeps furthest columns through life loss and clears them on new game", () => {
   const game = new SplatModel();
   game.reset();
-  game.player.x = 400;
+  const column = game.columns[0];
+  game.player.x = column.x + column.width - 2;
+  game.player.y = column.gapY + column.gapHeight / 2;
+  game.player.vy = 0;
   game.update(0.016, { thrust: 0, placeColumnX: undefined });
-  const furthest = game.furthestX;
-  assert.ok(furthest > 400);
+  const furthest = game.furthestColumns;
+  assert.equal(furthest, 1);
   game.reset(true);
-  assert.equal(game.furthestX, furthest);
+  assert.equal(game.furthestColumns, furthest);
   game.reset();
-  assert.equal(game.furthestX, 0);
+  assert.equal(game.furthestColumns, 0);
 });
 
-test("Splat click and key input apply up/down thrust", () => {
+test("Splat up input reverses downward motion and click-up adds an impulse", () => {
   const game = new SplatGame();
   game.reset();
-  const startVy = game.model.player.vy;
-  game.update(0.1, input({ keys: new Set(["ArrowUp"]) }));
-  assert.ok(game.model.player.vy < startVy);
-  const middleVy = game.model.player.vy;
-  game.update(0.1, input({ keys: new Set(["ArrowDown"]) }));
-  assert.ok(game.model.player.vy > middleVy);
-  const beforeClick = game.model.player.vy;
+  game.model.player.vy = 260;
+  game.update(0.016, input({ keys: new Set(["ArrowUp"]) }));
+  assert.ok(game.model.player.vy < 0);
+  game.model.player.vy = -300;
   game.update(0.016, input({ pointer: pointer({ clicked: true, y: 100 }) }));
-  assert.ok(game.model.player.vy < beforeClick);
+  assert.equal(game.model.player.vy, -420);
+  game.model.player.vy = -260;
+  game.update(0.016, input({ keys: new Set(["ArrowDown"]) }));
+  assert.ok(game.model.player.vy > 0);
 });
 
 test("Splat computer can steer through a generated route", () => {

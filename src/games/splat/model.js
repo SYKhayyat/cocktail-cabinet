@@ -20,7 +20,7 @@ export class SplatModel {
     this.score = 0;
     this.columnSpacing = DEFAULT_COLUMN_SPACING;
     this.pendingSettings = { columnSpacing: DEFAULT_COLUMN_SPACING };
-    this.furthestX = 0;
+    this.furthestColumns = 0;
   }
   sideLabel() { return this.side === "climber" ? "You steer the falling object" : "Computer steers; you place columns"; }
   setSide(side) { this.side = side; }
@@ -31,7 +31,7 @@ export class SplatModel {
   reset(keepScore = false) {
     if (!keepScore) {
       this.score = 0;
-      this.furthestX = 0;
+      this.furthestColumns = 0;
     }
     this.player = { x: 70, y: 280, radius: 12, vy: 0 };
     this.columns = [];
@@ -50,7 +50,6 @@ export class SplatModel {
     this.player.vy += GRAVITY * dt;
     if (this.side === "climber") this.applyPlayerThrust(input, dt); else this.moveComputer(dt);
     this.player.x += HORIZONTAL_SPEED * dt;
-    this.furthestX = Math.max(this.furthestX, this.player.x);
     this.player.y += this.player.vy * dt;
     this.player.y = clamp(this.player.y, 18, 542);
     this.cameraX = clamp(this.player.x - 110, 0, this.columns.at(-1).x - 650);
@@ -65,6 +64,7 @@ export class SplatModel {
       if (this.player.x > column.x + column.width / 2) {
         column.passed = true;
         this.score += 1;
+        this.furthestColumns = Math.max(this.furthestColumns, this.score);
         this.nextColumn = this.columns.find((candidate) => !candidate.passed) || null;
         this.computerMistake = Math.random() < COMPUTER_MISTAKE_CHANCE;
         this.aiClock = 0;
@@ -81,8 +81,11 @@ export class SplatModel {
   }
   horizontalCollision(column) { return this.player.x + this.player.radius > column.x && this.player.x - this.player.radius < column.x + column.width; }
   applyPlayerThrust(input, dt) {
-    this.player.vy += (input.thrust || 0) * THRUST * dt;
-    if (input.impulse && this.player.vy > -260) this.player.vy = input.impulse < 0 ? -420 : 260;
+    const thrust = input.thrust || 0;
+    if (thrust < 0) this.player.vy = Math.min(this.player.vy - THRUST * dt, -260);
+    if (thrust > 0) this.player.vy = Math.max(this.player.vy + THRUST * dt, 260);
+    if (input.impulse < 0) this.player.vy = Math.min(this.player.vy, -420);
+    if (input.impulse > 0) this.player.vy = Math.max(this.player.vy, 260);
   }
   moveComputer(dt) {
     const column = this.columns.find((candidate) => !candidate.passed && candidate.x > this.player.x);
