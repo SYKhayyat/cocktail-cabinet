@@ -62,6 +62,16 @@ test("Breakout keeps the ball inside the screen after a step", () => {
   }
 });
 
+test("Breakout input mode gives keyboard priority until the mouse moves", () => {
+  const game = new BreakoutGame();
+  game.reset();
+  game.update(0.016, { mode: "keyboard", keys: new Set(["ArrowRight"]), pressed: new Set(), pointer: { x: 700, moved: true, clicked: false, down: false } });
+  const keyboardX = game.human.x;
+  assert.ok(keyboardX < 700);
+  game.update(0.016, { mode: "mouse", keys: new Set(), pressed: new Set(), pointer: { x: 100, moved: true, clicked: false, down: false } });
+  assert.ok(game.human.x < keyboardX);
+});
+
 test("Imitation keeps its stable game id for cabinet lookup", () => {
   const game = new ImitationGame();
   assert.equal(game.id, "imitation");

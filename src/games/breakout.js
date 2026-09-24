@@ -42,8 +42,9 @@ export class BreakoutGame {
       return;
     }
     const keyDirection = (input.keys.has("ArrowRight") || input.keys.has("d") ? 1 : 0) - (input.keys.has("ArrowLeft") || input.keys.has("a") ? 1 : 0);
-    if (keyDirection) this.human.targetX = this.human.x + keyDirection * this.human.speed * dt;
-    else if (input.pointer.x > 0) this.human.targetX = input.pointer.x - this.human.width / 2;
+    const mouseTarget = input.pointer.x - this.human.width / 2;
+    if (input.mode === "keyboard" || keyDirection) this.human.targetX = this.human.x + keyDirection * this.human.speed * dt;
+    else if (input.pointer.moved && Math.abs(mouseTarget - this.human.x) > 8) this.human.targetX = mouseTarget;
     this.human.targetX = clamp(this.human.targetX, 8, 800 - this.human.width - 8);
     this.human.x += clamp(this.human.targetX - this.human.x, -1, 1) * 720 * dt;
   }

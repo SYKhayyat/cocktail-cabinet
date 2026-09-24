@@ -18,7 +18,8 @@ export class GameEngine {
     this.input = {
       keys: new Set(),
       pressed: new Set(),
-      pointer: { x: 0, y: 0, down: false, clicked: false }
+      pointer: { x: 0, y: 0, down: false, clicked: false, moved: false },
+      mode: "keyboard"
     };
 
     this.handleKeyDown = (event) => {
@@ -27,11 +28,14 @@ export class GameEngine {
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) {
         event.preventDefault();
       }
+      this.input.mode = "keyboard";
       if (!this.input.keys.has(event.key)) this.input.pressed.add(event.key);
       this.input.keys.add(event.key);
     };
     this.handleKeyUp = (event) => this.input.keys.delete(event.key);
     this.handlePointerMove = (event) => {
+      this.input.mode = "mouse";
+      this.input.pointer.moved = true;
       const bounds = this.canvas.getBoundingClientRect();
       this.input.pointer.x = (event.clientX - bounds.left) * this.canvas.width / bounds.width;
       this.input.pointer.y = (event.clientY - bounds.top) * this.canvas.height / bounds.height;
@@ -142,6 +146,7 @@ export class GameEngine {
     }
     this.input.pressed.clear();
     this.input.pointer.clicked = false;
+    this.input.pointer.moved = false;
     this.onState?.(this.game.publicState());
     this.onScore?.(this.game.score);
     this.animationFrame = requestAnimationFrame((nextTime) => this.frame(nextTime));
