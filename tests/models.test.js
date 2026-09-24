@@ -633,8 +633,12 @@ test("Asteroids mouse movement swivels and click or hold fires", () => {
   const game = new AsteroidsGame();
   game.reset();
   const startAngle = game.model.ship.angle;
+  const startX = game.model.ship.x;
+  const startY = game.model.ship.y;
   game.update(0.016, input({ pointer: pointer({ x: 700, y: 100, moved: true, clicked: true }) }));
   assert.notEqual(game.model.ship.angle, startAngle);
+  assert.equal(game.model.ship.x, startX);
+  assert.equal(game.model.ship.y, startY);
   assert.equal(game.model.bullets.length, 1);
   game.model.shotClock = 0;
   game.update(0.016, input({ pointer: pointer({ x: 700, y: 100, down: true }) }));

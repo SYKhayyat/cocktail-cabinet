@@ -52,10 +52,8 @@ export class AsteroidsModel {
     if (input.pointer) {
       const dx = input.pointer.x - ship.x;
       const dy = input.pointer.y - ship.y;
-      if (Math.hypot(dx, dy) > 24) {
-        ship.angle = Math.atan2(dy, dx);
-        ship.speed = Math.min(ship.speed + 170 * dt, 220);
-      } else ship.speed *= Math.pow(0.9, dt * 60);
+      if (Math.hypot(dx, dy) > 24) ship.angle = Math.atan2(dy, dx);
+      ship.speed = 0;
     } else {
       ship.angle += turn * 3.2 * dt;
       ship.speed += thrust * 190 * dt;
