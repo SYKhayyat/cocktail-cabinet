@@ -37,14 +37,7 @@
             <h2 id="gameTitle">Snake</h2>
             <p id="gameDescription"></p>
           </div>
-          <div class="score-box">
-            <span>Score</span>
-            <strong id="score">0</strong>
-          </div>
-          <div class="score-box lives-box">
-            <span>Lives</span>
-            <strong id="lives">3</strong>
-          </div>
+
         </div>
 
         <div class="controls-row">
@@ -61,7 +54,8 @@
 
         <div id="settingsPanel" class="settings-panel" hidden>
           <strong>Snake settings</strong>
-          <label>Board <select id="snakeBoard"><option value="30x20">Small · 30 × 20</option><option value="40x28" selected>Normal · 40 × 28</option><option value="50x28">Wide · 50 × 28</option></select></label>
+          <label>Columns <select id="snakeCols"><option value="30">30</option><option value="40" selected>40</option><option value="50">50</option><option value="60">60</option></select></label>
+          <label>Rows <select id="snakeRows"><option value="20">20</option><option value="28" selected>28</option><option value="36">36</option><option value="44">44</option></select></label>
           <label>Start length <select id="snakeLength"><option value="3" selected>3</option><option value="5">5</option><option value="8">8</option></select></label>
           <label class="checkbox-label"><input id="snakeWrap" type="checkbox" /> Wrap through walls</label>
         </div>
@@ -77,6 +71,11 @@
 
         <div class="screen-frame">
           <canvas id="gameCanvas" width="800" height="560" aria-label="Arcade game board"></canvas>
+        </div>
+
+        <div class="game-stats">
+          <div><span>Score</span><strong id="score">0</strong></div>
+          <div><span>Lives</span><strong id="lives">3/3</strong></div>
         </div>
 
         <div class="machine-footer">

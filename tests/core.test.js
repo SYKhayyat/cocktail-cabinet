@@ -18,6 +18,7 @@ test("Snake creates a playable state and grows when it reaches an apple", () => 
   const game = new SnakeGame();
   assert.equal(game.side, "snake");
   game.setSettings({ cols: 30, rows: 20, startingLength: 5, wrap: true });
+  game.applyPendingSettings();
   game.reset();
   assert.equal(game.snake.length, 5);
   assert.equal(game.wrap, true);

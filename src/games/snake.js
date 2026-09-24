@@ -16,28 +16,39 @@ export class SnakeGame {
     this.rows = 28;
     this.startingLength = 3;
     this.wrap = false;
+    this.pendingSettings = { cols: 40, rows: 28, startingLength: 3, wrap: false };
     this.gameOver = false;
   }
 
   sideLabel() { return this.side === "apples" ? "You place apples" : "You steer the snake"; }
   setSide(side) { this.side = side; }
   setSettings(settings) {
-    this.cols = Number(settings.cols) || 40;
-    this.rows = Number(settings.rows) || 28;
-    this.startingLength = clamp(Number(settings.startingLength) || 3, 3, 12);
-    this.wrap = Boolean(settings.wrap);
+    this.pendingSettings = {
+      cols: Number(settings.cols) || this.pendingSettings.cols,
+      rows: Number(settings.rows) || this.pendingSettings.rows,
+      startingLength: Number(settings.startingLength) || this.pendingSettings.startingLength,
+      wrap: Boolean(settings.wrap),
+    };
+  }
+  applyPendingSettings() {
+    this.cols = this.pendingSettings.cols;
+    this.rows = this.pendingSettings.rows;
+    this.startingLength = clamp(this.pendingSettings.startingLength, 3, 12);
+    this.wrap = this.pendingSettings.wrap;
   }
   cellWidth() { return 800 / this.cols; }
   cellHeight() { return 560 / this.rows; }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;
     this.gameOver = false;
+    this.lossReason = "";
     const startX = Math.floor(this.cols / 2);
     const startY = Math.floor(this.rows / 2);
     this.snake = Array.from({ length: this.startingLength }, (_, index) => ({ x: startX - index, y: startY }));
     this.direction = { x: 1, y: 0 };
     this.nextDirection = { x: 1, y: 0 };
     this.aiClock = 0;
+    this.aiErrorSteps = 3;
     this.apple = this.side === "apples" ? { x: Math.min(this.cols - 3, startX + 6), y: Math.max(2, startY - 6) } : this.freeApple();
   }
   moveInterval() { return Math.max(0.08, 0.18 - this.score * 0.004); }
@@ -55,23 +66,23 @@ export class SnakeGame {
       const y = clamp(Math.floor(input.pointer.y / this.cellHeight()), 0, this.rows - 1);
       if (!this.snake.some((part) => part.x === x && part.y === y)) this.apple = { x, y };
     }
+    const interval = this.moveInterval();
     if (this.side === "snake") {
       if (input.pressed.has("ArrowUp") || input.pressed.has("w")) this.nextDirection = { x: 0, y: -1 };
       if (input.pressed.has("ArrowDown") || input.pressed.has("s")) this.nextDirection = { x: 0, y: 1 };
       if (input.pressed.has("ArrowLeft") || input.pressed.has("a")) this.nextDirection = { x: -1, y: 0 };
       if (input.pressed.has("ArrowRight") || input.pressed.has("d")) this.nextDirection = { x: 1, y: 0 };
       if (input.pointer.down) this.steerToward(input.pointer.x, input.pointer.y);
-    } else this.chooseDirection();
+    } else if (this.aiClock >= interval) this.chooseDirection();
     if (this.nextDirection.x + this.direction.x !== 0 || this.nextDirection.y + this.direction.y !== 0) this.direction = this.nextDirection;
     this.aiClock += dt;
-    const interval = this.moveInterval();
     if (this.aiClock < interval) return;
     this.aiClock = 0;
     const head = this.snake[0];
     let next = { x: head.x + this.direction.x, y: head.y + this.direction.y };
     if (this.wrap) next = { x: (next.x + this.cols) % this.cols, y: (next.y + this.rows) % this.rows };
-    else if (next.x < 0 || next.x >= this.cols || next.y < 0 || next.y >= this.rows) { this.gameOver = true; return; }
-    if (this.snake.some((part) => part.x === next.x && part.y === next.y)) { this.gameOver = true; return; }
+    else if (next.x < 0 || next.x >= this.cols || next.y < 0 || next.y >= this.rows) { this.gameOver = true; this.lossReason = "wall"; return; }
+    if (this.snake.some((part) => part.x === next.x && part.y === next.y)) { this.gameOver = true; this.lossReason = "self"; return; }
     if (next.x === this.apple?.x && next.y === this.apple?.y) {
       this.score += 1;
       this.snake.unshift(next);
@@ -95,7 +106,13 @@ export class SnakeGame {
     if (!apple) return;
     const choices = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }].filter((direction) => !(direction.x + this.direction.x === 0 && direction.y + this.direction.y === 0));
     choices.sort((a, b) => this.routeScore(head, a, apple) - this.routeScore(head, b, apple));
-    this.nextDirection = choices[0];
+    if (this.aiErrorSteps <= 0) {
+      this.aiErrorSteps = 3 + Math.floor(Math.random() * 5);
+      this.nextDirection = choices[Math.min(1, choices.length - 1)];
+    } else {
+      this.aiErrorSteps -= 1;
+      this.nextDirection = choices[0];
+    }
   }
   routeScore(head, direction, apple) {
     const next = { x: head.x + direction.x, y: head.y + direction.y };

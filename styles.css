@@ -68,6 +68,11 @@ button:hover { border-color: var(--accent); }
 .message { color: var(--accent-2); font-size: 0.82rem; min-height: 1.2em; }
 .screen-frame { overflow: hidden; border: 1px solid #334155; border-radius: 12px; background: var(--canvas-bg); box-shadow: inset 0 0 60px #0008; }
 canvas { display: block; width: 100%; height: auto; aspect-ratio: 10 / 7; touch-action: none; }
+.game-stats { display: flex; gap: 12px; padding-top: 10px; }
+.game-stats div { min-width: 90px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); }
+.game-stats span { display: block; color: var(--muted); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; }
+.game-stats strong { color: var(--accent); font-size: 1.1rem; }
+.game-stats div + div strong { color: var(--accent-2); }
 .machine-footer { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 0.75rem; padding-top: 12px; }
 .settings-panel { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; border: 1px solid var(--line); border-radius: 12px; background: #111a2b; padding: 12px; margin-top: 14px; color: var(--muted); font-size: 0.82rem; }
 .settings-panel strong { color: var(--ink); }

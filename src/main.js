@@ -36,7 +36,8 @@ const chatForm = document.querySelector("#chatForm");
 const chatInput = document.querySelector("#chatInput");
 const chatMessages = document.querySelector("#chatMessages");
 const settingsPanel = document.querySelector("#settingsPanel");
-const snakeBoard = document.querySelector("#snakeBoard");
+const snakeCols = document.querySelector("#snakeCols");
+const snakeRows = document.querySelector("#snakeRows");
 const snakeLength = document.querySelector("#snakeLength");
 const snakeWrap = document.querySelector("#snakeWrap");
 let lastChatRevision = -1;
@@ -69,14 +70,13 @@ function renderChat(game) {
 }
 
 function readSnakeSettings() {
-  const [cols, rows] = snakeBoard.value.split("x").map(Number);
-  return { cols, rows, startingLength: Number(snakeLength.value), wrap: snakeWrap.checked };
+  return { cols: Number(snakeCols.value), rows: Number(snakeRows.value), startingLength: Number(snakeLength.value), wrap: snakeWrap.checked };
 }
 
 function applySnakeSettings() {
   if (activeId !== "snake") return;
   games.get("snake").setSettings(readSnakeSettings());
-  engine.restart();
+  status.textContent = "Settings saved for the next game.";
 }
 
 let activeId = "snake";
@@ -123,14 +123,14 @@ const engine = new GameEngine(canvas, {
   onState: (state) => {
     title.textContent = state.title;
     description.textContent = state.description;
-    status.textContent = state.status;
+    status.textContent = engine.ready ? "Press New game to start" : engine.lifePause > 0 ? "Life lost — pausing briefly" : state.status;
     if (state.chatRevision !== undefined && state.chatRevision !== lastChatRevision) {
       lastChatRevision = state.chatRevision;
       renderChat(engine.game);
     }
   },
   onScore: (value) => { score.textContent = value; },
-  onLives: (value) => { lives.textContent = value; },
+  onLives: (value, maximum) => { lives.textContent = `${value}/${maximum}`; },
   onMessage: (value) => {
     message.textContent = value;
     window.clearTimeout(engine.messageTimer);
@@ -142,7 +142,7 @@ sideSelect.addEventListener("change", () => {
   lastChatRevision = -1;
   engine.setSide(sideSelect.value);
 });
-[snakeBoard, snakeLength, snakeWrap].forEach((control) => control.addEventListener("change", applySnakeSettings));
+[snakeCols, snakeRows, snakeLength, snakeWrap].forEach((control) => control.addEventListener("change", applySnakeSettings));
 restartButton.addEventListener("click", () => engine.restart());
 pauseButton.addEventListener("click", () => engine.pauseGame());
 continueButton.addEventListener("click", () => engine.continueGame());

@@ -19,3 +19,9 @@
 - **Requested:** Add New game, Pause, and Continue to every arcade game; show score and lives while paused; make Snake marginally faster after each apple.
 - **Produced:** Per-game controls, a score/lives pause overlay, configurable lives, and a Snake movement interval that decreases gently with each apple.
 - **Verification:** Five tests pass, all JavaScript syntax checks pass, the cabinet loads in a headless browser, and the focused build is ready for deployment.
+
+## Snake settings and life pause pass
+
+- **Requested:** Make Snake settings use separate X/Y selectors, queue changes until the next game, show score/lives below the board, require New game before starting, pause after a lost life, and make the computer opponent imperfect.
+- **Produced:** Separate columns/rows selectors, queued settings, X/Y life display, READY/PAUSE/LIFE LOST overlays, queued lives, a speed ramp per apple, and occasional safe-but-imperfect computer decisions.
+- **Verification:** Five tests pass, all JavaScript syntax checks pass, and the headless browser shows the READY state and settings panel before New game is pressed.

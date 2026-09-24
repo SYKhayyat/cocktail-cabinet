@@ -9,6 +9,8 @@ export class GameEngine {
     this.game = null;
     this.running = false;
     this.stopped = false;
+    this.ready = false;
+    this.lifePause = 0;
     this.lives = 3;
     this.maxLives = 3;
     this.lastTime = 0;
@@ -52,8 +54,11 @@ export class GameEngine {
     this.stop();
     this.game = game;
     game.engine = this;
-    this.stopped = false;
+    this.stopped = true;
+    this.ready = true;
+    this.lifePause = 0;
     this.lives = this.maxLives;
+    game.applyPendingSettings?.();
     game.reset();
     this.onState?.(game.publicState());
     this.running = true;
@@ -68,13 +73,13 @@ export class GameEngine {
   }
 
   pauseGame() {
-    if (!this.running || this.game?.gameOver) return;
+    if (!this.running || this.ready || this.game?.gameOver) return;
     this.stopped = true;
     this.onMessage?.("Paused — press Continue when you are ready.");
   }
 
   continueGame() {
-    if (!this.running || this.game?.gameOver) return;
+    if (!this.running || this.ready || this.game?.gameOver || this.lifePause > 0) return;
     this.stopped = false;
     this.lastTime = performance.now();
     this.onMessage?.("Continued.");
@@ -86,7 +91,7 @@ export class GameEngine {
 
   setLives(value) {
     this.maxLives = Math.max(1, Math.min(9, Number(value) || 3));
-    this.lives = this.maxLives;
+    if (!this.running || this.ready || !this.game) this.lives = this.maxLives;
     this.onLives?.(this.lives, this.maxLives);
   }
 
@@ -94,25 +99,34 @@ export class GameEngine {
     if (!this.running) return;
     const delta = Math.min((time - this.lastTime) / 1000, 0.05);
     this.lastTime = time;
-    if (!this.stopped) {
+    if (this.lifePause > 0) {
+      this.lifePause -= delta;
+      if (this.lifePause <= 0) this.onMessage?.("Life lost — continuing.");
+    } else if (!this.ready && !this.stopped) {
       this.game.update(delta, this.input);
       if (this.game.lifeLost || this.game.gameOver) {
         this.game.lifeLost = false;
+        const lossReason = this.game.lossReason || "collision";
         this.lives -= 1;
         this.onLives?.(this.lives, this.maxLives);
-        if (this.lives > 0) this.game.reset(true);
-        else {
+        if (this.lives > 0) {
+          this.game.reset(true);
+          this.lifePause = 1.25;
+          this.onMessage?.(lossReason === "wall" ? "Wall hit — one life lost. Pausing briefly." : "One life lost — pausing briefly.");
+        } else {
           this.game.gameOver = true;
           this.stopped = true;
-          this.onMessage?.("Out of lives — press New round to try again.");
+          this.onMessage?.("Out of lives — press New game to try again.");
         }
       }
     }
     this.game.draw(this.context);
-    if (this.stopped) {
-      drawText(this.context, this.game.gameOver ? "OUT OF LIVES" : "PAUSED", 400, 275, 24, "#fbbf24", "center");
-      drawText(this.context, `Score: ${this.game.score}    Lives: ${this.lives}`, 400, 310, 16, "#f8fafc", "center");
-      drawText(this.context, this.game.gameOver ? "Press New game to try again" : "Press Continue to resume", 400, 340, 14, "#cbd5e1", "center");
+    if (this.ready || this.lifePause > 0 || this.stopped) {
+      const heading = this.ready ? "READY" : this.lifePause > 0 ? "LIFE LOST" : this.game.gameOver ? "OUT OF LIVES" : "PAUSED";
+      const instruction = this.ready ? "Press New game to start" : this.lifePause > 0 ? "The board will continue shortly" : this.game.gameOver ? "Press New game to try again" : "Press Continue to resume";
+      drawText(this.context, heading, 400, 275, 24, "#fbbf24", "center");
+      drawText(this.context, `Score: ${this.game.score}    Lives: ${this.lives}/${this.maxLives}`, 400, 310, 16, "#f8fafc", "center");
+      drawText(this.context, instruction, 400, 340, 14, "#cbd5e1", "center");
     }
     this.input.pressed.clear();
     this.input.pointer.clicked = false;
@@ -124,7 +138,10 @@ export class GameEngine {
   restart() {
     if (!this.game) return;
     this.stopped = false;
+    this.ready = false;
+    this.lifePause = 0;
     this.lives = this.maxLives;
+    this.game.applyPendingSettings?.();
     this.game.gameOver = false;
     this.game.lifeLost = false;
     this.game.reset();
@@ -134,7 +151,9 @@ export class GameEngine {
 
   setSide(side) {
     this.game?.setSide(side);
-    this.stopped = false;
+    this.stopped = true;
+    this.ready = true;
+    this.lifePause = 0;
     this.lives = this.maxLives;
     this.game.gameOver = false;
     this.game.lifeLost = false;
