@@ -22,7 +22,7 @@ export class BreakoutGame {
     const special = { 3: "extraLife", 8: "shortBar", 17: "double", 22: "speed", 28: "longBar", 38: "hazard" };
     for (let row = 0; row < 5; row += 1) for (let column = 0; column < 10; column += 1) {
       const index = row * 10 + column;
-      this.bricks.push({ x: 48 + column * 70, y: 90 + row * 25, width: 62, height: 18, hits: 1, type: special[index] || "normal", active: true });
+      this.bricks.push({ x: 48 + column * 70, y: 90 + row * 25, width: 62, height: 18, hits: 1, type: special[index] || "normal", active: true, phaseOffset: special[index] ? (index * 0.73) % 2.4 : 0, period: special[index] ? 1.6 + (index % 4) * 0.65 : 0 });
     }
     this.dragIndex = null;
     this.dragOffset = { x: 0, y: 0 };
@@ -46,7 +46,7 @@ export class BreakoutGame {
         const timeToPaddle = leadBall.vy > 0 ? Math.max(0, (this.computer.y - leadBall.y) / leadBall.vy) : 0.08;
         this.computer.targetX = clamp(leadBall.x + leadBall.vx * timeToPaddle, 8, 800 - this.computer.width - 8);
       }
-      this.computer.x += clamp(this.computer.targetX - this.computer.x, -1, 1) * 900 * dt;
+      this.computer.x = moveToward(this.computer.x, this.computer.targetX, 900 * dt);
       return;
     }
     const keyDirection = (input.keys.has("ArrowRight") || input.keys.has("d") ? 1 : 0) - (input.keys.has("ArrowLeft") || input.keys.has("a") ? 1 : 0);
@@ -54,10 +54,11 @@ export class BreakoutGame {
     if (input.mode === "keyboard" || keyDirection) this.human.targetX = this.human.x + keyDirection * this.human.speed * dt;
     else {
       const pointerOverBar = input.pointer.x >= this.human.x - 4 && input.pointer.x <= this.human.x + this.human.width + 4;
-      if (input.pointer.moved && !pointerOverBar && Math.abs(mouseTarget - this.human.x) > 8) this.human.targetX = mouseTarget;
+      if (pointerOverBar) this.human.targetX = this.human.x;
+      else if (input.pointer.moved && Math.abs(mouseTarget - this.human.x) > 8) this.human.targetX = mouseTarget;
     }
     this.human.targetX = clamp(this.human.targetX, 8, 800 - this.human.width - 8);
-    this.human.x += clamp(this.human.targetX - this.human.x, -1, 1) * 720 * dt;
+    this.human.x = moveToward(this.human.x, this.human.targetX, 720 * dt);
   }
   updateBlocks(input) {
     if (!input.pointer.down) { this.dragIndex = null; return; }
@@ -77,7 +78,10 @@ export class BreakoutGame {
     this.moveHuman(dt, input);
     const paddle = this.activePaddle();
     this.specialClock += dt;
-    for (const brick of this.bricks) brick.active = brick.type === "normal" || Math.floor(this.specialClock / 1.1) % 2 === 0;
+    for (const brick of this.bricks) {
+      if (brick.type === "normal") brick.active = true;
+      else brick.active = ((this.specialClock + brick.phaseOffset) % brick.period) < brick.period * 0.58;
+    }
     for (const ball of this.balls) {
       if (ball.dead) continue;
       const previousY = ball.y;
@@ -122,10 +126,11 @@ export class BreakoutGame {
     this.bricks.forEach((brick) => {
       if (!brick.hits) return;
       context.save();
-      context.globalAlpha = brick.type === "normal" || brick.active ? 1 : 0.25;
-      context.fillStyle = this.dragIndex === this.bricks.indexOf(brick) ? "#fbbf24" : BRICK_COLORS[brick.type];
+      const active = brick.type === "normal" || brick.active;
+      context.globalAlpha = active ? 1 : 0.45;
+      context.fillStyle = active ? (this.dragIndex === this.bricks.indexOf(brick) ? "#fbbf24" : BRICK_COLORS[brick.type]) : "#38bdf8";
       context.fillRect(brick.x, brick.y, brick.width, brick.height);
-      if (brick.type !== "normal") drawText(context, BRICK_LABELS[brick.type], brick.x + brick.width / 2, brick.y + 13, 7, "#07111f", "center");
+      if (brick.type !== "normal" && active) drawText(context, BRICK_LABELS[brick.type], brick.x + brick.width / 2, brick.y + 13, 7, "#07111f", "center");
       context.restore();
     });
     const paddle = this.activePaddle();
@@ -135,6 +140,12 @@ export class BreakoutGame {
     drawText(context, "Green +1 life · Pink 2 balls · Yellow speed · Purple short bar · Orange long bar · Red danger", 16, 542, 12, "#cbd5e1");
   }
   publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "Clear every brick to win. Special bricks change the round." }; }
+}
+
+function moveToward(current, target, maxDelta) {
+  const distance = target - current;
+  if (Math.abs(distance) <= maxDelta) return target;
+  return current + Math.sign(distance) * maxDelta;
 }
 
 export { BRICK_LABELS };
