@@ -103,7 +103,11 @@ test("Splat: human and computer controls, platform creation, jumps, and falling"
   game.reset();
   game.addPlatform(300);
   assert.equal(game.platforms.length, 2);
+  assert.equal(game.platforms[0].active, true);
   assert.equal(game.score, 10);
+  game.climber.y = 400;
+  game.update(0.016, { keyDirection: 0, pointerX: 0, placePlatform: undefined });
+  assert.equal(game.platforms[0].active, false);
   game.addPlatform(0);
   assert.equal(game.platforms.length, 2);
   game.setSide("climber");

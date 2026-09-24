@@ -13,14 +13,14 @@ export class SplatModel {
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;
     this.climber = { x: 40, y: 500, width: 24, height: 32, vy: 0 };
-    this.platforms = [{ x: 0, y: 520, width: 800, height: 40, color: "#334155" }];
+    this.platforms = [{ x: 0, y: 520, width: 800, height: 40, color: "#334155", active: true, isGround: true }];
     this.targetY = 470;
     this.aiClock = 0;
     this.nextX = 280;
   }
   addPlatform(x) {
     if (x < 25 || x > 655) return;
-    this.platforms.push({ x, y: this.targetY, width: 120, height: 14, color: "#22d3ee" });
+    this.platforms.push({ x, y: this.targetY, width: 120, height: 14, color: "#22d3ee", active: true });
     this.nextX = clamp(x + (Math.random() > 0.5 ? 150 : -150), 40, 640);
     this.targetY -= 55;
     this.score += 10;
@@ -30,8 +30,10 @@ export class SplatModel {
     if (this.side === "climber") this.moveClimber(input, dt); else this.moveAiClimber(dt);
     this.climber.vy = Math.min(this.climber.vy + 700 * dt, 500);
     this.climber.y += this.climber.vy * dt;
+    const ground = this.platforms.find((platform) => platform.isGround);
+    if (ground && this.climber.y < ground.y - this.climber.height) ground.active = false;
     for (const platform of this.platforms) {
-      if (this.climber.vy >= 0 && this.climber.y + this.climber.height >= platform.y && this.climber.y < platform.y + platform.height && this.climber.x + this.climber.width > platform.x && this.climber.x < platform.x + platform.width) {
+      if (platform.active !== false && this.climber.vy >= 0 && this.climber.y + this.climber.height >= platform.y && this.climber.y < platform.y + platform.height && this.climber.x + this.climber.width > platform.x && this.climber.x < platform.x + platform.width) {
         this.climber.y = platform.y - this.climber.height;
         this.climber.vy = -330;
         this.score += 5;
@@ -47,7 +49,7 @@ export class SplatModel {
     else if (input.pointerX > 0) this.climber.x += clamp(input.pointerX - this.climber.width / 2 - this.climber.x, -1, 1) * 220 * dt;
   }
   moveAiClimber(dt) {
-    const next = this.platforms.filter((platform) => platform.y < this.climber.y - 20).sort((a, b) => b.y - a.y)[0];
+    const next = this.platforms.filter((platform) => platform.active !== false && platform.y < this.climber.y).sort((a, b) => b.y - a.y)[0];
     if (!next) return;
     const target = next.x + next.width / 2 - this.climber.width / 2;
     this.climber.x += clamp(target - this.climber.x, -1, 1) * 190 * dt;
