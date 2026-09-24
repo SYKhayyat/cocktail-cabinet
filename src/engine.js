@@ -183,8 +183,9 @@ export class GameEngine {
       this.context.strokeRect(250, 238, 300, 120);
       this.context.lineWidth = 1;
       const winner = this.game.winner;
-      const heading = this.ready ? "READY" : this.countdown > 0 ? "GET READY" : this.game.won ? winner === "computer" ? "COMPUTER WINS" : "YOU WIN" : this.game.gameOver && winner ? winner === "human" ? "YOU WIN" : "COMPUTER WINS" : this.game.gameOver ? "OUT OF LIVES" : "PAUSED";
-      const instruction = this.ready ? "Press New game to start" : this.countdown > 0 ? `Starting in ${Math.ceil(this.countdown)}…` : this.game.won || this.game.gameOver && winner ? "Press New game to play again" : this.game.gameOver ? "Press New game to try again" : "Press Continue to resume";
+      const tied = this.game.versusTie;
+      const heading = this.ready ? "READY" : this.countdown > 0 ? "GET READY" : this.game.won ? winner === "computer" ? "COMPUTER WINS" : "YOU WIN" : this.game.gameOver && tied ? "TIE" : this.game.gameOver && winner ? winner === "human" ? "YOU WIN" : "COMPUTER WINS" : this.game.gameOver ? "OUT OF LIVES" : "PAUSED";
+      const instruction = this.ready ? "Press New game to start" : this.countdown > 0 ? `Starting in ${Math.ceil(this.countdown)}…` : this.game.won || this.game.gameOver && (winner || tied) ? "Press New game to play again" : this.game.gameOver ? "Press New game to try again" : "Press Continue to resume";
       const lifeText = this.game.playerLives ? `You: ${this.game.playerLives.human}    Computer: ${this.game.playerLives.computer}` : `Lives: ${this.lives}/${this.maxLives}`;
       drawText(this.context, heading, 400, 275, 24, "#fbbf24", "center");
       drawText(this.context, `Score: ${this.game.score}    ${lifeText}`, 400, 310, 16, "#f8fafc", "center");
@@ -217,7 +218,8 @@ export class GameEngine {
   }
 
   setSide(side) {
-    this.game?.setSide(side);
+    if (!this.game) return;
+    this.game.setSide(side);
     this.stopped = true;
     this.ready = true;
     this.countdown = 0;

@@ -24,15 +24,17 @@ export class BreakoutModel {
   setSide(side) { this.side = side; }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;
-    this.scores = { human: 0, computer: 0 };
+    this.scores = keepScore && this.scores ? { ...this.scores } : { human: 0, computer: 0 };
     const startingLives = this.engine?.maxLives ?? 3;
     this.playerLives = { human: startingLives, computer: startingLives };
     this.lastLifeLossOwner = null;
     this.lifeLossOwner = null;
+    this.lifeLossOwners = [];
     this.pendingLifeLossOwners = [];
     this.winner = null;
     this.gameOver = false;
     this.lifeLost = false;
+    this.versusTie = false;
     this.versusRoundOver = false;
     if (this.side === "versus") {
       this.human = { x: 350, targetX: 350, y: 500, width: 112, height: 16, speed: 460 };
@@ -60,12 +62,14 @@ export class BreakoutModel {
   }
   resetAfterLife() {
     if (this.side === "versus") {
-      const owner = this.lifeLossOwner || "human";
-      const otherBall = this.balls.find((ball) => ball.owner !== owner);
-      const newBall = owner === "computer" ? this.newBall(450, 160, -180, 200, "computer") : this.newBall(350, 450, 180, -200, "human");
-      const otherReplacement = otherBall || (owner === "computer" ? this.newBall(350, 450, 180, -200, "human") : this.newBall(450, 160, -180, 200, "computer"));
-      this.balls = [newBall, otherReplacement];
+      const owners = this.lifeLossOwners.length ? this.lifeLossOwners : [this.lifeLossOwner || "human"];
+      const survivors = [...this.balls];
+      const replacements = owners.map((owner) => this.newOwnedBall(owner));
+      this.balls = [...survivors, ...replacements];
+      if (!this.balls.some((ball) => ball.owner === "human")) this.balls.push(this.newOwnedBall("human"));
+      if (!this.balls.some((ball) => ball.owner === "computer")) this.balls.push(this.newOwnedBall("computer"));
       this.lifeLossOwner = null;
+      this.lifeLossOwners = [];
     } else {
       this.human = { x: 350, targetX: 350, y: 500, width: 112, height: 16, speed: 460 };
       this.computer = { x: 350, targetX: 350, y: 500, width: 112, height: 16 };
@@ -95,6 +99,7 @@ export class BreakoutModel {
     }
   }
   newBall(x, y, vx, vy, owner = null) { return { x, y, vx, vy, radius: 8, owner, lastPaddle: owner, dead: false }; }
+  newOwnedBall(owner) { return owner === "computer" ? this.newBall(450, 160, -180, 200, owner) : this.newBall(350, 450, 180, -200, owner); }
   activePaddle() { return this.side === "bottom" ? this.human : this.computer; }
   moveVersusPaddles(dt, input) {
     const keyDirection = input.keyDirection || 0;
@@ -263,13 +268,19 @@ export class BreakoutModel {
     ball.vy *= -1;
     this.addScore(owner, specialActive ? 25 : 10);
     if (!specialActive) return;
-    if (brick.type === "extraLife" && owner !== "computer") this.engine?.addLife?.();
+    if (brick.type === "extraLife") {
+      if (this.side === "versus") {
+        const lifeOwner = owner || ball.owner || "human";
+        this.playerLives[lifeOwner] = Math.min(9, this.playerLives[lifeOwner] + 1);
+      } else this.engine?.addLife?.();
+    }
     if (brick.type === "speed") for (const other of this.balls) { other.vx *= 1.12; other.vy *= 1.12; }
     if (brick.type === "double" && this.balls.length < 4) this.balls.push(this.newBall(ball.x, ball.y, -ball.vx * 0.82, ball.vy * 0.82, owner));
     if (brick.type === "shortBar") ownerPaddle.width = Math.max(64, ownerPaddle.width - 24);
     if (brick.type === "longBar") ownerPaddle.width = Math.min(170, ownerPaddle.width + 32);
     if (brick.type === "hazard") {
-      this.lastLifeLossOwner = owner || (this.side === "versus" ? ball.owner : null);
+      if (this.side === "versus") this.pendingLifeLossOwners.push(owner || ball.owner || "human");
+      else this.lastLifeLossOwner = owner || ball.owner || null;
       this.lifeLost = true;
     }
   }
@@ -283,24 +294,29 @@ export class BreakoutModel {
       this.gameOver = true;
     } else {
       this.winner = null;
+      this.versusTie = true;
       this.gameOver = true;
     }
   }
   handleLifeLoss() {
     if (this.versusRoundOver) return { gameOver: true, message: this.winner ? `${this.winner === "human" ? "You win" : "Computer wins"} the duel.` : "The duel ended in a tie." };
     if (this.side !== "versus") return null;
-    const owner = this.lastLifeLossOwner || "human";
-    this.lifeLossOwner = owner;
-    this.playerLives[owner] = Math.max(0, this.playerLives[owner] - 1);
+    const owners = this.pendingLifeLossOwners.length ? [...this.pendingLifeLossOwners] : [this.lastLifeLossOwner || this.lifeLossOwner || "human"];
+    this.pendingLifeLossOwners = [];
+    this.lifeLossOwners = owners;
+    this.lifeLossOwner = owners[0] || "human";
     this.lastLifeLossOwner = null;
-    if (this.playerLives[owner] === 0) {
+    for (const owner of owners) this.playerLives[owner] = Math.max(0, this.playerLives[owner] - 1);
+    const eliminated = owners.find((owner) => this.playerLives[owner] === 0);
+    if (eliminated) {
       this.gameOver = true;
-      this.winner = owner === "human" ? "computer" : "human";
-      return { gameOver: true, message: `${owner === "human" ? "You" : "Computer"} lost all lives — ${this.winner === "human" ? "you win" : "computer wins"}!` };
+      this.winner = eliminated === "human" ? "computer" : "human";
+      return { gameOver: true, owners, message: `${eliminated === "human" ? "You" : "Computer"} lost all lives — ${this.winner === "human" ? "you win" : "computer wins"}!` };
     }
-    return { gameOver: false, message: `${owner === "human" ? "You" : "Computer"} lost a life.` };
+    const message = owners.length === 1 ? `${owners[0] === "human" ? "You" : "Computer"} lost a life.` : `${owners.map((owner) => owner === "human" ? "You" : "Computer").join(" and ")} lost lives.`;
+    return { gameOver: false, owners, message };
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "versus" && this.winner ? `${this.winner === "human" ? "You win" : "Computer wins"} — highest score takes the duel.` : "Clear every brick to win. Special bricks change the round." }; }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "versus" && this.versusTie ? "The duel ended in a tie." : this.side === "versus" && this.winner ? `${this.winner === "human" ? "You win" : "Computer wins"} — highest score takes the duel.` : "Clear every brick to win. Special bricks change the round." }; }
 }
 
 function predictBallX(ball, seconds) {

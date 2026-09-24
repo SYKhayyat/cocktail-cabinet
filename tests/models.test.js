@@ -259,7 +259,60 @@ test("Breakout versus restores two balls after simultaneous exits", () => {
   game.resetAfterLife();
   assert.equal(game.balls.length, 2);
   assert.deepEqual(new Set(game.balls.map((ball) => ball.owner)), new Set(["human", "computer"]));
-  assert.equal(game.pendingLifeLossOwners.length, 1);
+  assert.equal(game.pendingLifeLossOwners.length, 0);
+});
+
+test("Breakout versus extra life updates the scoring player", () => {
+  const game = new BreakoutModel();
+  game.setSide("versus");
+  game.reset();
+  const brick = game.bricks.find((candidate) => candidate.type === "extraLife");
+  brick.phaseOffset = 0;
+  brick.period = 1.6;
+  brick.active = true;
+  const ball = game.balls.find((candidate) => candidate.owner === "human");
+  ball.x = brick.x + brick.width / 2;
+  ball.y = brick.y + 10;
+  ball.vx = 0;
+  ball.vy = 1;
+  game.balls = [ball];
+  game.update(0.016, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  assert.equal(game.playerLives.human, 4);
+  assert.equal(game.playerLives.computer, 3);
+});
+
+test("Breakout versus respawn preserves power-up balls", () => {
+  const game = new BreakoutModel();
+  game.setSide("versus");
+  game.reset();
+  const fallen = game.balls.find((ball) => ball.owner === "human");
+  const computerBall = game.balls.find((ball) => ball.owner === "computer");
+  const humanExtra = game.newBall(300, 450, 0, 0, "human");
+  const computerExtra = game.newBall(500, 160, 0, 0, "computer");
+  game.balls.push(humanExtra, computerExtra);
+  fallen.x = 400;
+  fallen.y = 545;
+  fallen.vx = 0;
+  fallen.vy = 300;
+  game.update(0.02, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  game.handleLifeLoss();
+  game.resetAfterLife();
+  assert.equal(game.balls.length, 4);
+  assert.ok(game.balls.includes(computerBall));
+  assert.ok(game.balls.includes(humanExtra));
+  assert.ok(game.balls.includes(computerExtra));
+});
+
+test("Breakout versus reports a tied score as a tie", () => {
+  const game = new BreakoutModel();
+  game.setSide("versus");
+  game.reset();
+  game.scores = { human: 10, computer: 10 };
+  for (const brick of game.bricks) brick.hits = 0;
+  game.update(0.016, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  assert.equal(game.gameOver, true);
+  assert.equal(game.winner, null);
+  assert.match(game.publicState().status, /tie/i);
 });
 
 test("Breakout versus awards a brick to the paddle that last hit its ball", () => {

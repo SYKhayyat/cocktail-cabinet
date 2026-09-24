@@ -19,6 +19,7 @@ export class BreakoutGame {
   get bricks() { return this.model.bricks; }
   get playerLives() { return this.model.playerLives; }
   get winner() { return this.model.winner; }
+  get versusTie() { return this.model.versusTie; }
   get gameOver() { return this.model.gameOver; }
   set gameOver(value) { this.model.gameOver = value; }
   get lifeLost() { return this.model.lifeLost; }
