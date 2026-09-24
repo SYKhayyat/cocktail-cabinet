@@ -121,7 +121,7 @@ export class AsteroidsModel {
     this.invulnerable = Math.max(0, this.invulnerable - dt);
     if (this.side === "rocks") {
       this.computerMistakeClock -= dt;
-      if (this.computerMistakeClock <= 0) { this.computerMistake = true; this.computerMistakeClock = 8 + Math.random() * 6; }
+      if (this.computerMistakeClock <= 0) { this.computerMistake = Math.random() < 0.22; this.computerMistakeClock = 8 + Math.random() * 6; }
       if (this.computerMistake && this.invulnerable === 0 && this.asteroids.some((asteroid) => Math.hypot(asteroid.x - this.ship.x, asteroid.y - this.ship.y) < 72)) { this.computerMistake = false; this.lifeLost = true; }
     }
     if (this.side === "ship") this.steer(dt, input);
