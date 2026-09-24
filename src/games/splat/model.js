@@ -45,6 +45,9 @@ export class SplatModel {
     this.driftActive = 0;
     this.player = this.newPlayer();
     this.computerPlayer = this.side === "race" ? this.newPlayer() : null;
+    const startingLives = this.engine?.maxLives ?? 3;
+    this.raceLives = this.side === "race" ? { human: startingLives, computer: startingLives } : null;
+    this.lostPlayers = [];
     this.columns = [];
     this.cameraX = 0;
     this.builderCameraX = 0;
@@ -62,7 +65,7 @@ export class SplatModel {
     }
     this.nextColumn = this.columns[0];
   }
-  newPlayer() { return { x: 70, y: 280, radius: 12, vy: 0, columnsPassed: 0, passedColumns: new Set() }; }
+  newPlayer() { return { x: 70, y: 280, radius: 12, vy: 0, columnsPassed: 0, passedColumns: new Set(), aiTargetY: null, aiReaction: 0, aiError: 0 }; }
   update(dt, input) {
     if (this.side === "race") this.updateRace(dt, input);
     else if (this.side === "builder" || this.side === "layout") this.updateBuilder(dt, input);
@@ -156,6 +159,7 @@ export class SplatModel {
       const insideGap = player.y + player.radius > column.gapY && player.y - player.radius < column.gapY + column.gapHeight;
       if (!insideGap) {
         this.lifeLost = true;
+        if (this.side === "race") this.lostPlayers.push(player);
         player.vy *= -0.25;
         break;
       }
@@ -171,7 +175,7 @@ export class SplatModel {
           this.furthestColumns = Math.max(this.furthestColumns, this.score);
         }
         this.nextColumn = this.columns.find((candidate) => this.side === "race" ? !player.passedColumns.has(candidate) : !candidate.passed) || null;
-        if (!human) this.computerMistake = Math.random() < COMPUTER_MISTAKE_CHANCE;
+        if (!human) this.computerMistake = Math.random() < (this.side === "race" ? 0.08 : COMPUTER_MISTAKE_CHANCE);
         this.aiClock = 0;
       }
     }
@@ -206,14 +210,52 @@ export class SplatModel {
     });
     if (!column) return;
     const targetY = column.gapY + column.gapHeight / 2;
-    const difference = targetY - player.y;
+    if (this.side === "race") {
+      if (player.aiTargetY === null || Math.abs(targetY - player.aiTargetY) > 24) {
+        player.aiTargetY = targetY;
+        player.aiReaction = 0.08 + Math.random() * 0.12;
+        player.aiError = (Math.random() - 0.5) * 28;
+      }
+      player.aiReaction = Math.max(0, player.aiReaction - dt);
+    }
+    const desiredY = this.side === "race" && player.aiReaction > 0 ? player.aiTargetY + player.aiError : targetY;
+    const difference = desiredY - player.y;
     if (this.computerMistake && player.x > column.x - 60) {
       this.lifeLost = true;
+      if (this.side === "race") this.lostPlayers.push(player);
       return;
     }
     const desiredVelocity = clamp(difference * 4, -360, 360);
     player.vy += (desiredVelocity - player.vy) * Math.min(1, dt * 8);
     this.aiClock += dt;
+  }
+  handleLifeLoss() {
+    if (this.side !== "race") return null;
+    const lostPlayers = [...this.lostPlayers];
+    if (!lostPlayers.length) return { gameOver: false, message: "A ball returned to the beginning." };
+    const owners = lostPlayers.map((player) => player === this.player ? "human" : "computer");
+    for (const owner of owners) this.raceLives[owner] = Math.max(0, this.raceLives[owner] - 1);
+    const eliminated = owners.find((owner) => this.raceLives[owner] === 0);
+    if (eliminated) {
+      this.gameOver = true;
+      this.winner = eliminated === "human" ? "computer" : "human";
+      return { gameOver: true, message: `${eliminated === "human" ? "You" : "Computer"} lost all lives.` };
+    }
+    return { gameOver: false, message: `${owners.map((owner) => owner === "human" ? "You" : "Computer").join(" and ")} lost a ball.` };
+  }
+  resetAfterLife() {
+    if (this.side !== "race") return;
+    for (const player of this.lostPlayers.splice(0)) {
+      player.x = 70;
+      player.y = 280;
+      player.vy = 0;
+      player.columnsPassed = 0;
+      player.passedColumns.clear();
+      player.aiTargetY = null;
+      player.aiReaction = 0;
+      player.aiError = 0;
+    }
+    this.score = this.player.columnsPassed;
   }
   publicState() {
     const status = this.side === "race" ? "Race the computer; the first ball to finish wins." : this.side === "builder" || this.side === "layout" ? "Place columns and draw gaps for the computer." : "Clear the gaps to score; reach the far right to win.";

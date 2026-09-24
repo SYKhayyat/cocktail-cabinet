@@ -14,6 +14,8 @@ export class SplatGame {
   get won() { return this.model.won; }
   get winner() { return this.model.winner; }
   get gameOver() { return this.model.gameOver; }
+  get playerLives() { return this.model.raceLives; }
+  set engine(value) { this.model.engine = value; }
   set gameOver(value) { this.model.gameOver = value; }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
@@ -21,6 +23,8 @@ export class SplatGame {
   setSettings(settings) { this.model.setSettings(settings); }
   applyPendingSettings() { this.model.applyPendingSettings(); }
   reset(keepScore) { this.model.reset(keepScore); }
+  resetAfterLife() { this.model.resetAfterLife(); }
+  handleLifeLoss() { return this.model.handleLifeLoss(); }
   update(dt, input) { this.controller.update(dt, input); }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }

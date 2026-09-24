@@ -514,6 +514,43 @@ test("Splat race creates one human and one computer ball", () => {
   assert.equal(game.computerPlayer.columnsPassed, 0);
 });
 
+test("Splat race returns only the dead ball to the beginning", () => {
+  const game = new SplatModel();
+  game.setSide("race");
+  game.reset();
+  const human = game.player;
+  const computer = game.computerPlayer;
+  human.x = 900;
+  human.columnsPassed = 7;
+  computer.x = 300;
+  computer.columnsPassed = 3;
+  game.lostPlayers.push(human);
+  const result = game.handleLifeLoss();
+  assert.equal(result.gameOver, false);
+  game.resetAfterLife();
+  assert.equal(human.x, 70);
+  assert.equal(human.columnsPassed, 0);
+  assert.equal(computer.x, 300);
+  assert.equal(computer.columnsPassed, 3);
+  assert.equal(game.raceLives.human, 2);
+  assert.equal(game.raceLives.computer, 3);
+});
+
+test("Splat race computer has reaction and targeting error", () => {
+  const game = new SplatModel();
+  game.setSide("race");
+  game.reset();
+  const originalRandom = Math.random;
+  Math.random = () => 0.99;
+  try {
+    game.moveComputer(game.computerPlayer, 1 / 60);
+  } finally {
+    Math.random = originalRandom;
+  }
+  assert.ok(game.computerPlayer.aiReaction > 0);
+  assert.notEqual(game.computerPlayer.aiError, 0);
+});
+
 test("Splat computer can steer through a generated route", () => {
   const game = new SplatModel();
   game.setSide("layout");

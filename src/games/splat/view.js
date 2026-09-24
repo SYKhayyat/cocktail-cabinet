@@ -32,7 +32,7 @@ export function draw(model, context) {
   context.fillRect(0, 0, 800, 560);
   if (model.side === "race") {
     const distance = Math.abs(model.player.x - model.computerPlayer.x);
-    if (distance > 620) {
+    if (distance > 500) {
       drawColumns(context, model, model.player.x - 110, 0, 398);
       drawColumns(context, model, model.computerPlayer.x - 110, 402, 398);
       drawPlayer(context, model.player, model.player.x - 110, 0, "#fbbf24");
@@ -49,7 +49,7 @@ export function draw(model, context) {
       drawText(context, "YOU", 16, 28, 14, "#fbbf24");
       drawText(context, "COMPUTER", 112, 28, 14, "#fb7185");
     }
-    drawText(context, `You: ${model.player.columnsPassed} columns · Computer: ${model.computerPlayer.columnsPassed} columns`, 16, 542, 12, "#64748b");
+    drawText(context, `You: ${model.player.columnsPassed} columns · Lives ${model.raceLives.human}    Computer: ${model.computerPlayer.columnsPassed} columns · Lives ${model.raceLives.computer}`, 16, 542, 12, "#64748b");
   } else {
     drawColumns(context, model, model.cameraX, 0, 800);
     drawDraftGap(context, model, model.cameraX, 0);
