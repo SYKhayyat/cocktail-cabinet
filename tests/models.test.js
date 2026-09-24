@@ -184,6 +184,28 @@ test("Breakout versus mirrors top-paddle collision for a rising computer ball", 
   assert.equal(ball.y, 73);
 });
 
+test("Breakout versus lets either ball collide with either paddle", () => {
+  const game = new BreakoutModel();
+  game.setSide("versus");
+  game.reset();
+  const humanBall = game.balls.find((ball) => ball.owner === "human");
+  humanBall.x = game.computer.x + game.computer.width / 2;
+  humanBall.y = 60;
+  humanBall.vx = 0;
+  humanBall.vy = -200;
+  game.balls = [humanBall];
+  game.update(0.016, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  assert.equal(humanBall.lastPaddle, "computer");
+  assert.ok(humanBall.vy > 0);
+
+  const computerBall = new BreakoutModel().newBall(350, 492, 0, 200, "computer");
+  game.reset();
+  game.balls = [computerBall];
+  game.update(0.016, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  assert.equal(computerBall.lastPaddle, "human");
+  assert.ok(computerBall.vy < 0);
+});
+
 test("Breakout versus charges a top exit to the ball owner", () => {
   const game = new BreakoutModel();
   game.setSide("versus");

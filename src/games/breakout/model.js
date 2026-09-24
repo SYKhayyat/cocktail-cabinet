@@ -107,7 +107,7 @@ export class BreakoutModel {
       this.computer.x = moveToward(this.computer.x, this.computer.targetX, 480 * dt);
     }
   }
-  paddleForBall(ball) { return this.side === "versus" ? (ball.owner === "computer" ? this.computer : this.human) : this.activePaddle(); }
+  paddlesForBall() { return this.side === "versus" ? [this.human, this.computer] : [this.activePaddle()]; }
   moveHuman(dt, input) {
     if (this.side === "versus") {
       this.moveVersusPaddles(dt, input);
@@ -190,7 +190,7 @@ export class BreakoutModel {
     }
     for (const ball of this.balls) {
       if (ball.dead) continue;
-      const paddle = this.paddleForBall(ball);
+      const paddles = this.paddlesForBall();
       const previousY = ball.y;
       ball.x += ball.vx * dt;
       ball.y += ball.vy * dt;
@@ -200,13 +200,18 @@ export class BreakoutModel {
       if (this.side === "versus" && ball.y < -ball.radius) {
         ball.dead = true;
         this.paddleMisses += 1;
-        this.pendingLifeLossOwners.push(ball.owner || "human");
+        this.pendingLifeLossOwners.push("computer");
       }
-      const horizontal = ball.x + ball.radius > paddle.x && ball.x - ball.radius < paddle.x + paddle.width;
-      const hitsPaddle = paddle.y < 300
-        ? horizontal && ball.vy < 0 && previousY + ball.radius > paddle.y && ball.y - ball.radius <= paddle.y + paddle.height
-        : horizontal && ball.vy > 0 && previousY - ball.radius < paddle.y + paddle.height && ball.y + ball.radius >= paddle.y;
-      if (hitsPaddle) this.bounceFromPaddle(ball, paddle);
+      for (const paddle of paddles) {
+        const horizontal = ball.x + ball.radius > paddle.x && ball.x - ball.radius < paddle.x + paddle.width;
+        const hitsPaddle = paddle.y < 300
+          ? horizontal && ball.vy < 0 && previousY + ball.radius > paddle.y && ball.y - ball.radius <= paddle.y + paddle.height
+          : horizontal && ball.vy > 0 && previousY - ball.radius < paddle.y + paddle.height && ball.y + ball.radius >= paddle.y;
+        if (hitsPaddle) {
+          this.bounceFromPaddle(ball, paddle);
+          break;
+        }
+      }
       for (const brick of this.bricks) {
         if (!brick.hits || !circleHitsRect(ball, brick)) continue;
         brick.hits = 0;
@@ -216,7 +221,7 @@ export class BreakoutModel {
       if (ball.y > 545) {
         ball.dead = true;
         this.paddleMisses += 1;
-        if (this.side === "versus") this.pendingLifeLossOwners.push(ball.owner || "human");
+        if (this.side === "versus") this.pendingLifeLossOwners.push("human");
       }
     }
     this.balls = this.balls.filter((ball) => !ball.dead);
