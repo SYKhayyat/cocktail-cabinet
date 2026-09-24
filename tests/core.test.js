@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { clamp, circleHitsCircle, distance } from "../src/engine.js";
-import { SnakeGame } from "../src/games/snake.js";
-import { BreakoutGame } from "../src/games/breakout.js";
+import { SnakeModel } from "../src/games/snake/model.js";
+import { BreakoutModel } from "../src/games/breakout/model.js";
 import { StarfallGame } from "../src/games/starfall.js";
 import { ImitationGame } from "../src/games/imitation.js";
 
@@ -15,7 +15,7 @@ test("shared helpers clamp and measure ordinary game values", () => {
 });
 
 test("Snake creates a playable state and grows when it reaches an apple", () => {
-  const game = new SnakeGame();
+  const game = new SnakeModel();
   assert.equal(game.side, "snake");
   game.setSettings({ cols: 30, rows: 20, startingLength: 5, wrap: true });
   game.applyPendingSettings();
@@ -43,7 +43,7 @@ test("Snake creates a playable state and grows when it reaches an apple", () => 
 test("Snake computer follows apples with a short reaction delay", () => {
   let reachedApple = false;
   for (let round = 0; round < 5 && !reachedApple; round += 1) {
-    const game = new SnakeGame();
+    const game = new SnakeModel();
     game.setSide("apples");
     game.reset();
     const input = { keys: new Set(), pressed: new Set(), pointer: { clicked: false, down: false } };
@@ -54,7 +54,7 @@ test("Snake computer follows apples with a short reaction delay", () => {
 });
 
 test("Breakout keeps the ball inside the screen after a step", () => {
-  const game = new BreakoutGame();
+  const game = new BreakoutModel();
   game.reset();
   const input = { keys: new Set(["ArrowRight"]), pressed: new Set(), pointer: { clicked: false } };
   for (let index = 0; index < 100; index += 1) {
@@ -67,7 +67,7 @@ test("Breakout keeps the ball inside the screen after a step", () => {
 });
 
 test("Breakout preserves the brick wall after a life loss", () => {
-  const game = new BreakoutGame();
+  const game = new BreakoutModel();
   game.setSide("blocks");
   game.reset();
   game.bricks[0].hits = 0;
@@ -78,7 +78,7 @@ test("Breakout preserves the brick wall after a life loss", () => {
 });
 
 test("Breakout input mode gives keyboard priority until the mouse moves", () => {
-  const game = new BreakoutGame();
+  const game = new BreakoutModel();
   game.reset();
   game.update(0.016, { mode: "keyboard", keys: new Set(["ArrowRight"]), pressed: new Set(), pointer: { x: 700, moved: true, clicked: false, down: false } });
   const keyboardX = game.human.x;
@@ -88,7 +88,7 @@ test("Breakout input mode gives keyboard priority until the mouse moves", () => 
 });
 
 test("Breakout setup click cycles a block and drag rearranges it", () => {
-  const game = new BreakoutGame();
+  const game = new BreakoutModel();
   game.setSide("blocks");
   game.reset();
   const brick = game.bricks[0];
