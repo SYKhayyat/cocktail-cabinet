@@ -589,7 +589,8 @@ test("Asteroids: ship movement, firing, spawning, destruction, and ship loss", (
   game.bullets[0].y = 280;
   game.update(0, { turn: 0, thrust: 0, pointer: null, fire: false, spawnAsteroid: null });
   assert.equal(game.score, 10);
-  assert.equal(game.asteroids.length, 1);
+  assert.equal(game.asteroids.length, 2);
+  assert.ok(game.asteroids.every((asteroid) => asteroid.generation === 1));
   const danger = new AsteroidsModel();
   danger.setSide("rocks");
   danger.reset();
@@ -600,6 +601,44 @@ test("Asteroids: ship movement, firing, spawning, destruction, and ship loss", (
   danger.invulnerable = 0;
   danger.update(0, { attack: null, fire: false, spawnAsteroid: null });
   assert.equal(danger.lifeLost, true);
+});
+
+test("Asteroids spawn pressure toward the ship", () => {
+  const game = new AsteroidsModel();
+  game.reset();
+  assert.ok(game.asteroids.every((asteroid) => asteroid.vx * (game.ship.x - asteroid.x) + asteroid.vy * (game.ship.y - asteroid.y) > 0));
+});
+
+test("Asteroids fracture only once and shots increase asteroid speed", () => {
+  const game = new AsteroidsModel();
+  game.reset();
+  const asteroid = game.asteroids[0];
+  game.asteroids = [asteroid];
+  game.ship.angle = 0;
+  game.fire();
+  game.bullets[0].x = asteroid.x;
+  game.bullets[0].y = asteroid.y;
+  game.update(0, { fire: false, spawnAsteroid: null });
+  assert.equal(game.asteroids.length, 2);
+  const piece = game.asteroids[0];
+  game.bullets = [{ x: piece.x, y: piece.y, vx: 0, vy: 0, life: 1 }];
+  game.update(0, { fire: false, spawnAsteroid: null });
+  assert.equal(game.asteroids.length, 1);
+  const speedBefore = game.asteroidSpeed;
+  game.fire();
+  assert.ok(game.asteroidSpeed > speedBefore);
+});
+
+test("Asteroids mouse movement swivels and click or hold fires", () => {
+  const game = new AsteroidsGame();
+  game.reset();
+  const startAngle = game.model.ship.angle;
+  game.update(0.016, input({ pointer: pointer({ x: 700, y: 100, moved: true, clicked: true }) }));
+  assert.notEqual(game.model.ship.angle, startAngle);
+  assert.equal(game.model.bullets.length, 1);
+  game.model.shotClock = 0;
+  game.update(0.016, input({ pointer: pointer({ x: 700, y: 100, down: true }) }));
+  assert.equal(game.model.bullets.length, 2);
 });
 
 test("Missile Command: aiming, launching, interception, targeting, and base loss", () => {
