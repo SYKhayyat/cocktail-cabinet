@@ -9,6 +9,10 @@ export class AsteroidsGame {
   get description() { return this.model.description; }
   get side() { return this.model.side; }
   get score() { return this.model.score; }
+  get won() { return this.model.won; }
+  get winner() { return this.model.winner; }
+  get gameOver() { return this.model.gameOver; }
+  set gameOver(value) { this.model.gameOver = value; }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
   setSide(side) { this.model.setSide(side); }
@@ -19,6 +23,7 @@ export class AsteroidsGame {
   update(dt, input) { this.controller.update(dt, input); }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }
+  winMessage() { return this.model.winner === "computer" ? "Computer wins the space duel!" : "You win the space duel!"; }
   sideLabel() { return this.model.sideLabel(); }
 }
 

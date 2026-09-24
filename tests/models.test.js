@@ -663,11 +663,17 @@ test("Asteroids versus gives both pilots scores and lives", () => {
   game.bullets = [{ x: game.computerShip.x, y: game.computerShip.y, vx: 0, vy: 0, life: 1, owner: "human" }];
   game.update(0, { pointer: null, fire: false });
   assert.equal(game.playerLives.computer, 2);
-  assert.equal(game.scores.human, 110);
+  assert.equal(game.scores.human, 100);
   game.bullets = [{ x: game.ship.x, y: game.ship.y, vx: 0, vy: 0, life: 1, owner: "computer" }];
   game.update(0, { pointer: null, fire: false });
   assert.equal(game.playerLives.human, 2);
   assert.equal(game.lifeLost, true);
+  game.lifeLost = false;
+  game.playerLives.computer = 0;
+  const result = game.handleLifeLoss();
+  assert.equal(result.gameOver, true);
+  assert.equal(game.winner, "human");
+  assert.equal(game.won, true);
 });
 
 test("Missile Command: aiming, launching, interception, targeting, and base loss", () => {

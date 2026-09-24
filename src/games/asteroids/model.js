@@ -23,6 +23,9 @@ export class AsteroidsModel {
     this.computerShotClock = 0.45;
     this.invulnerable = 1;
     this.asteroidSpeed = 1;
+    this.won = false;
+    this.gameOver = false;
+    this.winner = null;
     this.draggedAsteroid = null;
     this.dragVelocityX = 0;
     this.dragVelocityY = 0;
@@ -72,18 +75,21 @@ export class AsteroidsModel {
       ship.aiAim = Math.atan2(target.y - ship.y, target.x - ship.x);
     }
     ship.aiReaction = Math.max(0, ship.aiReaction - dt);
-    const desiredAngle = ship.aiReaction > 0 ? ship.aiAim + ship.aiError : Math.atan2(target.y - ship.y, target.x - ship.x);
+    const targetAngle = Math.atan2(target.y - ship.y, target.x - ship.x);
+    const distance = Math.hypot(target.x - ship.x, target.y - ship.y);
+    const desiredAngle = this.side === "rocks" && distance < 105 ? targetAngle + Math.PI : ship.aiReaction > 0 ? ship.aiAim + ship.aiError : targetAngle;
     let difference = desiredAngle - ship.angle;
     while (difference > Math.PI) difference -= Math.PI * 2;
     while (difference < -Math.PI) difference += Math.PI * 2;
-    ship.angle += clamp(difference, -2.6 * dt, 2.6 * dt);
-    ship.speed = this.side === "versus" ? 115 : 135;
+    ship.angle += clamp(difference, -3.6 * dt, 3.6 * dt);
+    ship.speed = this.side === "versus" ? 105 : 165;
     ship.x = (ship.x + Math.cos(ship.angle) * ship.speed * dt + 800) % 800;
     ship.y = (ship.y + Math.sin(ship.angle) * ship.speed * dt + 560) % 560;
   }
-  fire(owner = "human", ship = this.ship) {
+  fire(owner = "human", ship = this.ship, aimError = 0) {
     if (owner === "human") this.asteroidSpeed = Math.min(1.8, this.asteroidSpeed + 0.012);
-    this.bullets.push({ x: ship.x, y: ship.y, vx: Math.cos(ship.angle) * 360, vy: Math.sin(ship.angle) * 360, life: 1, owner });
+    const angle = ship.angle + aimError;
+    this.bullets.push({ x: ship.x, y: ship.y, vx: Math.cos(angle) * 360, vy: Math.sin(angle) * 360, life: 1, owner });
   }
   fractureAsteroid(asteroid) {
     const speed = Math.max(35, Math.hypot(asteroid.vx, asteroid.vy));
@@ -120,7 +126,7 @@ export class AsteroidsModel {
     this.shotClock -= dt;
     this.computerShotClock -= dt;
     if ((this.side === "ship" || this.side === "versus") && input.fire && this.shotClock <= 0) { this.fire("human", this.ship); this.shotClock = 0.18; }
-    if ((this.side === "rocks" || this.side === "versus") && this.computerShotClock <= 0) { this.fire("computer", this.side === "versus" ? this.computerShip : this.ship); this.computerShotClock = this.side === "versus" ? 0.5 + Math.random() * 0.18 : Math.max(0.26, 0.5 - this.score * 0.002); }
+    if ((this.side === "rocks" || this.side === "versus") && this.computerShotClock <= 0) { this.fire("computer", this.side === "versus" ? this.computerShip : this.ship, (Math.random() - 0.5) * 0.24); this.computerShotClock = this.side === "versus" ? 0.8 + Math.random() * 0.2 : Math.max(0.45, 0.7 - this.score * 0.001); }
     if (this.side === "rocks") this.updateRockPlacement({ ...input, dt });
     if (this.side === "ship" || this.side === "versus") { this.spawnClock -= dt; if (this.spawnClock <= 0 && this.asteroids.length < 7) { this.spawnAsteroid(); this.spawnClock = Math.max(0.25, 1.3 - this.score * 0.012); } }
     for (const asteroid of this.asteroids) { asteroid.x = (asteroid.x + asteroid.vx * this.asteroidSpeed * dt + 800) % 800; asteroid.y = (asteroid.y + asteroid.vy * this.asteroidSpeed * dt + 560) % 560; asteroid.rotation += asteroid.spin * dt; }
@@ -159,6 +165,7 @@ export class AsteroidsModel {
     if (this.side !== "versus") return null;
     if (this.playerLives.human <= 0 || this.playerLives.computer <= 0) {
       this.gameOver = true;
+      this.won = true;
       this.winner = this.playerLives.human <= 0 ? "computer" : "human";
       return { gameOver: true, message: `${this.winner === "human" ? "You win" : "Computer wins"} the space duel!` };
     }
