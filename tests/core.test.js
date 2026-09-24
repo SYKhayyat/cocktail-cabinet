@@ -87,6 +87,26 @@ test("Breakout input mode gives keyboard priority until the mouse moves", () => 
   assert.ok(game.human.x < keyboardX);
 });
 
+test("Breakout setup click cycles a block and drag rearranges it", () => {
+  const game = new BreakoutGame();
+  game.setSide("blocks");
+  game.reset();
+  const brick = game.bricks[0];
+  const center = { x: brick.x + brick.width / 2, y: brick.y + brick.height / 2 };
+  const baseInput = { mode: "mouse", keys: new Set(), pressed: new Set(), pointer: { x: center.x, y: center.y, moved: true, clicked: true, down: true } };
+  game.update(0.016, baseInput);
+  game.update(0.016, { ...baseInput, pointer: { ...baseInput.pointer, clicked: false, down: false } });
+  assert.notEqual(brick.type, "normal");
+  const oldX = brick.x;
+  game.update(0.016, { ...baseInput, pointer: { ...baseInput.pointer, x: center.x, clicked: true, down: true } });
+  game.update(0.016, { ...baseInput, pointer: { ...baseInput.pointer, x: center.x + 70, clicked: false, down: true } });
+  assert.notEqual(brick.x, oldX);
+  const arrangedX = brick.x;
+  game.reset();
+  assert.equal(game.bricks[0].x, arrangedX);
+  assert.notEqual(game.bricks[0].type, "normal");
+});
+
 test("Imitation keeps its stable game id for cabinet lookup", () => {
   const game = new ImitationGame();
   assert.equal(game.id, "imitation");

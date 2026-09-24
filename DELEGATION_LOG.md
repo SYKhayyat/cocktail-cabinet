@@ -47,3 +47,9 @@
 - **Requested:** Stabilize the paddle, keep balls fully visible, outline the box, add colored special bricks, support extra lives, double balls, speed-ups, danger/life loss, and a clear-wall win.
 - **Produced:** Smoothed paddle targeting, bounded multi-ball physics, a playfield outline, labeled colored special bricks, engine extra-life support, and a win overlay.
 - **Verification:** Six tests pass and all JavaScript syntax checks pass; a 600-frame setup-mode smoke run confirms the computer can return the ball while the human can drag blocks before starting.
+
+## Breakout reference-AI pass
+
+- **Requested:** Use the Pong reference to make the computer miss naturally, preserve edited blocks on New game, and make the mouse deadzone stable.
+- **Produced:** A 70–100 ms reaction timer, bounded computer speed, small prediction error, non-overshooting paddle movement, layout persistence, independent special-brick phases, and click-to-cycle/drag-to-rearrange controls.
+- **Verification:** Nine tests pass, all JavaScript syntax checks pass, and a 20-run setup simulation shows the computer sometimes misses instead of being perfect.
