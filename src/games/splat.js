@@ -5,7 +5,7 @@ export class SplatGame {
     this.id = "splat";
     this.title = "Splat";
     this.description = "Build a rising route, or climb the route the machine builds for you.";
-    this.side = "climber";
+    this.side = "layout";
     this.score = 0;
   }
   sideLabel() { return this.side === "climber" ? "You climb the columns" : "You lay out the columns"; }

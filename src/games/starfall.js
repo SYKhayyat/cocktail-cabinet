@@ -5,7 +5,7 @@ export class StarfallGame {
     this.id = "starfall";
     this.title = "Starfall";
     this.description = "Guide the runner through the falling stars, or send stars at a machine runner.";
-    this.side = "runner";
+    this.side = "stars";
     this.score = 0;
   }
   sideLabel() { return this.side === "runner" ? "You guide the runner" : "You send the stars"; }

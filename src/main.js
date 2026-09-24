@@ -33,13 +33,13 @@ const chatMessages = document.querySelector("#chatMessages");
 let lastChatRevision = -1;
 
 const sideOptions = {
-  snake: [["apples", "Place apples"], ["snake", "Steer the snake"]],
-  breakout: [["bottom", "Bottom paddle"], ["top", "Top paddle"]],
-  splat: [["climber", "Climb columns"], ["layout", "Lay out columns"]],
-  asteroids: [["ship", "Fly the ship"], ["rocks", "Send asteroids"]],
-  missile: [["defender", "Defend cities"], ["attacker", "Attack cities"]],
-  imitation: [["ai", "Play the machine"], ["human", "Play a second tab"]],
-  starfall: [["runner", "Guide the runner"], ["stars", "Send the stars"]]
+  snake: [["apples", "Computer snake vs you — place apples"], ["snake", "You vs computer — steer the snake"]],
+  breakout: [["bottom", "Computer paddle vs you — bottom paddle"], ["top", "You vs computer — top paddle"]],
+  splat: [["layout", "Computer climber vs you — lay columns"], ["climber", "You vs computer — climb the columns"]],
+  asteroids: [["rocks", "Computer ship vs you — send asteroids"], ["ship", "You vs computer — fly the ship"]],
+  missile: [["defender", "Computer attack vs you — defend cities"], ["attacker", "You vs computer — attack cities"]],
+  imitation: [["ai", "Chat with the local AI"], ["human", "Chat with a second tab"]],
+  starfall: [["stars", "Computer runner vs you — send stars"], ["runner", "You vs computer — guide the runner"]]
 };
 
 function renderChat(game) {

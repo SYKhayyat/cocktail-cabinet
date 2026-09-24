@@ -5,7 +5,7 @@ export class AsteroidsGame {
     this.id = "asteroids";
     this.title = "Asteroids";
     this.description = "Pilot the ship, or launch the rocks. The machine flies with the same collision rules you do.";
-    this.side = "ship";
+    this.side = "rocks";
     this.score = 0;
   }
   sideLabel() { return this.side === "ship" ? "You fly the ship" : "You send the asteroids"; }
