@@ -51,8 +51,9 @@ export class SplatModel {
     if (this.side === "climber" && this.aiClock > platformDelay) { this.aiClock = 0; this.addPlatform(this.nextX); }
   }
   moveClimber(input, dt) {
-    if (input.keyDirection) this.climber.x += input.keyDirection * 220 * dt;
-    else if (input.pointerX > 0) this.climber.x += clamp(input.pointerX - this.climber.width / 2 - this.climber.x, -1, 1) * 220 * dt;
+    const keyDirection = input.keyDirection || 0;
+    if (input.mode === "keyboard" || keyDirection) this.climber.x += keyDirection * 220 * dt;
+    else if (input.pointerMoved && input.pointerX > 0) this.climber.x += clamp(input.pointerX - this.climber.width / 2 - this.climber.x, -1, 1) * 220 * dt;
   }
   moveAiClimber(dt) {
     if (this.aiTarget && this.climber.vy >= 0 && this.climber.y > this.aiTarget.y + this.climber.height) this.aiTarget = null;

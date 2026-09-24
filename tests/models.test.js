@@ -191,6 +191,16 @@ test("Splat human survives the first bounce with a generated platform", () => {
   assert.ok(game.climber.y < 560);
 });
 
+test("Splat keyboard mode does not pull toward a stale cursor", () => {
+  const game = new SplatGame();
+  game.reset();
+  const startX = game.model.climber.x;
+  game.update(0.1, input({ mode: "keyboard", pointer: pointer({ x: 700, moved: false }) }));
+  assert.equal(game.model.climber.x, startX);
+  game.update(0.1, input({ mode: "mouse", pointer: pointer({ x: 700, moved: true }) }));
+  assert.ok(game.model.climber.x > startX);
+});
+
 test("Asteroids: ship movement, firing, spawning, destruction, and ship loss", () => {
   const game = new AsteroidsModel();
   game.reset();
