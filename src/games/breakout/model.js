@@ -60,7 +60,7 @@ export class BreakoutModel {
     if (this.side === "versus") {
       const owner = this.lifeLossOwner || "human";
       const otherBall = this.balls.find((ball) => ball.owner !== owner);
-      const newBall = owner === "computer" ? this.newBall(450, 110, -180, 200, "computer") : this.newBall(350, 450, 180, -200, "human");
+      const newBall = owner === "computer" ? this.newBall(450, 160, -180, 200, "computer") : this.newBall(350, 450, 180, -200, "human");
       this.balls = otherBall ? [newBall, otherBall] : [newBall];
       this.lifeLossOwner = null;
     } else {

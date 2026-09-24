@@ -183,8 +183,9 @@ export class GameEngine {
       const winner = this.game.winner;
       const heading = this.ready ? "READY" : this.countdown > 0 ? "GET READY" : this.game.won ? winner === "computer" ? "COMPUTER WINS" : "YOU WIN" : this.game.gameOver && winner ? winner === "human" ? "YOU WIN" : "COMPUTER WINS" : this.game.gameOver ? "OUT OF LIVES" : "PAUSED";
       const instruction = this.ready ? "Press New game to start" : this.countdown > 0 ? `Starting in ${Math.ceil(this.countdown)}…` : this.game.won || this.game.gameOver && winner ? "Press New game to play again" : this.game.gameOver ? "Press New game to try again" : "Press Continue to resume";
+      const lifeText = this.game.playerLives ? `You: ${this.game.playerLives.human}    Computer: ${this.game.playerLives.computer}` : `Lives: ${this.lives}/${this.maxLives}`;
       drawText(this.context, heading, 400, 275, 24, "#fbbf24", "center");
-      drawText(this.context, `Score: ${this.game.score}    Lives: ${this.lives}/${this.maxLives}`, 400, 310, 16, "#f8fafc", "center");
+      drawText(this.context, `Score: ${this.game.score}    ${lifeText}`, 400, 310, 16, "#f8fafc", "center");
       drawText(this.context, instruction, 400, 340, 14, "#cbd5e1", "center");
     }
     this.input.pressed.clear();

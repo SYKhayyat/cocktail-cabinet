@@ -220,7 +220,9 @@ test("Breakout versus charges a top exit to the ball owner", () => {
   assert.equal(game.playerLives.computer, 2);
   game.resetAfterLife();
   assert.ok(game.balls.includes(humanBall));
-  assert.ok(game.balls.some((candidate) => candidate.owner === "computer"));
+  const replacement = game.balls.find((candidate) => candidate.owner === "computer");
+  assert.ok(replacement);
+  assert.equal(replacement.y, 160);
 });
 
 test("Breakout versus awards a brick to the paddle that last hit its ball", () => {
