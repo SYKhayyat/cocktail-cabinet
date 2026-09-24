@@ -111,7 +111,8 @@ export class GameEngine {
         this.lives -= 1;
         this.onLives?.(this.lives, this.maxLives);
         if (this.lives > 0) {
-          this.game.reset(true);
+          const lengthAtDeath = this.game.snake?.length;
+          this.game.reset(true, lengthAtDeath);
           this.countdown = 3;
           this.onMessage?.(lossReason === "wall" ? "Wall hit — one life lost. Starting again in 3…" : "One life lost — starting again in 3…");
         } else {

@@ -47,7 +47,7 @@ export class SnakeGame {
     return { x: clamp(Math.floor(pointer.x / this.cellWidth()), 0, this.cols - 1), y: clamp(Math.floor(pointer.y / this.cellHeight()), 0, this.rows - 1) };
   }
   cellCenter(cell) { return { x: cell.x * this.cellWidth() + this.cellWidth() / 2, y: cell.y * this.cellHeight() + this.cellHeight() / 2 }; }
-  reset(keepScore = false) {
+  reset(keepScore = false, length = this.startingLength) {
     this.cols = this.roundSettings.cols;
     this.rows = this.roundSettings.rows;
     this.startingLength = clamp(this.roundSettings.startingLength, 3, 12);
@@ -57,7 +57,7 @@ export class SnakeGame {
     this.lossReason = "";
     const startX = Math.floor(this.cols / 2);
     const startY = Math.floor(this.rows / 2);
-    this.snake = Array.from({ length: this.startingLength }, (_, index) => ({ x: startX - index, y: startY }));
+    this.snake = Array.from({ length: Math.max(this.startingLength, length) }, (_, index) => ({ x: startX - index, y: startY }));
     this.direction = { x: 1, y: 0 };
     this.nextDirection = { x: 1, y: 0 };
     this.aiClock = 0;
