@@ -768,6 +768,8 @@ test("Asteroids versus gives both pilots scores and lives", () => {
   assert.equal(game.playerLives.human, 3);
   assert.equal(game.scores.computer, 0);
   assert.equal(game.lifeLost, false);
+  assert.ok(game.shipCollisionCooldown > 0);
+  assert.ok(Math.hypot(game.computerShip.x - game.ship.x, game.computerShip.y - game.ship.y) >= game.ship.radius + game.computerShip.radius);
   game.lifeLost = false;
   game.playerLives.computer = 0;
   const result = game.handleLifeLoss();

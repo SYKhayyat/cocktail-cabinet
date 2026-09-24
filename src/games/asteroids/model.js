@@ -32,6 +32,7 @@ export class AsteroidsModel {
     this.dragVelocityY = 0;
     this.computerMistake = false;
     this.computerMistakeClock = 5 + Math.random() * 4;
+    this.shipCollisionCooldown = 0;
     this.lastLifeLossOwner = null;
     for (let index = 0; index < 3; index += 1) this.spawnAsteroid();
   }
@@ -118,6 +119,7 @@ export class AsteroidsModel {
   }
   update(dt, input) {
     this.invulnerable = Math.max(0, this.invulnerable - dt);
+    this.shipCollisionCooldown = Math.max(0, this.shipCollisionCooldown - dt);
     if (this.side === "rocks") {
       this.computerMistakeClock -= dt;
       if (this.computerMistakeClock <= 0) { this.computerMistake = Math.random() < 0.2; this.computerMistakeClock = 8 + Math.random() * 6; }
@@ -127,7 +129,7 @@ export class AsteroidsModel {
     else if (this.side === "rocks") this.aiShip(dt);
     else {
       this.steer(dt, input);
-      this.aiShip(dt, this.computerShip, this.ship);
+      this.aiShip(dt, this.computerShip, this.shipCollisionCooldown > 0 ? null : this.ship);
     }
     this.shotClock -= dt;
     this.computerShotClock -= dt;
@@ -145,10 +147,17 @@ export class AsteroidsModel {
       if (distance < minimumDistance) {
         const angle = distance > 0 ? Math.atan2(dy, dx) : 0;
         const separation = minimumDistance - distance;
+        const humanSpeed = this.ship.speed;
+        const computerSpeed = this.computerShip.speed;
         this.ship.x -= Math.cos(angle) * separation / 2;
         this.ship.y -= Math.sin(angle) * separation / 2;
         this.computerShip.x += Math.cos(angle) * separation / 2;
         this.computerShip.y += Math.sin(angle) * separation / 2;
+        this.ship.angle = angle + Math.PI;
+        this.computerShip.angle = angle;
+        this.ship.speed = Math.max(80, humanSpeed);
+        this.computerShip.speed = Math.max(80, computerSpeed);
+        this.shipCollisionCooldown = 0.75;
       }
     }
     for (const bullet of this.bullets) {
