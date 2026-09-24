@@ -1,12 +1,10 @@
 export class SplatController {
   constructor(model) { this.model = model; }
   update(dt, input) {
+    const keyThrust = input.pressed.has("ArrowUp") || input.pressed.has("w") ? -1 : input.pressed.has("ArrowDown") || input.pressed.has("s") ? 1 : 0;
+    const pointerThrust = input.pointer.clicked ? (input.pointer.y < 280 ? -1 : 1) : 0;
     this.model.update(dt, {
-      keyDirection: (input.keys.has("ArrowRight") || input.keys.has("d") ? 1 : 0) - (input.keys.has("ArrowLeft") || input.keys.has("a") ? 1 : 0),
-      mode: input.mode,
-      pointerX: input.pointer.x,
-      pointerMoved: input.pointer.moved,
-      jump: input.pressed.has(" ") || input.pointer.clicked,
+      thrust: keyThrust || pointerThrust,
       placeColumnX: input.pointer.clicked ? input.pointer.x : undefined,
     });
   }
