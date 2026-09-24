@@ -36,6 +36,10 @@ const chatForm = document.querySelector("#chatForm");
 const chatInput = document.querySelector("#chatInput");
 const chatMessages = document.querySelector("#chatMessages");
 const settingsPanel = document.querySelector("#settingsPanel");
+const settingsTitle = document.querySelector("#settingsTitle");
+const snakeSettings = document.querySelector("#snakeSettings");
+const splatSettings = document.querySelector("#splatSettings");
+const splatSpacing = document.querySelector("#splatSpacing");
 const snakeCols = document.querySelector("#snakeCols");
 const snakeRows = document.querySelector("#snakeRows");
 const snakeLength = document.querySelector("#snakeLength");
@@ -93,6 +97,28 @@ function applySnakeSettings() {
   } else message.textContent = "Settings saved for the next game.";
 }
 
+function readSplatSettings() {
+  const columnSpacing = Number(splatSpacing.value);
+  if (!Number.isInteger(columnSpacing) || columnSpacing < 90 || columnSpacing > 240) return null;
+  return { columnSpacing };
+}
+
+function applySplatSettings() {
+  if (activeId !== "splat") return;
+  const settings = readSplatSettings();
+  if (!settings) {
+    message.textContent = "Use a whole number from 90 to 240 pixels for column spacing.";
+    return;
+  }
+  const game = games.get("splat");
+  game.setSettings(settings);
+  if (engine.ready) {
+    game.applyPendingSettings();
+    game.reset();
+    message.textContent = "Preview updated. Press New game when ready.";
+  } else message.textContent = "Settings saved for the next game.";
+}
+
 let activeId = "snake";
 const games = new Map(gameFactories.map(([id, , , factory]) => [id, factory()]));
 
@@ -125,8 +151,18 @@ function loadGame(id) {
   description.textContent = game.description;
   renderSideOptions(game);
   gameActions.hidden = id === "imitation";
-  settingsPanel.hidden = id !== "snake";
-  if (id === "snake") game.setSettings(readSnakeSettings());
+  settingsPanel.hidden = id !== "snake" && id !== "splat";
+  settingsTitle.textContent = id === "splat" ? "Splat settings" : "Snake settings";
+  snakeSettings.hidden = id !== "snake";
+  splatSettings.hidden = id !== "splat";
+  if (id === "snake") {
+    const settings = readSnakeSettings();
+    if (settings) game.setSettings(settings);
+  }
+  if (id === "splat") {
+    const settings = readSplatSettings();
+    if (settings) game.setSettings(settings);
+  }
   chatPanel.hidden = id !== "imitation";
   lastChatRevision = -1;
   engine.load(game);
@@ -157,6 +193,7 @@ sideSelect.addEventListener("change", () => {
   engine.setSide(sideSelect.value);
 });
 [snakeCols, snakeRows, snakeLength, snakeWrap].forEach((control) => control.addEventListener("change", applySnakeSettings));
+splatSpacing.addEventListener("change", applySplatSettings);
 restartButton.addEventListener("click", () => engine.restart());
 pauseButton.addEventListener("click", () => engine.pauseGame());
 continueButton.addEventListener("click", () => engine.continueGame());

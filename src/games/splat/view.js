@@ -13,5 +13,10 @@ export function draw(model, context) {
   context.fillStyle = model.side === "climber" ? "#fbbf24" : "#fb7185";
   context.beginPath(); context.arc(playerX, model.player.y, model.player.radius, 0, Math.PI * 2); context.fill();
   drawText(context, model.side === "climber" ? "Click the upper half to thrust up · click the lower half to thrust down" : "Click to place a column gap · the computer steers through the route", 16, 28, 14, "#cbd5e1");
+  context.fillStyle = "#111827";
+  context.fillRect(270, 492, 260, 38);
+  context.strokeStyle = "#334155";
+  context.strokeRect(270, 492, 260, 38);
+  drawText(context, `Furthest: ${Math.floor(model.furthestX)} px`, 400, 516, 14, "#22d3ee", "center");
   drawText(context, `Score: ${model.score} · reach the far right to win`, 16, 542, 12, "#64748b");
 }

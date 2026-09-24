@@ -246,6 +246,28 @@ test("Splat: automatic rightward motion, gaps, scoring, and collisions", () => {
   assert.equal(collision.lifeLost, true);
 });
 
+test("Splat settings apply configurable column spacing", () => {
+  const game = new SplatGame();
+  game.setSettings({ columnSpacing: 200 });
+  game.applyPendingSettings();
+  game.reset();
+  assert.equal(game.model.columns[1].x - game.model.columns[0].x, 200);
+  assert.equal(game.model.columnSpacing, 200);
+});
+
+test("Splat keeps furthest distance through life loss and clears it on new game", () => {
+  const game = new SplatModel();
+  game.reset();
+  game.player.x = 400;
+  game.update(0.016, { thrust: 0, placeColumnX: undefined });
+  const furthest = game.furthestX;
+  assert.ok(furthest > 400);
+  game.reset(true);
+  assert.equal(game.furthestX, furthest);
+  game.reset();
+  assert.equal(game.furthestX, 0);
+});
+
 test("Splat click and key input apply up/down thrust", () => {
   const game = new SplatGame();
   game.reset();

@@ -53,11 +53,16 @@
         </div>
 
         <div id="settingsPanel" class="settings-panel" hidden>
-          <strong>Snake settings</strong>
-          <label>Columns <input id="snakeCols" type="number" min="10" max="60" step="1" value="40" /></label>
-          <label>Rows <input id="snakeRows" type="number" min="8" max="44" step="1" value="28" /></label>
-          <label>Start length <input id="snakeLength" type="number" min="3" max="12" step="1" value="3" /></label>
-          <label class="checkbox-label"><input id="snakeWrap" type="checkbox" /> Wrap through walls</label>
+          <strong id="settingsTitle">Game settings</strong>
+          <div id="snakeSettings" class="settings-group">
+            <label>Columns <input id="snakeCols" type="number" min="10" max="60" step="1" value="40" /></label>
+            <label>Rows <input id="snakeRows" type="number" min="8" max="44" step="1" value="28" /></label>
+            <label>Start length <input id="snakeLength" type="number" min="3" max="12" step="1" value="3" /></label>
+            <label class="checkbox-label"><input id="snakeWrap" type="checkbox" /> Wrap through walls</label>
+          </div>
+          <div id="splatSettings" class="settings-group" hidden>
+            <label>Column spacing <input id="splatSpacing" type="number" min="90" max="240" step="10" value="130" /></label>
+          </div>
         </div>
 
         <div id="chatPanel" class="chat-panel" hidden>

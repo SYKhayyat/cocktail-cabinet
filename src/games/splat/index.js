@@ -12,6 +12,8 @@ export class SplatGame {
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
   setSide(side) { this.model.setSide(side); }
+  setSettings(settings) { this.model.setSettings(settings); }
+  applyPendingSettings() { this.model.applyPendingSettings(); }
   reset(keepScore) { this.model.reset(keepScore); }
   update(dt, input) { this.controller.update(dt, input); }
   draw(context) { draw(this.model, context); }

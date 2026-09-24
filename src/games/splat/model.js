@@ -2,7 +2,9 @@ import { clamp } from "../../engine.js";
 
 const COLUMN_WIDTH = 30;
 const COLUMN_COUNT = 80;
-const COLUMN_SPACING = 130;
+const DEFAULT_COLUMN_SPACING = 130;
+const MIN_COLUMN_SPACING = 90;
+const MAX_COLUMN_SPACING = 240;
 const GAP_HEIGHT = 112;
 const HORIZONTAL_SPEED = 120;
 const GRAVITY = 220;
@@ -16,11 +18,21 @@ export class SplatModel {
     this.description = "The object moves right automatically. Click the upper or lower half of the screen to thrust up or down through the gaps.";
     this.side = "climber";
     this.score = 0;
+    this.columnSpacing = DEFAULT_COLUMN_SPACING;
+    this.pendingSettings = { columnSpacing: DEFAULT_COLUMN_SPACING };
+    this.furthestX = 0;
   }
   sideLabel() { return this.side === "climber" ? "You steer the falling object" : "Computer steers; you place columns"; }
   setSide(side) { this.side = side; }
+  setSettings(settings = {}) {
+    if (Number.isInteger(settings.columnSpacing)) this.pendingSettings.columnSpacing = clamp(settings.columnSpacing, MIN_COLUMN_SPACING, MAX_COLUMN_SPACING);
+  }
+  applyPendingSettings() { this.columnSpacing = this.pendingSettings.columnSpacing; }
   reset(keepScore = false) {
-    if (!keepScore) this.score = 0;
+    if (!keepScore) {
+      this.score = 0;
+      this.furthestX = 0;
+    }
     this.player = { x: 70, y: 280, radius: 12, vy: 0 };
     this.columns = [];
     this.cameraX = 0;
@@ -29,7 +41,7 @@ export class SplatModel {
     this.won = false;
     for (let index = 0; index < COLUMN_COUNT; index += 1) {
       const gapY = 150 + ((index * 83 + 47) % 230);
-      this.columns.push({ x: 190 + index * COLUMN_SPACING, y: 0, width: COLUMN_WIDTH, height: 560, gapY, gapHeight: GAP_HEIGHT, passed: false });
+      this.columns.push({ x: 190 + index * this.columnSpacing, y: 0, width: COLUMN_WIDTH, height: 560, gapY, gapHeight: GAP_HEIGHT, passed: false });
     }
     this.nextColumn = this.columns[0];
   }
@@ -38,6 +50,7 @@ export class SplatModel {
     this.player.vy += GRAVITY * dt;
     if (this.side === "climber") this.applyPlayerThrust(input, dt); else this.moveComputer(dt);
     this.player.x += HORIZONTAL_SPEED * dt;
+    this.furthestX = Math.max(this.furthestX, this.player.x);
     this.player.y += this.player.vy * dt;
     this.player.y = clamp(this.player.y, 18, 542);
     this.cameraX = clamp(this.player.x - 110, 0, this.columns.at(-1).x - 650);
