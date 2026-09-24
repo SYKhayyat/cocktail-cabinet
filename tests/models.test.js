@@ -126,7 +126,7 @@ test("Breakout inactive special bricks behave like normal bricks", () => {
   game.update(0.016, { mode: "mouse", keyDirection: 0, pointer: pointer() });
   assert.equal(hazard.hits, 0);
   assert.equal(game.score, scoreBefore + 10);
-  assert.equal(game.lifeLost, undefined);
+  assert.equal(game.lifeLost, false);
 });
 
 test("Breakout computer can make an off-center correction", () => {
