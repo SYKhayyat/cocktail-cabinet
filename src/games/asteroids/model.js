@@ -144,7 +144,7 @@ export class AsteroidsModel {
         if (!asteroid.radius || !circleHitsCircle(bullet.x, bullet.y, 3, asteroid.x, asteroid.y, asteroid.radius)) continue;
         bullet.life = 0;
         this.scores[bullet.owner || "human"] += 10;
-        if (this.side !== "versus") this.score = this.scores.human;
+        if (this.side !== "versus" || bullet.owner === "human") this.score = this.scores.human;
         if ((asteroid.generation ?? 0) === 0) this.fractureAsteroid(asteroid);
         else asteroid.radius = 0;
         break;
@@ -152,7 +152,7 @@ export class AsteroidsModel {
     }
     if (this.side === "versus") {
       for (const bullet of this.bullets) {
-        if (bullet.owner === "human" && this.computerShip && circleHitsCircle(bullet.x, bullet.y, 3, this.computerShip.x, this.computerShip.y, this.computerShip.radius)) { bullet.life = 0; this.scores.human += 100; this.playerLives.computer = Math.max(0, this.playerLives.computer - 1); }
+        if (bullet.owner === "human" && this.computerShip && circleHitsCircle(bullet.x, bullet.y, 3, this.computerShip.x, this.computerShip.y, this.computerShip.radius)) { bullet.life = 0; this.scores.human += 100; this.score = this.scores.human; this.playerLives.computer = Math.max(0, this.playerLives.computer - 1); }
         if (bullet.owner === "computer" && circleHitsCircle(bullet.x, bullet.y, 3, this.ship.x, this.ship.y, this.ship.radius)) { bullet.life = 0; this.scores.computer += 100; this.playerLives.human = Math.max(0, this.playerLives.human - 1); this.lifeLost = true; this.lastLifeLossOwner = "human"; }
       }
     }
