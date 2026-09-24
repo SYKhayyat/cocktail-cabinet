@@ -9,7 +9,8 @@ const GAP_HEIGHT = 112;
 const HORIZONTAL_SPEED = 120;
 const GRAVITY = 220;
 const DRIFT_SPEED = 260;
-const BOUNCE_SPEED = 700;
+const BOUNCE_SPEED = 360;
+const BOUNCE_DISTANCE = 18;
 const COMPUTER_MISTAKE_CHANCE = 0.002;
 
 export class SplatModel {
@@ -85,8 +86,14 @@ export class SplatModel {
     const drift = input.drift || 0;
     if (drift < 0) this.player.vy = Math.min(this.player.vy, -DRIFT_SPEED);
     if (drift > 0) this.player.vy = Math.max(this.player.vy, DRIFT_SPEED);
-    if (input.bounce < 0) this.player.vy = Math.min(this.player.vy, -BOUNCE_SPEED);
-    if (input.bounce > 0) this.player.vy = Math.max(this.player.vy, BOUNCE_SPEED);
+    if (input.bounce < 0) {
+      this.player.y = clamp(this.player.y - BOUNCE_DISTANCE, 18, 542);
+      this.player.vy = -BOUNCE_SPEED;
+    }
+    if (input.bounce > 0) {
+      this.player.y = clamp(this.player.y + BOUNCE_DISTANCE, 18, 542);
+      this.player.vy = BOUNCE_SPEED;
+    }
   }
   moveComputer(dt) {
     const column = this.columns.find((candidate) => !candidate.passed && candidate.x > this.player.x);
