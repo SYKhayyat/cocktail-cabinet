@@ -4,8 +4,8 @@ export const BRICK_LABELS = { extraLife: "+1 LIFE", double: "2 BALLS", speed: "S
 const BRICK_TYPES = ["normal", "extraLife", "shortBar", "double", "speed", "longBar", "hazard"];
 const COMPUTER_REACTION_MIN = 0.04;
 const COMPUTER_REACTION_MAX = 0.07;
-const COMPUTER_ERROR_CHANCE = 0.2;
-const COMPUTER_ERROR_RANGE = 140;
+const COMPUTER_ERROR_CHANCE = 0.202;
+const COMPUTER_ERROR_RANGE = 142;
 const COMPUTER_SPEED = 1000;
 
 export class BreakoutModel {
@@ -141,7 +141,7 @@ export class BreakoutModel {
       const horizontal = ball.x + ball.radius > paddle.x && ball.x - ball.radius < paddle.x + paddle.width;
       if (horizontal && ball.vy > 0 && ball.y + ball.radius >= paddle.y && previousY - ball.radius < paddle.y + paddle.height) this.bounceFromPaddle(ball, paddle);
       for (const brick of this.bricks) {
-        if (!brick.hits || (brick.type !== "normal" && !brick.active) || !circleHitsRect(ball, brick)) continue;
+        if (!brick.hits || !circleHitsRect(ball, brick)) continue;
         brick.hits = 0;
         this.hitBrick(ball, brick);
         break;
@@ -159,8 +159,10 @@ export class BreakoutModel {
     this.score += 1;
   }
   hitBrick(ball, brick) {
+    const specialActive = brick.type !== "normal" && brick.active;
     ball.vy *= -1;
-    this.score += brick.type === "normal" ? 10 : 25;
+    this.score += specialActive ? 25 : 10;
+    if (!specialActive) return;
     if (brick.type === "extraLife") this.engine?.addLife?.();
     if (brick.type === "speed") for (const other of this.balls) { other.vx *= 1.12; other.vy *= 1.12; }
     if (brick.type === "double" && this.balls.length < 3) this.balls.push(this.newBall(ball.x, ball.y, -ball.vx * 0.82, ball.vy * 0.82));

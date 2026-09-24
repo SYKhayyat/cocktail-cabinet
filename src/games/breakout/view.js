@@ -10,8 +10,8 @@ export function draw(model, context) {
     if (!brick.hits) return;
     context.save();
     const active = brick.type === "normal" || brick.active;
-    context.globalAlpha = active ? 1 : 0.45;
-    context.fillStyle = active ? (model.dragIndex === model.bricks.indexOf(brick) ? "#fbbf24" : BRICK_COLORS[brick.type]) : "#38bdf8";
+    context.globalAlpha = 1;
+    context.fillStyle = active ? (model.dragIndex === model.bricks.indexOf(brick) ? "#fbbf24" : BRICK_COLORS[brick.type]) : BRICK_COLORS.normal;
     context.fillRect(brick.x, brick.y, brick.width, brick.height);
     if (brick.type !== "normal" && active) drawText(context, BRICK_LABELS[brick.type], brick.x + brick.width / 2, brick.y + 13, 7, "#07111f", "center");
     context.restore();

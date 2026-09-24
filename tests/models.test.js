@@ -110,6 +110,25 @@ test("Breakout computer centers its paddle under the predicted ball", () => {
   assert.equal(game.computer.targetX, 400 - game.computer.width / 2);
 });
 
+test("Breakout inactive special bricks behave like normal bricks", () => {
+  const game = new BreakoutModel();
+  game.reset();
+  const hazard = game.bricks.find((brick) => brick.type === "hazard");
+  hazard.period = 1.6;
+  hazard.phaseOffset = 1.5;
+  game.specialClock = 0;
+  const ball = game.balls[0];
+  ball.x = hazard.x + hazard.width / 2;
+  ball.y = hazard.y + 8;
+  ball.vx = 0;
+  ball.vy = 1;
+  const scoreBefore = game.score;
+  game.update(0.016, { mode: "mouse", keyDirection: 0, pointer: pointer() });
+  assert.equal(hazard.hits, 0);
+  assert.equal(game.score, scoreBefore + 10);
+  assert.equal(game.lifeLost, undefined);
+});
+
 test("Splat: human and computer controls, platform creation, jumps, and falling", () => {
   const game = new SplatModel();
   game.reset();

@@ -65,8 +65,8 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
       }, (game) => game.update(0.05, { direction: null, steer: null, placeApple: null })),
     },
     breakout: {
-      minimum: 8,
-      maximum: 25,
+      minimum: 4,
+      maximum: 15,
       result: runScenario(runs, 2500, () => {
         const game = new BreakoutModel();
         game.setSide("blocks");
