@@ -762,6 +762,12 @@ test("Asteroids versus gives both pilots scores and lives", () => {
   assert.equal(game.playerLives.human, 3);
   assert.equal(game.scores.computer, 0);
   assert.equal(game.lifeLost, false);
+  game.ship.x = game.computerShip.x;
+  game.ship.y = game.computerShip.y;
+  game.update(0, { pointer: null, fire: false });
+  assert.equal(game.playerLives.human, 3);
+  assert.equal(game.scores.computer, 0);
+  assert.equal(game.lifeLost, false);
   game.lifeLost = false;
   game.playerLives.computer = 0;
   const result = game.handleLifeLoss();

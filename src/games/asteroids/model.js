@@ -26,6 +26,7 @@ export class AsteroidsModel {
     this.won = false;
     this.gameOver = false;
     this.winner = null;
+    this.lifeLost = false;
     this.draggedAsteroid = null;
     this.dragVelocityX = 0;
     this.dragVelocityY = 0;
@@ -136,6 +137,20 @@ export class AsteroidsModel {
     if (this.side === "ship" || this.side === "versus") { this.spawnClock -= dt; if (this.spawnClock <= 0 && this.asteroids.length < 7) { this.spawnAsteroid(); this.spawnClock = Math.max(0.25, 1.3 - this.score * 0.012); } }
     for (const asteroid of this.asteroids) { asteroid.x = (asteroid.x + asteroid.vx * this.asteroidSpeed * dt + 800) % 800; asteroid.y = (asteroid.y + asteroid.vy * this.asteroidSpeed * dt + 560) % 560; asteroid.rotation += asteroid.spin * dt; }
     for (const bullet of this.bullets) { bullet.x += bullet.vx * dt; bullet.y += bullet.vy * dt; bullet.life -= dt; }
+    if (this.side === "versus") {
+      const dx = this.computerShip.x - this.ship.x;
+      const dy = this.computerShip.y - this.ship.y;
+      const distance = Math.hypot(dx, dy);
+      const minimumDistance = this.ship.radius + this.computerShip.radius;
+      if (distance < minimumDistance) {
+        const angle = distance > 0 ? Math.atan2(dy, dx) : 0;
+        const separation = minimumDistance - distance;
+        this.ship.x -= Math.cos(angle) * separation / 2;
+        this.ship.y -= Math.sin(angle) * separation / 2;
+        this.computerShip.x += Math.cos(angle) * separation / 2;
+        this.computerShip.y += Math.sin(angle) * separation / 2;
+      }
+    }
     for (const bullet of this.bullets) {
       if (bullet.life <= 0) continue;
       for (const asteroid of this.asteroids) {
