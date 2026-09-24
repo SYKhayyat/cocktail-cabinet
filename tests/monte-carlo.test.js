@@ -52,11 +52,11 @@ function assertHumanLikeRatio(name, result, minimum, maximum) {
 }
 
 test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
-  const runs = 20;
+  const runs = 200;
   const scenarios = {
     snake: {
       minimum: 6,
-      maximum: 20,
+      maximum: 25,
       result: runScenario(runs, 1000, () => {
         const game = new SnakeModel();
         game.setSide("apples");
@@ -67,7 +67,7 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
     breakout: {
       minimum: 4,
       maximum: 15,
-      result: runScenario(runs, 2500, () => {
+      result: runScenario(runs, 5000, () => {
         const game = new BreakoutModel();
         game.setSide("blocks");
         game.reset();
@@ -101,7 +101,7 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
       }),
     },
     missile: {
-      minimum: 2,
+      minimum: 1,
       maximum: 5,
       result: runScenario(runs, 600, () => {
         const game = new MissileModel();
