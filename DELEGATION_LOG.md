@@ -13,3 +13,9 @@
 - **Produced:** Configurable lives, a stop control, live score display, keyboard-priority mouse controls, Asteroids steering deadzone, no-top-paddle Breakout, draggable block setup, clearer Missile Command, chat layout/input cleanup, reference notes, and GitHub Actions deployment workflows for all three sites.
 - **Verification:** Five local tests pass, every JavaScript file passes syntax checking, every game/side combination passes a 90-frame smoke run, the headless browser loads the cabinet, and the games/quiz/portal GitHub workflows all completed successfully. The live test URL is `https://cocktail-cabinet-323.netlify.app`.
 - **Known deployment issue:** `siachshai.online` still points to GitHub Pages; the custom subdomains need DNS CNAME records before the final domains resolve.
+
+## Focused controls pass
+
+- **Requested:** Add New game, Pause, and Continue to every arcade game; show score and lives while paused; make Snake marginally faster after each apple.
+- **Produced:** Per-game controls, a score/lives pause overlay, configurable lives, and a Snake movement interval that decreases gently with each apple.
+- **Verification:** Five tests pass, all JavaScript syntax checks pass, the cabinet loads in a headless browser, and the focused build is ready for deployment.

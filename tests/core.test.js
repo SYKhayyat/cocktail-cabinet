@@ -21,6 +21,10 @@ test("Snake creates a playable state and grows when it reaches an apple", () => 
   game.reset();
   assert.equal(game.snake.length, 5);
   assert.equal(game.wrap, true);
+  const startingSpeed = game.moveInterval();
+  game.score = 10;
+  assert.ok(game.moveInterval() < startingSpeed);
+  game.score = 0;
   assert.equal(game.snake.length, 5);
   game.apple = { x: game.snake[0].x + 1, y: game.snake[0].y };
   for (let index = 0; index < 20 && game.snake.length === 5; index += 1) game.update(0.2, { keys: new Set(), pressed: new Set(), pointer: { clicked: false, down: false } });

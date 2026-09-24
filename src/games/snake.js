@@ -40,6 +40,7 @@ export class SnakeGame {
     this.aiClock = 0;
     this.apple = this.side === "apples" ? { x: Math.min(this.cols - 3, startX + 6), y: Math.max(2, startY - 6) } : this.freeApple();
   }
+  moveInterval() { return Math.max(0.08, 0.18 - this.score * 0.004); }
   freeApple() {
     const open = [];
     for (let y = 0; y < this.rows; y += 1) for (let x = 0; x < this.cols; x += 1) {
@@ -63,7 +64,7 @@ export class SnakeGame {
     } else this.chooseDirection();
     if (this.nextDirection.x + this.direction.x !== 0 || this.nextDirection.y + this.direction.y !== 0) this.direction = this.nextDirection;
     this.aiClock += dt;
-    const interval = Math.max(0.07, 0.17 - this.score * 0.002);
+    const interval = this.moveInterval();
     if (this.aiClock < interval) return;
     this.aiClock = 0;
     const head = this.snake[0];

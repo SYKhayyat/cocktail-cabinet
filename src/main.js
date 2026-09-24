@@ -28,7 +28,9 @@ const status = document.querySelector("#roundStatus");
 const message = document.querySelector("#message");
 const sideSelect = document.querySelector("#sideSelect");
 const restartButton = document.querySelector("#restartButton");
-const stopButton = document.querySelector("#stopButton");
+const pauseButton = document.querySelector("#pauseButton");
+const continueButton = document.querySelector("#continueButton");
+const gameActions = document.querySelector("#gameActions");
 const chatPanel = document.querySelector("#chatPanel");
 const chatForm = document.querySelector("#chatForm");
 const chatInput = document.querySelector("#chatInput");
@@ -108,6 +110,7 @@ function loadGame(id) {
   title.textContent = game.title;
   description.textContent = game.description;
   renderSideOptions(game);
+  gameActions.hidden = id === "imitation";
   settingsPanel.hidden = id !== "snake";
   if (id === "snake") game.setSettings(readSnakeSettings());
   chatPanel.hidden = id !== "imitation";
@@ -141,7 +144,8 @@ sideSelect.addEventListener("change", () => {
 });
 [snakeBoard, snakeLength, snakeWrap].forEach((control) => control.addEventListener("change", applySnakeSettings));
 restartButton.addEventListener("click", () => engine.restart());
-stopButton.addEventListener("click", () => engine.stopGame());
+pauseButton.addEventListener("click", () => engine.pauseGame());
+continueButton.addEventListener("click", () => engine.continueGame());
 livesInput.addEventListener("change", () => engine.setLives(livesInput.value));
 chatForm.addEventListener("submit", (event) => {
   event.preventDefault();

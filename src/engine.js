@@ -67,9 +67,21 @@ export class GameEngine {
     cancelAnimationFrame(this.animationFrame);
   }
 
-  stopGame() {
+  pauseGame() {
+    if (!this.running || this.game?.gameOver) return;
     this.stopped = true;
-    this.onMessage?.("Game stopped — press New round to play again.");
+    this.onMessage?.("Paused — press Continue when you are ready.");
+  }
+
+  continueGame() {
+    if (!this.running || this.game?.gameOver) return;
+    this.stopped = false;
+    this.lastTime = performance.now();
+    this.onMessage?.("Continued.");
+  }
+
+  stopGame() {
+    this.pauseGame();
   }
 
   setLives(value) {
@@ -98,8 +110,9 @@ export class GameEngine {
     }
     this.game.draw(this.context);
     if (this.stopped) {
-      drawText(this.context, this.game.gameOver ? "OUT OF LIVES" : "PAUSED", 400, 285, 24, "#fbbf24", "center");
-      drawText(this.context, "Press New round to play again", 400, 315, 14, "#cbd5e1", "center");
+      drawText(this.context, this.game.gameOver ? "OUT OF LIVES" : "PAUSED", 400, 275, 24, "#fbbf24", "center");
+      drawText(this.context, `Score: ${this.game.score}    Lives: ${this.lives}`, 400, 310, 16, "#f8fafc", "center");
+      drawText(this.context, this.game.gameOver ? "Press New game to try again" : "Press Continue to resume", 400, 340, 14, "#cbd5e1", "center");
     }
     this.input.pressed.clear();
     this.input.pointer.clicked = false;

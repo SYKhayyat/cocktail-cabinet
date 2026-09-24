@@ -25,7 +25,7 @@
         <div id="gameCards"></div>
         <section class="how-to-play">
           <h2>How to play</h2>
-          <p>Use the mouse for most games, or use the arrow keys/WASD. Each arcade game has configurable lives, a live score, and a Stop button.</p>
+          <p>Use the mouse for most games, or use the arrow keys/WASD. Each arcade game has configurable lives, a live score, and New game, Pause, and Continue controls.</p>
           <p class="shortcut"><kbd>Space</kbd> launch / fire · <kbd>Enter</kbd> send chat</p>
         </section>
       </aside>
@@ -50,9 +50,12 @@
         <div class="controls-row">
           <label for="sideSelect">You control</label>
           <select id="sideSelect"></select>
-          <label class="lives-control" for="livesInput">Lives <input id="livesInput" type="number" min="1" max="9" value="3" /></label>
-          <button id="restartButton" type="button">New round</button>
-          <button id="stopButton" type="button">Stop</button>
+          <span id="gameActions" class="action-group">
+            <label class="lives-control" for="livesInput">Lives <input id="livesInput" type="number" min="1" max="9" value="3" /></label>
+            <button id="restartButton" type="button">New game</button>
+            <button id="pauseButton" type="button">Pause</button>
+            <button id="continueButton" type="button">Continue</button>
+          </span>
           <span id="message" class="message"></span>
         </div>
 
