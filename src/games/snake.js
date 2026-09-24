@@ -20,6 +20,7 @@ export class SnakeGame {
     this.startingLength = 3;
     this.wrap = false;
     this.pendingSettings = { cols: 40, rows: 28, startingLength: 3, wrap: false };
+    this.roundSettings = { ...this.pendingSettings };
     this.gameOver = false;
   }
 
@@ -34,10 +35,11 @@ export class SnakeGame {
     };
   }
   applyPendingSettings() {
-    this.cols = this.pendingSettings.cols;
-    this.rows = this.pendingSettings.rows;
-    this.startingLength = clamp(this.pendingSettings.startingLength, 3, 12);
-    this.wrap = this.pendingSettings.wrap;
+    this.roundSettings = { ...this.pendingSettings };
+    this.cols = this.roundSettings.cols;
+    this.rows = this.roundSettings.rows;
+    this.startingLength = clamp(this.roundSettings.startingLength, 3, 12);
+    this.wrap = this.roundSettings.wrap;
   }
   cellWidth() { return BOARD_WIDTH / this.cols; }
   cellHeight() { return BOARD_HEIGHT / this.rows; }
@@ -46,6 +48,10 @@ export class SnakeGame {
   }
   cellCenter(cell) { return { x: cell.x * this.cellWidth() + this.cellWidth() / 2, y: cell.y * this.cellHeight() + this.cellHeight() / 2 }; }
   reset(keepScore = false) {
+    this.cols = this.roundSettings.cols;
+    this.rows = this.roundSettings.rows;
+    this.startingLength = clamp(this.roundSettings.startingLength, 3, 12);
+    this.wrap = this.roundSettings.wrap;
     if (!keepScore) this.score = 0;
     this.gameOver = false;
     this.lossReason = "";
