@@ -43,11 +43,26 @@ export class AsteroidsModel {
     this.ship.y = (this.ship.y + Math.sin(this.ship.angle) * this.ship.speed * dt + 560) % 560;
   }
   aiShip(dt) {
-    const target = this.asteroids[0]; if (!target) return;
-    const angle = Math.atan2(target.y - this.ship.y, target.x - this.ship.x);
-    let difference = angle - this.ship.angle; while (difference > Math.PI) difference -= Math.PI * 2; while (difference < -Math.PI) difference += Math.PI * 2;
-    this.ship.angle += clamp(difference, -2.2 * dt, 2.2 * dt); this.ship.speed = 90; this.ship.x += Math.cos(this.ship.angle) * 90 * dt; this.ship.y += Math.sin(this.ship.angle) * 90 * dt;
-    if (this.ship.x < 0) this.ship.x = 800; if (this.ship.x > 800) this.ship.x = 0; if (this.ship.y < 0) this.ship.y = 560; if (this.ship.y > 560) this.ship.y = 0;
+    const target = this.asteroids.reduce((nearest, asteroid) => {
+      if (!nearest) return asteroid;
+      return Math.hypot(asteroid.x - this.ship.x, asteroid.y - this.ship.y) < Math.hypot(nearest.x - this.ship.x, nearest.y - this.ship.y) ? asteroid : nearest;
+    }, null);
+    if (!target) return;
+    const dx = target.x - this.ship.x;
+    const dy = target.y - this.ship.y;
+    const distance = Math.hypot(dx, dy);
+    const angle = distance < 240 ? Math.atan2(-dy, -dx) : Math.atan2(dy, dx);
+    let difference = angle - this.ship.angle;
+    while (difference > Math.PI) difference -= Math.PI * 2;
+    while (difference < -Math.PI) difference += Math.PI * 2;
+    this.ship.angle += clamp(difference, -3.5 * dt, 3.5 * dt);
+    this.ship.speed = 150;
+    this.ship.x += Math.cos(this.ship.angle) * 150 * dt;
+    this.ship.y += Math.sin(this.ship.angle) * 150 * dt;
+    if (this.ship.x < 0) this.ship.x = 800;
+    if (this.ship.x > 800) this.ship.x = 0;
+    if (this.ship.y < 0) this.ship.y = 560;
+    if (this.ship.y > 560) this.ship.y = 0;
   }
   fire() { this.bullets.push({ x: this.ship.x, y: this.ship.y, vx: Math.cos(this.ship.angle) * 360, vy: Math.sin(this.ship.angle) * 360, life: 1 }); }
   update(dt, input) {

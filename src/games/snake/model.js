@@ -2,9 +2,7 @@ import { clamp } from "../../engine.js";
 
 const BOARD_WIDTH = 800;
 const BOARD_HEIGHT = 560;
-const AI_MISTAKE_CHANCE = 0.45;
-const AI_MIN_REACTION_STEPS = 1;
-const AI_MAX_REACTION_STEPS = 3;
+const AI_MISTAKE_CHANCE = 0.0001;
 
 export class SnakeModel {
   constructor() {
@@ -63,7 +61,6 @@ export class SnakeModel {
     this.direction = { x: 1, y: 0 };
     this.nextDirection = { x: 1, y: 0 };
     this.aiClock = 0;
-    this.aiErrorSteps = 3;
     this.apple = this.side === "apples" ? { x: Math.min(this.cols - 3, startX + 6), y: Math.max(2, startY - 6) } : this.freeApple();
   }
   moveInterval() { return Math.max(0.08, 0.18 - this.score * 0.004); }
@@ -119,14 +116,9 @@ export class SnakeModel {
     if (!apple) return;
     const choices = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }].filter((direction) => !(direction.x + this.direction.x === 0 && direction.y + this.direction.y === 0));
     choices.sort((a, b) => this.routeScore(head, a, apple) - this.routeScore(head, b, apple));
-    const current = choices.find((direction) => direction.x === this.direction.x && direction.y === this.direction.y);
-    if (this.aiErrorSteps > 0 && current && this.routeScore(head, current, apple) < 1000) {
-      this.aiErrorSteps -= 1;
-      this.nextDirection = current;
-    } else {
-      this.aiErrorSteps = AI_MIN_REACTION_STEPS + Math.floor(Math.random() * (AI_MAX_REACTION_STEPS - AI_MIN_REACTION_STEPS + 1));
-      this.nextDirection = Math.random() < AI_MISTAKE_CHANCE ? choices[Math.floor(Math.random() * choices.length)] : choices[0];
-    }
+    const safeChoices = choices.filter((direction) => this.routeScore(head, direction, apple) < 10000);
+    const candidates = safeChoices.length ? safeChoices : choices;
+    this.nextDirection = Math.random() < AI_MISTAKE_CHANCE ? candidates[Math.min(candidates.length - 1, 1 + Math.floor(Math.random() * Math.max(1, candidates.length - 1)))] : candidates[0];
   }
   routeScore(head, direction, apple) {
     const next = { x: head.x + direction.x, y: head.y + direction.y };

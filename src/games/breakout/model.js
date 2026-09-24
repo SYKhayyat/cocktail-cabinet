@@ -2,11 +2,11 @@ import { clamp, circleHitsRect } from "../../engine.js";
 
 export const BRICK_LABELS = { extraLife: "+1 LIFE", double: "2 BALLS", speed: "SPEED", shortBar: "SHORT", longBar: "LONG", hazard: "DANGER" };
 const BRICK_TYPES = ["normal", "extraLife", "shortBar", "double", "speed", "longBar", "hazard"];
-const COMPUTER_REACTION_MIN = 0.07;
-const COMPUTER_REACTION_MAX = 0.1;
-const COMPUTER_ERROR_CHANCE = 0.18;
-const COMPUTER_ERROR_RANGE = 90;
-const COMPUTER_SPEED = 720;
+const COMPUTER_REACTION_MIN = 0.04;
+const COMPUTER_REACTION_MAX = 0.07;
+const COMPUTER_ERROR_CHANCE = 0.05;
+const COMPUTER_ERROR_RANGE = 45;
+const COMPUTER_SPEED = 1000;
 
 export class BreakoutModel {
   constructor() {
@@ -67,7 +67,7 @@ export class BreakoutModel {
         if (!incoming) this.computer.targetX = this.computer.x;
         else if (this.computerReaction <= 0) {
           const timeToPaddle = Math.max(0, (this.computer.y - leadBall.y) / leadBall.vy);
-          this.computer.targetX = clamp(leadBall.x + leadBall.vx * timeToPaddle + this.computerTargetError, 8, 800 - this.computer.width - 8);
+          this.computer.targetX = clamp(predictBallX(leadBall, timeToPaddle) + this.computerTargetError, 8, 800 - this.computer.width - 8);
           this.computerReaction = COMPUTER_REACTION_MIN + Math.random() * (COMPUTER_REACTION_MAX - COMPUTER_REACTION_MIN);
         }
         this.computerLastVy = leadBall.vy;
@@ -139,7 +139,7 @@ export class BreakoutModel {
       if (ball.x > 800 - ball.radius) { ball.x = 800 - ball.radius; ball.vx = -Math.abs(ball.vx); }
       if (ball.y < ball.radius) { ball.y = ball.radius; ball.vy = Math.abs(ball.vy); }
       const horizontal = ball.x + ball.radius > paddle.x && ball.x - ball.radius < paddle.x + paddle.width;
-      if (horizontal && ball.vy > 0 && previousY <= paddle.y - ball.radius && ball.y + ball.radius >= paddle.y) this.bounceFromPaddle(ball, paddle);
+      if (horizontal && ball.vy > 0 && ball.y + ball.radius >= paddle.y && previousY - ball.radius < paddle.y + paddle.height) this.bounceFromPaddle(ball, paddle);
       for (const brick of this.bricks) {
         if (!brick.hits || (brick.type !== "normal" && !brick.active) || !circleHitsRect(ball, brick)) continue;
         brick.hits = 0;
@@ -169,6 +169,21 @@ export class BreakoutModel {
     if (brick.type === "hazard") this.lifeLost = true;
   }
   publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "Clear every brick to win. Special bricks change the round." }; }
+}
+
+function predictBallX(ball, seconds) {
+  let x = ball.x;
+  let velocity = ball.vx;
+  let remaining = Math.max(0, seconds);
+  while (remaining > 0) {
+    const edge = velocity < 0 ? ball.radius : 800 - ball.radius;
+    const distance = Math.abs((edge - x) / velocity);
+    if (distance >= remaining) return x + velocity * remaining;
+    x = edge;
+    remaining -= distance;
+    velocity *= -1;
+  }
+  return x;
 }
 
 function moveToward(current, target, maxDelta) {

@@ -34,9 +34,10 @@ export class StarfallModel {
     this.stars = this.stars.filter((star) => !star.dead && star.y < 560);
   }
   aiRunner(dt) {
-    const threat = this.stars.sort((a, b) => b.y - a.y)[0];
-    const target = threat ? (threat.x < this.runner.x ? this.runner.x - 100 : this.runner.x + 100) : 400;
-    this.runner.x = clamp(this.runner.x + clamp(target - this.runner.x, -1, 1) * 220 * dt, 20, 780);
+    const candidates = [20, 160, 300, 440, 580, 720, 780];
+    const safe = candidates.filter((candidate) => this.stars.every((star) => Math.abs(candidate - star.x) > 45));
+    const target = safe.length ? safe.reduce((nearest, candidate) => Math.abs(candidate - this.runner.x) < Math.abs(nearest - this.runner.x) ? candidate : nearest, safe[0]) : this.runner.x < 400 ? 20 : 780;
+    this.runner.x = clamp(this.runner.x + clamp(target - this.runner.x, -1, 1) * 300 * dt, 20, 780);
   }
   publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "The computer changes direction to dodge; it does not phase through stars." }; }
 }

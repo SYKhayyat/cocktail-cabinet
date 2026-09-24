@@ -33,7 +33,11 @@ export class MissileModel {
     const base = this.bases.find((candidate) => candidate.alive);
     const target = this.enemyMissiles[0];
     if (!base || !target) return;
-    this.interceptors.push({ x: base.x, y: base.y - 20, targetX: target.x, targetY: target.y, speed: 245, color: "#22d3ee" });
+    const dx = target.targetX - target.x;
+    const dy = target.targetY - target.y;
+    const distance = Math.hypot(dx, dy);
+    const flightTime = Math.hypot(target.x - base.x, target.y - base.y) / 245;
+    this.interceptors.push({ x: base.x, y: base.y - 20, targetX: target.x + (distance ? dx / distance * target.speed * flightTime : 0), targetY: target.y + (distance ? dy / distance * target.speed * flightTime : 0), speed: 245, color: "#22d3ee" });
   }
   update(dt, input) {
     this.launchClock -= dt;
@@ -44,7 +48,7 @@ export class MissileModel {
       if (input.launch && this.interceptorClock <= 0) { this.launchInterceptor(); this.interceptorClock = 0.22; }
     } else {
       if (input.attack) this.launchEnemy(input.attack.x, this.closestBase(input.attack.x));
-      if (this.interceptorClock <= 0) { this.launchMachineInterceptor(); this.interceptorClock = 0.65; }
+      if (this.interceptorClock <= 0) { this.launchMachineInterceptor(); this.interceptorClock = 0.4; }
     }
     for (const missile of this.enemyMissiles) moveMissile(missile, dt, 1);
     for (const missile of this.interceptors) moveMissile(missile, dt, 1.2);

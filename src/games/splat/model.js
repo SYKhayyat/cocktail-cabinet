@@ -1,5 +1,7 @@
 import { clamp } from "../../engine.js";
 
+const AI_TARGET_ERROR_CHANCE = 0.1;
+const AI_TARGET_ERROR_RANGE = 220;
 export class SplatModel {
   constructor() {
     this.id = "splat";
@@ -16,6 +18,8 @@ export class SplatModel {
     this.platforms = [{ x: 0, y: 520, width: 800, height: 40, color: "#334155", active: true, isGround: true }];
     this.targetY = 470;
     this.aiClock = 0;
+    this.aiTarget = null;
+    this.aiTargetOffset = 0;
     this.nextX = 280;
   }
   addPlatform(x) {
@@ -36,6 +40,7 @@ export class SplatModel {
       if (platform.active !== false && this.climber.vy >= 0 && this.climber.y + this.climber.height >= platform.y && this.climber.y < platform.y + platform.height && this.climber.x + this.climber.width > platform.x && this.climber.x < platform.x + platform.width) {
         this.climber.y = platform.y - this.climber.height;
         this.climber.vy = -330;
+        this.aiTarget = null;
         this.score += 5;
       }
     }
@@ -49,10 +54,14 @@ export class SplatModel {
     else if (input.pointerX > 0) this.climber.x += clamp(input.pointerX - this.climber.width / 2 - this.climber.x, -1, 1) * 220 * dt;
   }
   moveAiClimber(dt) {
-    const next = this.platforms.filter((platform) => platform.active !== false && platform.y < this.climber.y).sort((a, b) => b.y - a.y)[0];
-    if (!next) return;
-    const target = next.x + next.width / 2 - this.climber.width / 2;
-    this.climber.x += clamp(target - this.climber.x, -1, 1) * 190 * dt;
+    if (this.aiTarget && this.climber.vy >= 0 && this.climber.y > this.aiTarget.y + this.climber.height) this.aiTarget = null;
+    if (!this.aiTarget || this.aiTarget.active === false) {
+      this.aiTarget = this.platforms.filter((platform) => platform.active !== false && platform.y < this.climber.y + 20).sort((a, b) => b.y - a.y)[0] || null;
+      this.aiTargetOffset = this.aiTarget && Math.random() < AI_TARGET_ERROR_CHANCE ? (Math.random() - 0.5) * AI_TARGET_ERROR_RANGE : 0;
+    }
+    if (!this.aiTarget) return;
+    const target = this.aiTarget.x + this.aiTarget.width / 2 - this.climber.width / 2 + this.aiTargetOffset;
+    this.climber.x += clamp(target - this.climber.x, -1, 1) * 280 * dt;
   }
   publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "The jump is automatic; your job is choosing the landing column." }; }
 }
