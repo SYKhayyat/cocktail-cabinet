@@ -95,7 +95,7 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
     splat: {
       minimum: 4,
       maximum: 14,
-      result: runScenario(runs, 2500, () => {
+      result: runScenario(runs, 6500, () => {
         const game = new SplatModel();
         game.setSide("layout");
         game.reset();

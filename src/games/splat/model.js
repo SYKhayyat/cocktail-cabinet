@@ -1,13 +1,13 @@
 import { clamp } from "../../engine.js";
 
 const COLUMN_WIDTH = 30;
-const COLUMN_COUNT = 30;
-const COLUMN_SPACING = 150;
+const COLUMN_COUNT = 80;
+const COLUMN_SPACING = 130;
 const GAP_HEIGHT = 112;
 const HORIZONTAL_SPEED = 120;
 const GRAVITY = 220;
 const THRUST = 680;
-const COMPUTER_MISTAKE_CHANCE = 0.005;
+const COMPUTER_MISTAKE_CHANCE = 0.002;
 
 export class SplatModel {
   constructor() {
@@ -68,8 +68,8 @@ export class SplatModel {
   }
   horizontalCollision(column) { return this.player.x + this.player.radius > column.x && this.player.x - this.player.radius < column.x + column.width; }
   applyPlayerThrust(input, dt) {
-    const keyThrust = input.thrust || 0;
-    this.player.vy += keyThrust * THRUST * dt;
+    this.player.vy += (input.thrust || 0) * THRUST * dt;
+    if (input.impulse && this.player.vy > -260) this.player.vy = input.impulse < 0 ? -420 : 260;
   }
   moveComputer(dt) {
     const column = this.columns.find((candidate) => !candidate.passed && candidate.x > this.player.x);
