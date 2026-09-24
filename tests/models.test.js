@@ -168,6 +168,20 @@ test("Breakout versus mode gives each side a paddle, ball, and central bricks", 
   assert.ok(game.bricks.every((brick) => brick.x >= 250 && brick.x <= 550 && brick.width === 54));
 });
 
+test("Breakout versus mirrors top-paddle collision for a rising computer ball", () => {
+  const game = new BreakoutModel();
+  game.setSide("versus");
+  game.reset();
+  const ball = game.balls.find((candidate) => candidate.owner === "computer");
+  ball.x = game.computer.x + game.computer.width / 2;
+  ball.y = 60;
+  ball.vx = 0;
+  ball.vy = -200;
+  game.update(0.016, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  assert.ok(ball.vy > 0);
+  assert.equal(ball.y, 65);
+});
+
 test("Breakout versus awards a brick to the paddle that last hit its ball", () => {
   const game = new BreakoutModel();
   game.setSide("versus");

@@ -101,7 +101,7 @@ export class BreakoutModel {
     this.human.x = moveToward(this.human.x, this.human.targetX, 720 * dt);
     const computerBall = this.balls.find((ball) => ball.owner === "computer");
     if (computerBall) {
-      const timeToPaddle = computerBall.vy > 0 ? Math.max(0, (this.computer.y - computerBall.y) / computerBall.vy) : 0;
+      const timeToPaddle = computerBall.vy < 0 ? Math.max(0, (computerBall.y - (this.computer.y + this.computer.height)) / -computerBall.vy) : 0;
       const targetX = timeToPaddle > 0 ? predictBallX(computerBall, timeToPaddle) : computerBall.x;
       this.computer.targetX = clamp(targetX - this.computer.width / 2, 8, 792 - this.computer.width);
       this.computer.x = moveToward(this.computer.x, this.computer.targetX, 480 * dt);
@@ -198,7 +198,10 @@ export class BreakoutModel {
       if (ball.x > 800 - ball.radius) { ball.x = 800 - ball.radius; ball.vx = -Math.abs(ball.vx); }
       if (ball.y < ball.radius) { ball.y = ball.radius; ball.vy = Math.abs(ball.vy); }
       const horizontal = ball.x + ball.radius > paddle.x && ball.x - ball.radius < paddle.x + paddle.width;
-      if (horizontal && ball.vy > 0 && ball.y + ball.radius >= paddle.y && previousY - ball.radius < paddle.y + paddle.height) this.bounceFromPaddle(ball, paddle);
+      const hitsPaddle = paddle.y < 300
+        ? horizontal && ball.vy < 0 && previousY + ball.radius > paddle.y && ball.y - ball.radius <= paddle.y + paddle.height
+        : horizontal && ball.vy > 0 && previousY - ball.radius < paddle.y + paddle.height && ball.y + ball.radius >= paddle.y;
+      if (hitsPaddle) this.bounceFromPaddle(ball, paddle);
       for (const brick of this.bricks) {
         if (!brick.hits || !circleHitsRect(ball, brick)) continue;
         brick.hits = 0;
