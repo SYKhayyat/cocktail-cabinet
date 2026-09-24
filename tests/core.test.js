@@ -4,6 +4,7 @@ import { clamp, circleHitsCircle, distance } from "../src/engine.js";
 import { SnakeGame } from "../src/games/snake.js";
 import { BreakoutGame } from "../src/games/breakout.js";
 import { StarfallGame } from "../src/games/starfall.js";
+import { ImitationGame } from "../src/games/imitation.js";
 
 test("shared helpers clamp and measure ordinary game values", () => {
   assert.equal(clamp(12, 0, 10), 10);
@@ -30,6 +31,12 @@ test("Breakout keeps the ball inside the screen after a step", () => {
   for (let index = 0; index < 100; index += 1) game.update(0.016, input);
   assert.ok(game.ball.x >= 0 && game.ball.x <= 800);
   assert.ok(game.ball.y >= 0 && game.ball.y <= 560);
+});
+
+test("Imitation keeps its stable game id for cabinet lookup", () => {
+  const game = new ImitationGame();
+  assert.equal(game.id, "imitation");
+  assert.equal(typeof game.matchId, "string");
 });
 
 test("Starfall can spawn stars and the machine runner stays in bounds", () => {

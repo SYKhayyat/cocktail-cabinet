@@ -43,6 +43,7 @@ export class AsteroidsGame {
     if (this.side === "ship") this.steer(dt, input); else this.aiShip(dt);
     this.shotClock -= dt;
     if (this.side === "ship" && input.pressed.has(" ") && this.shotClock <= 0) { this.fire(); this.shotClock = 0.18; }
+    if (this.side === "rocks" && this.shotClock <= 0) { this.fire(); this.shotClock = Math.max(0.16, 0.34 - this.score * 0.002); }
     if (this.side === "rocks" && input.pointer.clicked && this.asteroids.length < 8) { this.spawnAsteroidAt(input.pointer.x, input.pointer.y); }
     if (this.side === "ship") { this.spawnClock -= dt; if (this.spawnClock <= 0) { this.spawnAsteroid(); this.spawnClock = Math.max(0.25, 1.3 - this.score * 0.012); } }
     for (const asteroid of this.asteroids) { asteroid.x = (asteroid.x + asteroid.vx * dt + 800) % 800; asteroid.y = (asteroid.y + asteroid.vy * dt + 560) % 560; }

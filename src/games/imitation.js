@@ -8,7 +8,7 @@ export class ImitationGame {
     this.title = "Imitation";
     this.description = "Repeat the pattern. Play the machine, or share a pattern with a second browser tab.";
     this.side = "ai";
-    this.id = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
+    this.matchId = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
     this.score = 0;
   }
   sideLabel() { return this.side === "ai" ? "You play against the machine" : "You play a second browser tab"; }
@@ -21,12 +21,12 @@ export class ImitationGame {
     this.channel = new BroadcastChannel(CHANNEL_NAME);
     this.channel.onmessage = (event) => this.receive(event.data);
     this.connected = true; this.matchmaking = 2.5; this.phase = "searching";
-    this.channel.postMessage({ type: "hello", from: this.id });
+    this.channel.postMessage({ type: "hello", from: this.matchId });
   }
   receive(message) {
-    if (message.type === "hello" && message.from !== this.id) this.peerId = message.from;
-    if (message.type === "sequence" && message.from !== this.id) { this.sequence = message.sequence; this.phase = "showing"; this.showing = 0; this.showTimer = 0; }
-    if (message.type === "result" && message.from !== this.id) { this.phase = "result"; this.message = `${message.winner === "you" ? "You won" : "Your partner won"} that round.`; }
+    if (message.type === "hello" && message.from !== this.matchId) this.peerId = message.from;
+    if (message.type === "sequence" && message.from !== this.matchId) { this.sequence = message.sequence; this.phase = "showing"; this.showing = 0; this.showTimer = 0; }
+    if (message.type === "result" && message.from !== this.matchId) { this.phase = "result"; this.message = `${message.winner === "you" ? "You won" : "Your partner won"} that round.`; }
   }
   play(index) {
     if (this.phase !== "input" || index >= this.sequence.length) return;
@@ -37,17 +37,17 @@ export class ImitationGame {
   }
   finishRound() {
     this.sequence.push(Math.floor(Math.random() * 4)); this.phase = "ready"; this.playerIndex = 0;
-    if (this.channel) this.channel.postMessage({ type: "sequence", sequence: this.sequence, from: this.id });
+    if (this.channel) this.channel.postMessage({ type: "sequence", sequence: this.sequence, from: this.matchId });
     this.phase = "showing"; this.showing = 0;
   }
   failRound() { this.phase = "result"; this.message = "That was the wrong pad. The pattern starts again."; this.score = Math.max(0, this.score - 15); }
   update(dt, input) {
     if (this.phase === "searching") {
       this.matchmaking -= dt;
-      if (this.matchmaking <= 0 && this.peerId && this.id < this.peerId) {
+      if (this.matchmaking <= 0 && this.peerId && this.matchId < this.peerId) {
         this.sequence = [Math.floor(Math.random() * 4)];
         this.phase = "showing"; this.showing = 0; this.showTimer = 0;
-        this.channel.postMessage({ type: "sequence", sequence: this.sequence, from: this.id });
+        this.channel.postMessage({ type: "sequence", sequence: this.sequence, from: this.matchId });
       }
       return;
     }
