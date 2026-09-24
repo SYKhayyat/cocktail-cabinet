@@ -125,9 +125,10 @@ export class SplatModel {
       if (!this.dragColumn && pointer.dragDistance < 8) this.addColumn(this.builderCameraX + pointer.x, 280);
       this.dragColumn = null;
     }
-    if (this.tool === "gap" && pointer.down) {
+    if (this.tool === "gap" && (pointer.down || pointer.released)) {
       const column = this.columnAt(this.builderCameraX + pointer.dragStartX, 40);
-      if (column) this.draftGap = { column, startY: pointer.dragStartY, currentY: pointer.y };
+      if (column && !this.draftGap) this.draftGap = { column, startY: pointer.dragStartY, currentY: pointer.y };
+      if (this.draftGap) this.draftGap.currentY = pointer.y;
     }
     if (this.tool === "gap" && pointer.released && this.draftGap) {
       this.draftGap.column.gapY = clamp(Math.min(this.draftGap.startY, this.draftGap.currentY), 60, 420);
