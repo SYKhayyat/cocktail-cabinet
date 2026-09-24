@@ -92,6 +92,24 @@ test("Breakout: paddle movement, brick effects, life loss, and win state work", 
   assert.equal(game.won, true);
 });
 
+test("Breakout computer centers its paddle under the predicted ball", () => {
+  const game = new BreakoutModel();
+  game.setSide("blocks");
+  game.reset();
+  game.computerReaction = 0;
+  game.computerLastVy = -1;
+  game.computerTargetError = 0;
+  game.balls[0] = game.newBall(400, 200, 0, 300);
+  const originalRandom = Math.random;
+  Math.random = () => 0.99;
+  try {
+    game.update(1 / 60, { mode: "mouse", keyDirection: 0, pointer: pointer() });
+  } finally {
+    Math.random = originalRandom;
+  }
+  assert.equal(game.computer.targetX, 400 - game.computer.width / 2);
+});
+
 test("Splat: human and computer controls, platform creation, jumps, and falling", () => {
   const game = new SplatModel();
   game.reset();

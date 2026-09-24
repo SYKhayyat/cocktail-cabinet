@@ -4,8 +4,8 @@ export const BRICK_LABELS = { extraLife: "+1 LIFE", double: "2 BALLS", speed: "S
 const BRICK_TYPES = ["normal", "extraLife", "shortBar", "double", "speed", "longBar", "hazard"];
 const COMPUTER_REACTION_MIN = 0.04;
 const COMPUTER_REACTION_MAX = 0.07;
-const COMPUTER_ERROR_CHANCE = 0.05;
-const COMPUTER_ERROR_RANGE = 45;
+const COMPUTER_ERROR_CHANCE = 0.2;
+const COMPUTER_ERROR_RANGE = 140;
 const COMPUTER_SPEED = 1000;
 
 export class BreakoutModel {
@@ -67,7 +67,7 @@ export class BreakoutModel {
         if (!incoming) this.computer.targetX = this.computer.x;
         else if (this.computerReaction <= 0) {
           const timeToPaddle = Math.max(0, (this.computer.y - leadBall.y) / leadBall.vy);
-          this.computer.targetX = clamp(predictBallX(leadBall, timeToPaddle) + this.computerTargetError, 8, 800 - this.computer.width - 8);
+          this.computer.targetX = clamp(predictBallX(leadBall, timeToPaddle) - this.computer.width / 2 + this.computerTargetError, 8, 800 - this.computer.width - 8);
           this.computerReaction = COMPUTER_REACTION_MIN + Math.random() * (COMPUTER_REACTION_MAX - COMPUTER_REACTION_MIN);
         }
         this.computerLastVy = leadBall.vy;
