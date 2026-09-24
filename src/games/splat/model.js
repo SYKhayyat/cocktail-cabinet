@@ -16,7 +16,7 @@ export class SplatModel {
   constructor() {
     this.id = "splat";
     this.title = "Splat";
-    this.description = "The object moves right automatically. Hold Up/Down to drift and click the upper or lower half to bounce through the gaps.";
+    this.description = "The object moves right automatically. Hold Up/Down to drift and tap/click the upper or lower half to bounce through the gaps.";
     this.side = "climber";
     this.score = 0;
     this.columnSpacing = DEFAULT_COLUMN_SPACING;

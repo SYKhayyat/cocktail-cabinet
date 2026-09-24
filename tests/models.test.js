@@ -294,6 +294,18 @@ test("Splat held up input reverses downward motion and click-up adds a bounce", 
   assert.ok(game.model.player.vy > 0);
 });
 
+test("Splat quick key tap bounces without continued rise", () => {
+  const game = new SplatGame();
+  game.reset();
+  const beforeTapY = game.model.player.y;
+  game.update(0.016, input({ keys: new Set(["ArrowUp"]), pressed: new Set(["ArrowUp"]) }));
+  assert.equal(game.model.player.vy, 0);
+  assert.ok(game.model.player.y < beforeTapY);
+  const afterTapY = game.model.player.y;
+  game.update(0.016, input());
+  assert.ok(game.model.player.y > afterTapY);
+});
+
 test("Splat computer can steer through a generated route", () => {
   const game = new SplatModel();
   game.setSide("layout");
