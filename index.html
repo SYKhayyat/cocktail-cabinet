@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="The Cocktail Cabinet: seven arcade games, human versus human or machine." />
+    <title>The Cocktail Cabinet</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">A tiny arcade for two</p>
+        <h1>The Cocktail Cabinet</h1>
+      </div>
+      <p class="header-note">Choose a game, choose your side, and make a little noise.</p>
+    </header>
+
+    <main class="cabinet">
+      <aside class="game-list" aria-label="Game selection">
+        <div class="list-heading">
+          <span>Seven drawers</span>
+          <span class="status-dot" aria-label="Ready"></span>
+        </div>
+        <div id="gameCards"></div>
+        <section class="how-to-play">
+          <h2>How to play</h2>
+          <p>Use the arrow keys or WASD. Click the board when a game asks you to place or aim. Every game has a machine opponent and a fair difficulty ramp.</p>
+          <p class="shortcut"><kbd>Space</kbd> launch / restart action</p>
+        </section>
+      </aside>
+
+      <section class="machine" aria-live="polite">
+        <div class="machine-topline">
+          <div>
+            <p class="eyebrow">Now loading</p>
+            <h2 id="gameTitle">Snake</h2>
+            <p id="gameDescription"></p>
+          </div>
+          <div class="score-box">
+            <span>Score</span>
+            <strong id="score">0</strong>
+          </div>
+        </div>
+
+        <div class="controls-row">
+          <label for="sideSelect">You control</label>
+          <select id="sideSelect"></select>
+          <button id="restartButton" type="button">New round</button>
+          <span id="message" class="message"></span>
+        </div>
+
+        <div class="screen-frame">
+          <canvas id="gameCanvas" width="800" height="560" aria-label="Arcade game board"></canvas>
+        </div>
+
+        <div class="machine-footer">
+          <span id="roundStatus">Press a key or click to begin</span>
+          <span>Static site · no server · no account</span>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>
