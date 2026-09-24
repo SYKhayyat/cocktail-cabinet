@@ -34,8 +34,8 @@ export class BreakoutModel {
     this.versusRoundOver = false;
     if (this.side === "versus") {
       this.human = { x: 350, targetX: 350, y: 500, width: 112, height: 16, speed: 460 };
-      this.computer = { x: 350, targetX: 350, y: 48, width: 112, height: 16 };
-      this.balls = [this.newBall(350, 450, 180, -200, "human"), this.newBall(450, 110, -180, 200, "computer")];
+      this.computer = { x: 350, targetX: 350, y: 100, width: 112, height: 16 };
+      this.balls = [this.newBall(350, 450, 180, -200, "human"), this.newBall(450, 160, -180, 200, "computer")];
       this.createVersusLayout();
     } else {
       this.human = { x: 350, targetX: 350, y: 500, width: 112, height: 16, speed: 460 };
@@ -88,7 +88,7 @@ export class BreakoutModel {
     const special = { 3: "extraLife", 7: "shortBar", 12: "double", 16: "speed", 21: "longBar" };
     for (let row = 0; row < 5; row += 1) for (let column = 0; column < 5; column += 1) {
       const index = row * 5 + column;
-      this.bricks.push({ x: 250 + column * 60, y: 226 + row * 28, width: 54, height: 20, hits: 1, type: special[index] || "normal", active: true, phaseOffset: special[index] ? (index * 0.73) % 2.4 : 0, period: special[index] ? 1.6 + (index % 4) * 0.65 : 0, owner: null });
+      this.bricks.push({ x: 250 + column * 60, y: 252 + row * 28, width: 54, height: 20, hits: 1, type: special[index] || "normal", active: true, phaseOffset: special[index] ? (index * 0.73) % 2.4 : 0, period: special[index] ? 1.6 + (index % 4) * 0.65 : 0, owner: null });
     }
   }
   newBall(x, y, vx, vy, owner = null) { return { x, y, vx, vy, radius: 8, owner, lastPaddle: owner, dead: false }; }

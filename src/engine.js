@@ -174,6 +174,12 @@ export class GameEngine {
     if (this.ready) this.game.handleReadyInput?.(this.input);
     this.game.draw(this.context);
     if (this.ready || this.countdown > 0 || this.stopped) {
+      this.context.fillStyle = "#111827ee";
+      this.context.fillRect(250, 238, 300, 120);
+      this.context.strokeStyle = "#fbbf24";
+      this.context.lineWidth = 2;
+      this.context.strokeRect(250, 238, 300, 120);
+      this.context.lineWidth = 1;
       const winner = this.game.winner;
       const heading = this.ready ? "READY" : this.countdown > 0 ? "GET READY" : this.game.won ? winner === "computer" ? "COMPUTER WINS" : "YOU WIN" : this.game.gameOver && winner ? winner === "human" ? "YOU WIN" : "COMPUTER WINS" : this.game.gameOver ? "OUT OF LIVES" : "PAUSED";
       const instruction = this.ready ? "Press New game to start" : this.countdown > 0 ? `Starting in ${Math.ceil(this.countdown)}…` : this.game.won || this.game.gameOver && winner ? "Press New game to play again" : this.game.gameOver ? "Press New game to try again" : "Press Continue to resume";
