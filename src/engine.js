@@ -9,6 +9,7 @@ export class GameEngine {
     this.game = null;
     this.running = false;
     this.stopped = false;
+    this.paused = false;
     this.ready = false;
     this.countdown = 0;
     this.lives = 3;
@@ -18,10 +19,11 @@ export class GameEngine {
     this.input = {
       keys: new Set(),
       pressed: new Set(),
-      pointer: { x: 0, y: 0, down: false, clicked: false, moved: false, released: false, dragStartX: 0, dragStartY: 0, lastX: 0, lastY: 0, dragDeltaX: 0, dragDistance: 0 },
+      pointer: { x: 0, y: 0, down: false, clicked: false, moved: false, released: false, dragStartX: 0, dragStartY: 0, lastX: 0, lastY: 0, dragDeltaX: 0, dragDeltaY: 0, dragDistance: 0 },
       mode: "keyboard",
       scrollDeltaX: 0
     };
+    this.activePointerId = null;
 
     this.handleKeyDown = (event) => {
       const tagName = event.target?.tagName;
@@ -35,20 +37,25 @@ export class GameEngine {
     };
     this.handleKeyUp = (event) => this.input.keys.delete(event.key);
     this.handlePointerMove = (event) => {
+      if (this.activePointerId !== null && event.pointerId !== this.activePointerId) return;
       this.input.mode = "mouse";
       this.input.pointer.moved = true;
       const bounds = this.canvas.getBoundingClientRect();
       const previousX = this.input.pointer.x;
+      const previousY = this.input.pointer.y;
       this.input.pointer.x = (event.clientX - bounds.left) * this.canvas.width / bounds.width;
       this.input.pointer.y = (event.clientY - bounds.top) * this.canvas.height / bounds.height;
       this.input.pointer.lastX = this.input.pointer.x;
       this.input.pointer.lastY = this.input.pointer.y;
       if (this.input.pointer.down) {
         this.input.pointer.dragDeltaX += this.input.pointer.x - previousX;
-        this.input.pointer.dragDistance += Math.abs(this.input.pointer.x - previousX);
+        this.input.pointer.dragDeltaY += this.input.pointer.y - previousY;
+        this.input.pointer.dragDistance += Math.hypot(this.input.pointer.x - previousX, this.input.pointer.y - previousY);
       }
     };
     this.handlePointerDown = (event) => {
+      if (this.activePointerId !== null) return;
+      this.activePointerId = event.pointerId;
       this.handlePointerMove(event);
       this.input.pointer.down = true;
       this.input.pointer.clicked = true;
@@ -58,12 +65,20 @@ export class GameEngine {
       this.input.pointer.lastX = this.input.pointer.x;
       this.input.pointer.lastY = this.input.pointer.y;
       this.input.pointer.dragDeltaX = 0;
+      this.input.pointer.dragDeltaY = 0;
       this.input.pointer.dragDistance = 0;
     };
     this.handlePointerUp = (event) => {
-      if (event) this.handlePointerMove(event);
+      if (this.activePointerId === null || event.pointerId !== this.activePointerId) return;
+      this.handlePointerMove(event);
       this.input.pointer.down = false;
       this.input.pointer.released = true;
+      this.activePointerId = null;
+    };
+    this.handlePointerCancel = () => {
+      this.input.pointer.down = false;
+      this.input.pointer.released = false;
+      this.activePointerId = null;
     };
     this.handleWheel = (event) => {
       this.input.scrollDeltaX += Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
@@ -75,6 +90,7 @@ export class GameEngine {
     canvas.addEventListener("pointerdown", this.handlePointerDown);
     canvas.addEventListener("wheel", this.handleWheel, { passive: true });
     window.addEventListener("pointerup", this.handlePointerUp);
+    window.addEventListener("pointercancel", this.handlePointerCancel);
   }
 
   load(game) {
@@ -84,6 +100,7 @@ export class GameEngine {
     game.gameOver = false;
     game.lifeLost = false;
     this.stopped = true;
+    this.paused = false;
     this.ready = true;
     this.countdown = 0;
     this.lives = this.maxLives;
@@ -104,12 +121,14 @@ export class GameEngine {
   pauseGame() {
     if (!this.running || this.ready || this.game?.gameOver) return;
     this.stopped = true;
+    this.paused = true;
     this.onMessage?.("Paused — press Continue when you are ready.");
   }
 
   continueGame() {
     if (!this.running || this.ready || this.game?.gameOver || this.countdown > 0) return;
     this.stopped = false;
+    this.paused = false;
     this.countdown = 3;
     this.lastTime = performance.now();
     this.onMessage?.("Continuing in 3…");
@@ -174,7 +193,7 @@ export class GameEngine {
       }
     }
     if (this.ready) this.game.handleReadyInput?.(this.input);
-    else if (this.stopped) this.game.handlePausedInput?.(this.input);
+    else if (this.paused) this.game.handlePausedInput?.(this.input);
     this.game.draw(this.context);
     if (this.ready || this.countdown > 0 || this.stopped) {
       this.context.fillStyle = "#111827ee";
@@ -196,6 +215,7 @@ export class GameEngine {
     this.input.pointer.clicked = false;
     this.input.pointer.released = false;
     this.input.pointer.dragDeltaX = 0;
+    this.input.pointer.dragDeltaY = 0;
     this.input.pointer.dragDistance = 0;
     this.input.scrollDeltaX = 0;
     this.input.pointer.moved = false;
@@ -207,6 +227,7 @@ export class GameEngine {
   restart() {
     if (!this.game) return;
     this.stopped = false;
+    this.paused = false;
     this.ready = false;
     this.countdown = 3;
     this.lives = this.maxLives;
@@ -221,7 +242,9 @@ export class GameEngine {
   setSide(side) {
     if (!this.game) return;
     this.game.setSide(side);
+    this.game.applyPendingSettings?.();
     this.stopped = true;
+    this.paused = false;
     this.ready = true;
     this.countdown = 0;
     this.lives = this.maxLives;
@@ -240,6 +263,7 @@ export class GameEngine {
     this.canvas.removeEventListener("pointerdown", this.handlePointerDown);
     this.canvas.removeEventListener("wheel", this.handleWheel);
     window.removeEventListener("pointerup", this.handlePointerUp);
+    window.removeEventListener("pointercancel", this.handlePointerCancel);
   }
 }
 

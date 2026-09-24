@@ -529,6 +529,33 @@ test("Splat builder adds columns, draws gaps, and drags columns", () => {
   assert.equal(game.cameraX, game.player.x - 110);
 });
 
+test("Splat non-race life loss respawns without deleting authored columns", () => {
+  const game = new SplatModel();
+  game.setSide("builder");
+  game.reset();
+  const columnCount = game.columns.length;
+  game.player.x = 400;
+  game.player.columnsPassed = 3;
+  game.lostPlayers.push(game.player);
+  const result = game.handleLifeLoss();
+  assert.equal(result.gameOver, false);
+  game.resetAfterLife();
+  assert.equal(game.player.x, 70);
+  assert.equal(game.player.columnsPassed, 0);
+  assert.equal(game.columns.length, columnCount);
+});
+
+test("Splat gap edits stay inside the board", () => {
+  const game = new SplatModel();
+  game.setSide("builder");
+  game.reset();
+  game.setTool("gap");
+  const column = game.columns[0];
+  game.updateBuilderInput({ pointer: pointer({ x: column.x, y: 500, down: true, dragStartX: column.x, dragStartY: 500 }) });
+  game.updateBuilderInput({ pointer: pointer({ x: column.x, y: 400, released: true, dragStartX: column.x, dragStartY: 500 }) });
+  assert.ok(column.gapY + column.gapHeight <= 560);
+});
+
 test("Splat builder tools work while paused", () => {
   const game = new SplatGame();
   game.setSide("builder");
@@ -674,6 +701,9 @@ test("Asteroids mouse movement swivels and click or hold fires", () => {
   game.model.shotClock = 0;
   game.update(0.016, input({ pointer: pointer({ x: 700, y: 100, down: true }) }));
   assert.equal(game.model.bullets.length, 2);
+  const thrustX = game.model.ship.x;
+  game.update(0.016, input({ keys: new Set(["ArrowUp"]), pointer: pointer({ x: 700, y: 100, moved: true }) }));
+  assert.notEqual(game.model.ship.x, thrustX);
 });
 
 test("Asteroids drag trajectory persists and click placement is randomized", () => {
@@ -694,14 +724,18 @@ test("Asteroids versus gives both pilots scores and lives", () => {
   const game = new AsteroidsModel();
   game.setSide("versus");
   game.reset();
-  game.computerShotClock = 99;
+  game.computerShotClock = 0;
+  game.update(0, { pointer: null, fire: false });
+  assert.ok(game.computerShotClock >= 1.1);
+  game.bullets = [];
   game.bullets = [{ x: game.computerShip.x, y: game.computerShip.y, vx: 0, vy: 0, life: 1, owner: "human" }];
   game.update(0, { pointer: null, fire: false });
   assert.equal(game.playerLives.computer, 2);
-  assert.equal(game.scores.human, 100);
+  assert.equal(game.scores.human, 0);
   game.bullets = [{ x: game.ship.x, y: game.ship.y, vx: 0, vy: 0, life: 1, owner: "computer" }];
   game.update(0, { pointer: null, fire: false });
   assert.equal(game.playerLives.human, 2);
+  assert.equal(game.scores.computer, 0);
   assert.equal(game.lifeLost, true);
   game.lifeLost = false;
   game.playerLives.computer = 0;

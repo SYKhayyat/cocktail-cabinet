@@ -78,7 +78,7 @@ export class SplatModel {
     this.player.y = clamp(this.player.y + this.player.vy * dt, 18, 542);
     this.cameraX = clamp(this.player.x - 110, 0, this.columns.at(-1).x - 650);
     this.resolvePlayer(this.player);
-    if (this.player.x >= this.columns.at(-1).x + 100) this.won = true;
+    if (this.player.x >= this.columns.at(-1).x + 100) { this.won = true; this.winner = "human"; }
   }
   updateBuilder(dt, input) {
     this.updateBuilderInput(input);
@@ -89,7 +89,7 @@ export class SplatModel {
     this.builderCameraX = clamp(this.player.x - 110, 0, Math.max(0, this.columns.at(-1).x - 650));
     this.cameraX = this.builderCameraX;
     this.resolvePlayer(this.player);
-    if (this.player.x >= this.columns.at(-1).x + 100) this.won = true;
+    if (this.player.x >= this.columns.at(-1).x + 100) { this.won = true; this.winner = "human"; }
   }
   updateRace(dt, input) {
     this.player.vy += GRAVITY * dt;
@@ -135,8 +135,9 @@ export class SplatModel {
       if (this.draftGap) this.draftGap.currentY = pointer.y;
     }
     if (this.tool === "gap" && pointer.released && this.draftGap) {
-      this.draftGap.column.gapY = clamp(Math.min(this.draftGap.startY, this.draftGap.currentY), 60, 420);
-      this.draftGap.column.gapHeight = clamp(Math.abs(this.draftGap.currentY - this.draftGap.startY), 50, 240);
+      const gapY = clamp(Math.min(this.draftGap.startY, this.draftGap.currentY), 60, 420);
+      this.draftGap.column.gapY = gapY;
+      this.draftGap.column.gapHeight = clamp(Math.abs(this.draftGap.currentY - this.draftGap.startY), 50, Math.min(240, 560 - gapY));
       this.draftGap = null;
     }
   }
@@ -160,7 +161,7 @@ export class SplatModel {
       const insideGap = player.y + player.radius > column.gapY && player.y - player.radius < column.gapY + column.gapHeight;
       if (!insideGap) {
         this.lifeLost = true;
-        if (this.side === "race") this.lostPlayers.push(player);
+        this.lostPlayers.push(player);
         player.vy *= -0.25;
         break;
       }
@@ -231,9 +232,9 @@ export class SplatModel {
     this.aiClock += dt;
   }
   handleLifeLoss() {
-    if (this.side !== "race") return null;
     const lostPlayers = [...this.lostPlayers];
-    if (!lostPlayers.length) return { gameOver: false, message: "A ball returned to the beginning." };
+    if (!lostPlayers.length) return null;
+    if (this.side !== "race") return { gameOver: false, message: "One life lost — starting again in 3…" };
     const owners = lostPlayers.map((player) => player === this.player ? "human" : "computer");
     for (const owner of owners) this.raceLives[owner] = Math.max(0, this.raceLives[owner] - 1);
     const eliminated = owners.find((owner) => this.raceLives[owner] === 0);
@@ -245,7 +246,6 @@ export class SplatModel {
     return { gameOver: false, message: `${owners.map((owner) => owner === "human" ? "You" : "Computer").join(" and ")} lost a ball.` };
   }
   resetAfterLife() {
-    if (this.side !== "race") return;
     for (const player of this.lostPlayers.splice(0)) {
       player.x = 70;
       player.y = 280;
@@ -255,6 +255,15 @@ export class SplatModel {
       player.aiTargetY = null;
       player.aiReaction = 0;
       player.aiError = 0;
+    }
+    if (this.side !== "race") {
+      this.columns.forEach((column) => { column.passed = false; });
+      this.nextColumn = this.columns[0] || null;
+      this.score = 0;
+      this.cameraX = 0;
+      this.builderCameraX = 0;
+      this.computerMistake = false;
+      return;
     }
     this.score = this.player.columnsPassed;
   }

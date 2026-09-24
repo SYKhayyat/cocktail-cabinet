@@ -30,7 +30,7 @@ export class SplatGame {
   handlePausedInput(input) { this.controller.handlePausedInput(input); }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }
-  winMessage() { return this.model.winner === "computer" ? "Computer wins the race!" : "You win the race!"; }
+  winMessage() { if (this.model.side === "race") return this.model.winner === "computer" ? "Computer wins the race!" : "You win the race!"; return "You cleared the route!"; }
   sideLabel() { return this.model.sideLabel(); }
 }
 

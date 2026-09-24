@@ -20,7 +20,7 @@ export class AsteroidsModel {
     this.bullets = [];
     this.spawnClock = 1.2;
     this.shotClock = 0;
-    this.computerShotClock = 0.45;
+    this.computerShotClock = 1.3;
     this.invulnerable = 1;
     this.asteroidSpeed = 1;
     this.won = false;
@@ -53,7 +53,7 @@ export class AsteroidsModel {
       const dx = input.pointer.x - ship.x;
       const dy = input.pointer.y - ship.y;
       if (Math.hypot(dx, dy) > 24) ship.angle = Math.atan2(dy, dx);
-      ship.speed = 0;
+      ship.speed = thrust ? Math.min(ship.speed + 190 * dt, 220) : 0;
     } else {
       ship.angle += turn * 3.2 * dt;
       ship.speed += thrust * 190 * dt;
@@ -131,7 +131,7 @@ export class AsteroidsModel {
     this.shotClock -= dt;
     this.computerShotClock -= dt;
     if ((this.side === "ship" || this.side === "versus") && input.fire && this.shotClock <= 0) { this.fire("human", this.ship); this.shotClock = 0.18; }
-    if ((this.side === "rocks" || this.side === "versus") && this.computerShotClock <= 0) { this.fire("computer", this.side === "versus" ? this.computerShip : this.ship, (Math.random() - 0.5) * 0.24); this.computerShotClock = this.side === "versus" ? 0.8 + Math.random() * 0.2 : Math.max(0.45, 0.7 - this.score * 0.001); }
+    if ((this.side === "rocks" || this.side === "versus") && this.computerShotClock <= 0) { this.fire("computer", this.side === "versus" ? this.computerShip : this.ship, (Math.random() - 0.5) * 0.24); this.computerShotClock = this.side === "versus" ? 1.1 + Math.random() * 0.3 : 1.3 + Math.random() * 0.3; }
     if (this.side === "rocks") this.updateRockPlacement({ ...input, dt });
     if (this.side === "ship" || this.side === "versus") { this.spawnClock -= dt; if (this.spawnClock <= 0 && this.asteroids.length < 7) { this.spawnAsteroid(); this.spawnClock = Math.max(0.25, 1.3 - this.score * 0.012); } }
     for (const asteroid of this.asteroids) { asteroid.x = (asteroid.x + asteroid.vx * this.asteroidSpeed * dt + 800) % 800; asteroid.y = (asteroid.y + asteroid.vy * this.asteroidSpeed * dt + 560) % 560; asteroid.rotation += asteroid.spin * dt; }
@@ -150,8 +150,8 @@ export class AsteroidsModel {
     }
     if (this.side === "versus") {
       for (const bullet of this.bullets) {
-        if (bullet.owner === "human" && this.computerShip && circleHitsCircle(bullet.x, bullet.y, 3, this.computerShip.x, this.computerShip.y, this.computerShip.radius)) { bullet.life = 0; this.scores.human += 100; this.score = this.scores.human; this.playerLives.computer = Math.max(0, this.playerLives.computer - 1); }
-        if (bullet.owner === "computer" && circleHitsCircle(bullet.x, bullet.y, 3, this.ship.x, this.ship.y, this.ship.radius)) { bullet.life = 0; this.scores.computer += 100; this.playerLives.human = Math.max(0, this.playerLives.human - 1); this.lifeLost = true; this.lastLifeLossOwner = "human"; }
+        if (bullet.owner === "human" && this.computerShip && circleHitsCircle(bullet.x, bullet.y, 3, this.computerShip.x, this.computerShip.y, this.computerShip.radius)) { bullet.life = 0; this.playerLives.computer = Math.max(0, this.playerLives.computer - 1); }
+        if (bullet.owner === "computer" && circleHitsCircle(bullet.x, bullet.y, 3, this.ship.x, this.ship.y, this.ship.radius)) { bullet.life = 0; this.playerLives.human = Math.max(0, this.playerLives.human - 1); this.lifeLost = true; this.lastLifeLossOwner = "human"; }
       }
     }
     this.asteroids = this.asteroids.filter((asteroid) => asteroid.radius);
