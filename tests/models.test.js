@@ -183,6 +183,19 @@ test("Splat: human and computer controls, platform creation, jumps, and falling"
   assert.equal(falling.lifeLost, true);
 });
 
+test("Splat keeps the highlighted route tied to the platform actually landed on", () => {
+  const game = new SplatModel();
+  game.reset();
+  const firstPlatform = game.nextPlatform;
+  game.addPlatform(firstPlatform.x);
+  const secondPlatform = game.platforms.at(-1);
+  game.climber.x = firstPlatform.x + firstPlatform.width / 2 - game.climber.width / 2;
+  game.climber.y = firstPlatform.y - game.climber.height;
+  game.climber.vy = 1;
+  game.update(0.016, { mode: "keyboard", keyDirection: 0, pointerX: 0, pointerMoved: false, placePlatform: undefined });
+  assert.equal(game.nextPlatform, secondPlatform);
+});
+
 test("Splat human survives the first bounce with a generated platform", () => {
   const game = new SplatModel();
   game.reset();

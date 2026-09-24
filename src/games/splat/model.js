@@ -6,7 +6,7 @@ export class SplatModel {
   constructor() {
     this.id = "splat";
     this.title = "Splat";
-    this.description = "Normal play: the climber jumps automatically. Move the mouse or use A/D to land on the next glowing platform.";
+    this.description = "Guide the climber upward. It jumps automatically; move the mouse or use A/D to land on the highlighted platform and climb as high as possible.";
     this.side = "climber";
     this.score = 0;
   }
@@ -20,17 +20,21 @@ export class SplatModel {
     this.aiClock = 0;
     this.aiTarget = null;
     this.aiTargetOffset = 0;
+    this.nextPlatform = null;
     this.nextX = 200;
     if (this.side === "climber") {
       const firstX = 40 + Math.random() * 220;
       this.platforms.push({ x: firstX, y: 470, width: 120, height: 14, color: "#22d3ee", active: true });
       this.targetY = 415;
+      this.nextPlatform = this.platforms[1];
       this.nextX = clamp(firstX + (Math.random() > 0.5 ? 150 : -150), 40, 640);
     }
   }
   addPlatform(x) {
     if (x < 25 || x > 655) return;
-    this.platforms.push({ x, y: this.targetY, width: 120, height: 14, color: "#22d3ee", active: true });
+    const platform = { x, y: this.targetY, width: 120, height: 14, color: "#22d3ee", active: true };
+    this.platforms.push(platform);
+    if (this.side === "climber" && !this.nextPlatform) this.nextPlatform = platform;
     this.nextX = clamp(x + (Math.random() > 0.5 ? 150 : -150), 40, 640);
     this.targetY -= 55;
     this.score += 10;
@@ -47,6 +51,7 @@ export class SplatModel {
         this.climber.y = platform.y - this.climber.height;
         this.climber.vy = -330;
         this.aiTarget = null;
+        if (this.side === "climber") this.nextPlatform = this.platforms.filter((candidate) => candidate.active !== false && candidate.y < platform.y).sort((a, b) => b.y - a.y)[0] || null;
         this.score += 5;
       }
     }
