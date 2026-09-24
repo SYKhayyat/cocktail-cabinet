@@ -284,8 +284,11 @@ test("Splat held up input reverses downward motion and click-up adds a bounce", 
   game.model.player.vy = -300;
   const beforeBounceY = game.model.player.y;
   game.update(0.016, input({ pointer: pointer({ clicked: true, y: 100 }) }));
-  assert.equal(game.model.player.vy, -360);
+  assert.equal(game.model.player.vy, 0);
   assert.ok(game.model.player.y < beforeBounceY);
+  const afterBounceY = game.model.player.y;
+  game.update(0.016, input());
+  assert.ok(game.model.player.y > afterBounceY);
   game.model.player.vy = -260;
   game.update(0.016, input({ keys: new Set(["ArrowDown"]) }));
   assert.ok(game.model.player.vy > 0);
