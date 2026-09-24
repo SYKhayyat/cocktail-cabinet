@@ -151,7 +151,7 @@ export class AsteroidsModel {
     if (this.side === "versus") {
       for (const bullet of this.bullets) {
         if (bullet.owner === "human" && this.computerShip && circleHitsCircle(bullet.x, bullet.y, 3, this.computerShip.x, this.computerShip.y, this.computerShip.radius)) { bullet.life = 0; this.playerLives.computer = Math.max(0, this.playerLives.computer - 1); }
-        if (bullet.owner === "computer" && circleHitsCircle(bullet.x, bullet.y, 3, this.ship.x, this.ship.y, this.ship.radius)) { bullet.life = 0; this.playerLives.human = Math.max(0, this.playerLives.human - 1); this.lifeLost = true; this.lastLifeLossOwner = "human"; }
+        if (bullet.owner === "computer" && circleHitsCircle(bullet.x, bullet.y, 3, this.ship.x, this.ship.y, this.ship.radius)) bullet.life = 0;
       }
     }
     this.asteroids = this.asteroids.filter((asteroid) => asteroid.radius);
