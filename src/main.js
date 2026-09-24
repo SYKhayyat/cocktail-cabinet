@@ -52,7 +52,7 @@ let lastChatRevision = -1;
 const sideOptions = {
   snake: [["snake", "You vs computer — steer the snake"], ["apples", "Computer vs you — place apples"]],
   breakout: [["bottom", "You vs computer — bottom paddle"], ["blocks", "Computer vs you — drag the blocks"], ["versus", "You vs computer — central brick duel"]],
-  splat: [["builder", "You vs computer — place columns"], ["race", "You vs computer — two-ball race"], ["layout", "Computer vs you — place columns"]],
+  splat: [["climber", "You vs computer — steer the ball"], ["race", "You vs computer — two-ball race"], ["builder", "You vs computer — place columns"]],
   asteroids: [["ship", "You vs computer — fly the ship"], ["versus", "You vs computer — both ships"], ["rocks", "Computer vs you — send asteroids"]],
   missile: [["defender", "You vs computer — defend cities"], ["attacker", "Computer vs you — attack cities"]],
   imitation: [["ai", "Chat with the local AI"], ["human", "Chat with a second tab"]],
@@ -157,7 +157,6 @@ function updateSplatTools() {
 function loadGame(id) {
   activeId = id;
   const game = games.get(id);
-  if (id === "splat" && game.side === "climber") game.setSide("builder");
   renderCards();
   title.textContent = game.title;
   description.textContent = game.description;

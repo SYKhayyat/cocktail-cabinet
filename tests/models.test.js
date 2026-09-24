@@ -386,6 +386,16 @@ test("Breakout versus replaces only the fallen owner's ball", () => {
   assert.ok(game.balls.some((ball) => ball.owner === "human"));
 });
 
+test("Splat defaults to the human-controlled run", () => {
+  const game = new SplatGame();
+  game.reset();
+  assert.equal(game.side, "climber");
+  assert.equal(game.model.computerPlayer, null);
+  const startX = game.model.player.x;
+  game.update(0.1, input());
+  assert.ok(game.model.player.x > startX);
+});
+
 test("Splat: automatic rightward motion, gaps, scoring, and collisions", () => {
   const game = new SplatModel();
   game.reset();
