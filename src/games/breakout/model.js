@@ -2,11 +2,14 @@ import { clamp, circleHitsRect } from "../../engine.js";
 
 export const BRICK_LABELS = { extraLife: "+1 LIFE", double: "2 BALLS", speed: "SPEED", shortBar: "SHORT", longBar: "LONG", hazard: "DANGER" };
 const BRICK_TYPES = ["normal", "extraLife", "shortBar", "double", "speed", "longBar", "hazard"];
-const COMPUTER_REACTION_MIN = 0.04;
-const COMPUTER_REACTION_MAX = 0.07;
-const COMPUTER_ERROR_CHANCE = 0.202;
-const COMPUTER_ERROR_RANGE = 142;
-const COMPUTER_SPEED = 1000;
+const COMPUTER_REACTION_MIN = 0.08;
+const COMPUTER_REACTION_MAX = 0.14;
+const COMPUTER_ERROR_CHANCE = 0.35;
+const COMPUTER_ERROR_RANGE = 120;
+const COMPUTER_MISTAKE_CHANCE = 0.18;
+const COMPUTER_MISTAKE_DELAY_MIN = 0.28;
+const COMPUTER_MISTAKE_DELAY_MAX = 0.45;
+const COMPUTER_SPEED = 700;
 
 export class BreakoutModel {
   constructor() {
@@ -63,7 +66,11 @@ export class BreakoutModel {
       this.computerReaction -= dt;
       if (leadBall) {
         const incoming = leadBall.vy > 0;
-        if (incoming && this.computerLastVy <= 0) this.computerTargetError = Math.random() < COMPUTER_ERROR_CHANCE ? (Math.random() - 0.5) * COMPUTER_ERROR_RANGE : 0;
+        if (incoming && this.computerLastVy <= 0) {
+          const error = (Math.random() - 0.5) * COMPUTER_ERROR_RANGE;
+          this.computerTargetError = Math.random() < COMPUTER_ERROR_CHANCE ? error : error * 0.25;
+          if (Math.random() < COMPUTER_MISTAKE_CHANCE) this.computerReaction = COMPUTER_MISTAKE_DELAY_MIN + Math.random() * (COMPUTER_MISTAKE_DELAY_MAX - COMPUTER_MISTAKE_DELAY_MIN);
+        }
         if (!incoming) this.computer.targetX = this.computer.x;
         else if (this.computerReaction <= 0) {
           const timeToPaddle = Math.max(0, (this.computer.y - leadBall.y) / leadBall.vy);

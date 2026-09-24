@@ -92,7 +92,7 @@ test("Breakout: paddle movement, brick effects, life loss, and win state work", 
   assert.equal(game.won, true);
 });
 
-test("Breakout computer centers its paddle under the predicted ball", () => {
+test("Breakout computer computes a centered target from the predicted ball", () => {
   const game = new BreakoutModel();
   game.setSide("blocks");
   game.reset();
@@ -101,7 +101,7 @@ test("Breakout computer centers its paddle under the predicted ball", () => {
   game.computerTargetError = 0;
   game.balls[0] = game.newBall(400, 200, 0, 300);
   const originalRandom = Math.random;
-  Math.random = () => 0.99;
+  Math.random = () => 0.5;
   try {
     game.update(1 / 60, { mode: "mouse", keyDirection: 0, pointer: pointer() });
   } finally {
@@ -127,6 +127,24 @@ test("Breakout inactive special bricks behave like normal bricks", () => {
   assert.equal(hazard.hits, 0);
   assert.equal(game.score, scoreBefore + 10);
   assert.equal(game.lifeLost, undefined);
+});
+
+test("Breakout computer can make an off-center correction", () => {
+  const game = new BreakoutModel();
+  game.setSide("blocks");
+  game.reset();
+  game.computerReaction = 0;
+  game.computerLastVy = -1;
+  game.computerTargetError = 0;
+  game.balls[0] = game.newBall(400, 200, 0, 300);
+  const originalRandom = Math.random;
+  Math.random = () => 0.25;
+  try {
+    game.update(1 / 60, { mode: "mouse", keyDirection: 0, pointer: pointer() });
+  } finally {
+    Math.random = originalRandom;
+  }
+  assert.ok(game.computer.targetX < 400 - game.computer.width / 2);
 });
 
 test("Splat: human and computer controls, platform creation, jumps, and falling", () => {

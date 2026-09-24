@@ -71,7 +71,6 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
         const game = new BreakoutModel();
         game.setSide("blocks");
         game.reset();
-        for (const brick of game.bricks) brick.type = "normal";
         return game;
       }, (game) => game.update(1 / 60, { mode: "mouse", keyDirection: 0, pointer: blankPointer() }), (game) => game.balls.length === 0),
     },
