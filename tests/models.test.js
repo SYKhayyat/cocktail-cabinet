@@ -524,6 +524,24 @@ test("Splat builder adds columns, draws gaps, and drags columns", () => {
   game.update(1 / 60, { pointer: pointer({ x: oldX + 40, y: 100, down: true, dragStartX: oldX, dragStartY: 100, dragDistance: 40 }) });
   game.update(1 / 60, { pointer: pointer({ x: oldX + 40, y: 100, released: true, dragStartX: oldX, dragStartY: 100, dragDistance: 40 }) });
   assert.equal(added.x, oldX + 40);
+  game.player.x = 900;
+  game.update(1 / 60, {});
+  assert.equal(game.cameraX, game.player.x - 110);
+});
+
+test("Splat builder tools work while paused", () => {
+  const game = new SplatGame();
+  game.setSide("builder");
+  game.reset();
+  const initialCount = game.model.columns.length;
+  game.handlePausedInput({ pointer: pointer({ x: 500, y: 200, released: true, dragDistance: 0 }) });
+  assert.equal(game.model.columns.length, initialCount + 1);
+  const added = game.model.columns.find((column) => column.x === 500);
+  game.setTool("gap");
+  game.handlePausedInput({ pointer: pointer({ x: 500, y: 260, down: true, dragStartX: 500, dragStartY: 200 }) });
+  game.handlePausedInput({ pointer: pointer({ x: 500, y: 350, released: true, dragStartX: 500, dragStartY: 200 }) });
+  assert.equal(added.gapY, 200);
+  assert.equal(added.gapHeight, 150);
 });
 
 test("Splat race creates one human and one computer ball", () => {

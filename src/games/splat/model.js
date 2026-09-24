@@ -86,6 +86,7 @@ export class SplatModel {
     this.moveComputer(this.player, dt);
     this.player.x += HORIZONTAL_SPEED * dt;
     this.player.y = clamp(this.player.y + this.player.vy * dt, 18, 542);
+    this.builderCameraX = clamp(this.player.x - 110, 0, Math.max(0, this.columns.at(-1).x - 650));
     this.cameraX = this.builderCameraX;
     this.resolvePlayer(this.player);
     if (this.player.x >= this.columns.at(-1).x + 100) this.won = true;
@@ -110,9 +111,9 @@ export class SplatModel {
     }
   }
   handleBuilderInput(input) { this.updateBuilderInput(input); }
+  handlePausedInput(input) { if (this.side === "builder" || this.side === "layout") this.updateBuilderInput(input); }
   updateBuilderInput(input) {
     const pointer = input.pointer;
-    if (input.scrollDeltaX) this.builderCameraX = clamp(this.builderCameraX + input.scrollDeltaX, 0, Math.max(0, this.columns.at(-1).x - 650));
     if (!pointer) return;
     if (this.tool === "column" && pointer.down) {
       if (!this.dragColumn) {
@@ -123,7 +124,6 @@ export class SplatModel {
         }
       }
       if (this.dragColumn) this.dragColumn.x = clamp(this.builderCameraX + pointer.x - this.dragOffsetX, this.player.x + 60, this.columns.at(-1).x + 300);
-      else if (pointer.dragDeltaX) this.builderCameraX = clamp(this.builderCameraX - pointer.dragDeltaX, 0, Math.max(0, this.columns.at(-1).x - 650));
     }
     if (this.tool === "column" && pointer.released) {
       if (!this.dragColumn && pointer.dragDistance < 8) this.addColumn(this.builderCameraX + pointer.x, 280);

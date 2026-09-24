@@ -174,6 +174,7 @@ export class GameEngine {
       }
     }
     if (this.ready) this.game.handleReadyInput?.(this.input);
+    else if (this.stopped) this.game.handlePausedInput?.(this.input);
     this.game.draw(this.context);
     if (this.ready || this.countdown > 0 || this.stopped) {
       this.context.fillStyle = "#111827ee";

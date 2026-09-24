@@ -14,4 +14,5 @@ export class SplatController {
     });
   }
   handleReadyInput(input) { if (this.model.side === "builder" || this.model.side === "layout") this.model.handleBuilderInput(input); }
+  handlePausedInput(input) { this.model.handlePausedInput(input); }
 }
