@@ -141,9 +141,8 @@ export class AsteroidsModel {
     this.computerShotClock -= dt;
     if ((this.side === "ship" || this.side === "versus") && input.fire && this.shotClock <= 0) { this.fire("human", this.ship); this.shotClock = 0.18; }
     if ((this.side === "rocks" || this.side === "versus") && this.computerShotClock <= 0) {
-      const computerTarget = this.side === "versus" ? this.computerShip.aiTarget : this.asteroids.reduce((nearest, asteroid) => !nearest || Math.hypot(asteroid.x - this.ship.x, asteroid.y - this.ship.y) < Math.hypot(nearest.x - this.ship.x, nearest.y - this.ship.y) ? asteroid : nearest, null);
-      const computerAim = computerTarget ? Math.atan2(computerTarget.y - (this.side === "versus" ? this.computerShip.y : this.ship.y), computerTarget.x - (this.side === "versus" ? this.computerShip.x : this.ship.x)) : (this.side === "versus" ? this.computerShip.angle : this.ship.angle);
-      this.fire("computer", this.side === "versus" ? this.computerShip : this.ship, (Math.random() - 0.5) * 0.42, computerAim);
+      const computerShip = this.side === "versus" ? this.computerShip : this.ship;
+      this.fire("computer", computerShip, 0, computerShip.angle);
       this.computerShotClock = this.side === "versus" ? 1.1 + Math.random() * 0.3 : 1.3 + Math.random() * 0.3;
     }
     if (this.side === "rocks") this.updateRockPlacement({ ...input, dt });
