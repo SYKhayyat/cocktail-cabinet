@@ -29,6 +29,8 @@ export class AsteroidsModel {
     this.draggedAsteroid = null;
     this.dragVelocityX = 0;
     this.dragVelocityY = 0;
+    this.computerMistake = false;
+    this.computerMistakeClock = 5 + Math.random() * 4;
     this.lastLifeLossOwner = null;
     for (let index = 0; index < 3; index += 1) this.spawnAsteroid();
   }
@@ -117,6 +119,11 @@ export class AsteroidsModel {
   }
   update(dt, input) {
     this.invulnerable = Math.max(0, this.invulnerable - dt);
+    if (this.side === "rocks") {
+      this.computerMistakeClock -= dt;
+      if (this.computerMistakeClock <= 0) { this.computerMistake = true; this.computerMistakeClock = 8 + Math.random() * 6; }
+      if (this.computerMistake && this.invulnerable === 0 && this.asteroids.some((asteroid) => Math.hypot(asteroid.x - this.ship.x, asteroid.y - this.ship.y) < 72)) { this.computerMistake = false; this.lifeLost = true; }
+    }
     if (this.side === "ship") this.steer(dt, input);
     else if (this.side === "rocks") this.aiShip(dt);
     else {
