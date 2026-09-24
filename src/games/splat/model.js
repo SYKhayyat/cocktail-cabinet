@@ -109,6 +109,7 @@ export class SplatModel {
       this.winner = "computer";
     }
   }
+  handleBuilderInput(input) { this.updateBuilderInput(input); }
   updateBuilderInput(input) {
     const pointer = input.pointer;
     if (input.scrollDeltaX) this.builderCameraX = clamp(this.builderCameraX + input.scrollDeltaX, 0, Math.max(0, this.columns.at(-1).x - 650));

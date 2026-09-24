@@ -484,6 +484,15 @@ test("Splat releasing held drift stops the upward velocity", () => {
   assert.ok(game.model.player.y > heldY);
 });
 
+test("Splat builder accepts tools before the game starts", () => {
+  const game = new SplatGame();
+  game.setSide("builder");
+  game.reset();
+  const initialCount = game.model.columns.length;
+  game.handleReadyInput({ pointer: pointer({ x: 500, y: 200, released: true, dragDistance: 0 }) });
+  assert.equal(game.model.columns.length, initialCount + 1);
+});
+
 test("Splat builder adds columns, draws gaps, and drags columns", () => {
   const game = new SplatModel();
   game.setSide("builder");

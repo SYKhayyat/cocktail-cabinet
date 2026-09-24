@@ -26,6 +26,7 @@ export class SplatGame {
   resetAfterLife() { this.model.resetAfterLife(); }
   handleLifeLoss() { return this.model.handleLifeLoss(); }
   update(dt, input) { this.controller.update(dt, input); }
+  handleReadyInput(input) { this.controller.handleReadyInput(input); }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }
   winMessage() { return this.model.winner === "computer" ? "Computer wins the race!" : "You win the race!"; }
