@@ -22,6 +22,7 @@ test("Snake creates a playable state and grows when it reaches an apple", () => 
   game.reset();
   assert.equal(game.snake.length, 5);
   assert.equal(game.wrap, true);
+  assert.deepEqual(game.cellFromPointer({ x: 205, y: 105 }), { x: 7, y: 3 });
   const startingSpeed = game.moveInterval();
   game.score = 10;
   assert.ok(game.moveInterval() < startingSpeed);

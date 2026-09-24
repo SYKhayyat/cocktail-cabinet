@@ -1,5 +1,8 @@
 import { clamp, drawText } from "../engine.js";
 
+const BOARD_WIDTH = 800;
+const BOARD_HEIGHT = 560;
+
 export class SnakeGame {
   constructor() {
     this.id = "snake";
@@ -36,8 +39,12 @@ export class SnakeGame {
     this.startingLength = clamp(this.pendingSettings.startingLength, 3, 12);
     this.wrap = this.pendingSettings.wrap;
   }
-  cellWidth() { return 800 / this.cols; }
-  cellHeight() { return 560 / this.rows; }
+  cellWidth() { return BOARD_WIDTH / this.cols; }
+  cellHeight() { return BOARD_HEIGHT / this.rows; }
+  cellFromPointer(pointer) {
+    return { x: clamp(Math.floor(pointer.x / this.cellWidth()), 0, this.cols - 1), y: clamp(Math.floor(pointer.y / this.cellHeight()), 0, this.rows - 1) };
+  }
+  cellCenter(cell) { return { x: cell.x * this.cellWidth() + this.cellWidth() / 2, y: cell.y * this.cellHeight() + this.cellHeight() / 2 }; }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;
     this.gameOver = false;
@@ -62,9 +69,8 @@ export class SnakeGame {
   update(dt, input) {
     if (this.gameOver) return;
     if (this.side === "apples" && input.pointer.clicked) {
-      const x = clamp(Math.floor(input.pointer.x / this.cellWidth()), 0, this.cols - 1);
-      const y = clamp(Math.floor(input.pointer.y / this.cellHeight()), 0, this.rows - 1);
-      if (!this.snake.some((part) => part.x === x && part.y === y)) this.apple = { x, y };
+      const cell = this.cellFromPointer(input.pointer);
+      if (!this.snake.some((part) => part.x === cell.x && part.y === cell.y)) this.apple = cell;
     }
     const interval = this.moveInterval();
     if (this.side === "snake") {
@@ -95,8 +101,9 @@ export class SnakeGame {
   }
   steerToward(pointerX, pointerY) {
     const head = this.snake[0];
-    const dx = pointerX / this.cellWidth() - head.x - 0.5;
-    const dy = pointerY / this.cellHeight() - head.y - 0.5;
+    const target = this.cellFromPointer({ x: pointerX, y: pointerY });
+    const dx = target.x - head.x;
+    const dy = target.y - head.y;
     if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
     const direction = Math.abs(dx) > Math.abs(dy) ? { x: Math.sign(dx), y: 0 } : { x: 0, y: Math.sign(dy) };
     if (direction.x + this.direction.x || direction.y + this.direction.y) this.nextDirection = direction;
@@ -127,11 +134,11 @@ export class SnakeGame {
   draw(context) {
     const cellWidth = this.cellWidth();
     const cellHeight = this.cellHeight();
-    context.fillStyle = "#080d18"; context.fillRect(0, 0, 800, 560);
+    context.fillStyle = "#080d18"; context.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
     context.strokeStyle = "#1e293b"; context.lineWidth = 1;
-    for (let x = 0; x <= this.cols; x += 1) { context.beginPath(); context.moveTo(x * cellWidth, 0); context.lineTo(x * cellWidth, 560); context.stroke(); }
-    for (let y = 0; y <= this.rows; y += 1) { context.beginPath(); context.moveTo(0, y * cellHeight); context.lineTo(800, y * cellHeight); context.stroke(); }
-    if (this.apple) { context.fillStyle = "#fb7185"; context.beginPath(); context.arc(this.apple.x * cellWidth + cellWidth / 2, this.apple.y * cellHeight + cellHeight / 2, Math.min(cellWidth, cellHeight) * 0.38, 0, Math.PI * 2); context.fill(); }
+    for (let x = 0; x <= this.cols; x += 1) { context.beginPath(); context.moveTo(x * cellWidth, 0); context.lineTo(x * cellWidth, BOARD_HEIGHT); context.stroke(); }
+    for (let y = 0; y <= this.rows; y += 1) { context.beginPath(); context.moveTo(0, y * cellHeight); context.lineTo(BOARD_WIDTH, y * cellHeight); context.stroke(); }
+    if (this.apple) { const center = this.cellCenter(this.apple); context.fillStyle = "#fb7185"; context.beginPath(); context.arc(center.x, center.y, Math.min(cellWidth, cellHeight) * 0.38, 0, Math.PI * 2); context.fill(); }
     this.snake.forEach((part, index) => { context.fillStyle = index === 0 ? "#22d3ee" : "#0e7490"; context.fillRect(part.x * cellWidth + 2, part.y * cellHeight + 2, cellWidth - 4, cellHeight - 4); });
     drawText(context, this.gameOver ? "Game over — press New round" : this.side === "apples" ? "Click to place apples · computer steers" : "Hold the mouse to steer · arrow keys also work", 16, 28, 14, "#cbd5e1");
     drawText(context, `${this.cols} × ${this.rows} board · ${this.wrap ? "walls wrap" : "walls end the round"} · starts at ${this.startingLength}`, 16, 542, 12, "#64748b");

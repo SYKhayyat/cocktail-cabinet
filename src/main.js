@@ -137,7 +137,7 @@ const engine = new GameEngine(canvas, {
   onState: (state) => {
     title.textContent = state.title;
     description.textContent = state.description;
-    status.textContent = engine.ready ? "Press New game to start" : engine.lifePause > 0 ? "Life lost — pausing briefly" : state.status;
+    status.textContent = engine.ready ? "Press New game to start" : engine.countdown > 0 ? "Get ready…" : state.status;
     if (state.chatRevision !== undefined && state.chatRevision !== lastChatRevision) {
       lastChatRevision = state.chatRevision;
       renderChat(engine.game);

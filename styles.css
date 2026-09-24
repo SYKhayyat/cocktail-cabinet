@@ -66,8 +66,8 @@ select { min-width: 170px; }
 button { cursor: pointer; font-weight: 750; }
 button:hover { border-color: var(--accent); }
 .message { color: var(--accent-2); font-size: 0.82rem; min-height: 1.2em; }
-.screen-frame { overflow: hidden; border: 1px solid #334155; border-radius: 12px; background: var(--canvas-bg); box-shadow: inset 0 0 60px #0008; }
-canvas { display: block; width: 100%; height: auto; max-height: 48vh; object-fit: contain; aspect-ratio: 10 / 7; touch-action: none; }
+.screen-frame { display: flex; justify-content: center; overflow: hidden; border: 1px solid #334155; border-radius: 12px; background: var(--canvas-bg); box-shadow: inset 0 0 60px #0008; }
+canvas { display: block; width: min(100%, 68.57vh); height: auto; aspect-ratio: 10 / 7; touch-action: none; }
 .game-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-top: 10px; }
 .game-stats div { min-width: 90px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); }
 .game-stats div:last-child { text-align: right; }

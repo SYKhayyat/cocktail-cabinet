@@ -31,3 +31,9 @@
 - **Requested:** Use numeric columns/rows/length inputs with validation, preview settings before starting, make the computer competent but slightly delayed, fit the board on screen, place score/lives opposite each other, and queue lives/settings for the next game.
 - **Produced:** Validated number inputs, READY preview updates, queued mid-round settings, `lives x/y`, a fit-to-viewport board, and a delayed-but-competent computer path.
 - **Verification:** Six tests pass, including a computer-apple acquisition test; all JavaScript syntax checks pass; the headless browser renders the updated READY screen.
+
+## Snake countdown and pointer pass
+
+- **Requested:** Add a countdown after New game, Continue, and life loss; make invalid-size feedback persistent; centralize grid/pointer coordinates so clicked apples land exactly where clicked.
+- **Produced:** A three-second GET READY countdown, a non-letterboxed board mapping, shared Snake cell conversion helpers, and stronger numeric validation feedback.
+- **Verification:** Six tests pass, all JavaScript syntax checks pass, and the headless browser renders the board without coordinate letterboxing.
