@@ -16,6 +16,11 @@ export function draw(model, context) {
     if (brick.type !== "normal" && active) drawText(context, BRICK_LABELS[brick.type], brick.x + brick.width / 2, brick.y + 13, 7, "#07111f", "center");
     context.restore();
   });
+  context.fillStyle = "#111827ee";
+  context.fillRect(12, 8, 776, model.side === "versus" ? 76 : 48);
+  context.strokeStyle = "#334155";
+  context.lineWidth = 1;
+  context.strokeRect(12, 8, 776, model.side === "versus" ? 76 : 48);
   if (model.side === "versus") {
     context.fillStyle = "#fb7185"; context.fillRect(model.human.x, model.human.y, model.human.width, model.human.height);
     context.fillStyle = "#fbbf24"; context.fillRect(model.computer.x, model.computer.y, model.computer.width, model.computer.height);
