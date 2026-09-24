@@ -20,7 +20,7 @@ export class SplatModel {
     this.aiClock = 0;
     this.aiTarget = null;
     this.aiTargetOffset = 0;
-    this.nextX = 280;
+    this.nextX = 200;
   }
   addPlatform(x) {
     if (x < 25 || x > 655) return;
@@ -47,7 +47,8 @@ export class SplatModel {
     if (this.climber.y < 25) this.score += 100;
     if (this.climber.y > 560) { this.lifeLost = true; return; }
     if (this.side === "climber" && this.platforms.length < 8 && this.climber.y < this.targetY + 120) this.aiClock += dt;
-    if (this.side === "climber" && this.aiClock > 1.1) { this.aiClock = 0; this.addPlatform(this.nextX); }
+    const platformDelay = this.platforms.length < 2 ? 0.35 : 1.1;
+    if (this.side === "climber" && this.aiClock > platformDelay) { this.aiClock = 0; this.addPlatform(this.nextX); }
   }
   moveClimber(input, dt) {
     if (input.keyDirection) this.climber.x += input.keyDirection * 220 * dt;
