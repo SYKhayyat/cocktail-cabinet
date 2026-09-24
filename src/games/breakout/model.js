@@ -34,7 +34,7 @@ export class BreakoutModel {
     this.versusRoundOver = false;
     if (this.side === "versus") {
       this.human = { x: 350, targetX: 350, y: 500, width: 112, height: 16, speed: 460 };
-      this.computer = { x: 350, targetX: 350, y: 40, width: 112, height: 16 };
+      this.computer = { x: 350, targetX: 350, y: 48, width: 112, height: 16 };
       this.balls = [this.newBall(350, 450, 180, -200, "human"), this.newBall(450, 110, -180, 200, "computer")];
       this.createVersusLayout();
     } else {
@@ -88,7 +88,7 @@ export class BreakoutModel {
     const special = { 3: "extraLife", 7: "shortBar", 12: "double", 16: "speed", 21: "longBar" };
     for (let row = 0; row < 5; row += 1) for (let column = 0; column < 5; column += 1) {
       const index = row * 5 + column;
-      this.bricks.push({ x: 250 + column * 60, y: 140 + row * 28, width: 54, height: 20, hits: 1, type: special[index] || "normal", active: true, phaseOffset: special[index] ? (index * 0.73) % 2.4 : 0, period: special[index] ? 1.6 + (index % 4) * 0.65 : 0, owner: null });
+      this.bricks.push({ x: 250 + column * 60, y: 226 + row * 28, width: 54, height: 20, hits: 1, type: special[index] || "normal", active: true, phaseOffset: special[index] ? (index * 0.73) % 2.4 : 0, period: special[index] ? 1.6 + (index % 4) * 0.65 : 0, owner: null });
     }
   }
   newBall(x, y, vx, vy, owner = null) { return { x, y, vx, vy, radius: 8, owner, lastPaddle: owner, dead: false }; }
@@ -196,7 +196,12 @@ export class BreakoutModel {
       ball.y += ball.vy * dt;
       if (ball.x < ball.radius) { ball.x = ball.radius; ball.vx = Math.abs(ball.vx); }
       if (ball.x > 800 - ball.radius) { ball.x = 800 - ball.radius; ball.vx = -Math.abs(ball.vx); }
-      if (ball.y < ball.radius) { ball.y = ball.radius; ball.vy = Math.abs(ball.vy); }
+      if (ball.y < ball.radius && this.side !== "versus") { ball.y = ball.radius; ball.vy = Math.abs(ball.vy); }
+      if (this.side === "versus" && ball.y < -ball.radius) {
+        ball.dead = true;
+        this.paddleMisses += 1;
+        this.pendingLifeLossOwners.push(ball.owner || "human");
+      }
       const horizontal = ball.x + ball.radius > paddle.x && ball.x - ball.radius < paddle.x + paddle.width;
       const hitsPaddle = paddle.y < 300
         ? horizontal && ball.vy < 0 && previousY + ball.radius > paddle.y && ball.y - ball.radius <= paddle.y + paddle.height

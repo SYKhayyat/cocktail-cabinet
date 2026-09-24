@@ -22,7 +22,7 @@ export function draw(model, context) {
     drawText(context, `You ${model.scores.human}`, 16, 48, 14, "#fb7185");
     drawText(context, `Computer ${model.scores.computer}`, 784, 48, 14, "#fbbf24", "right");
     drawText(context, "YOU · BOTTOM PADDLE", model.human.x + model.human.width / 2, 485, 10, "#fb7185", "center");
-    drawText(context, "COMPUTER · TOP PADDLE", model.computer.x + model.computer.width / 2, 28, 10, "#fbbf24", "center");
+    drawText(context, "COMPUTER · TOP PADDLE", model.computer.x + model.computer.width / 2, 24, 10, "#fbbf24", "center");
   } else {
     const paddle = model.activePaddle();
     context.fillStyle = model.side === "bottom" ? "#fb7185" : "#fbbf24"; context.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);

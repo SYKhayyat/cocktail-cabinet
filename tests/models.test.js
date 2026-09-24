@@ -163,9 +163,11 @@ test("Breakout versus mode gives each side a paddle, ball, and central bricks", 
   assert.equal(game.balls.length, 2);
   assert.deepEqual(game.balls.map((ball) => ball.owner), ["human", "computer"]);
   assert.equal(game.human.y, 500);
-  assert.equal(game.computer.y, 40);
+  assert.equal(game.computer.y, 48);
   assert.equal(game.bricks.length, 25);
   assert.ok(game.bricks.every((brick) => brick.x >= 250 && brick.x <= 550 && brick.width === 54));
+  assert.equal(game.bricks[0].y, 226);
+  assert.equal(game.bricks.at(-1).y, 338);
 });
 
 test("Breakout versus mirrors top-paddle collision for a rising computer ball", () => {
@@ -179,7 +181,20 @@ test("Breakout versus mirrors top-paddle collision for a rising computer ball", 
   ball.vy = -200;
   game.update(0.016, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
   assert.ok(ball.vy > 0);
-  assert.equal(ball.y, 65);
+  assert.equal(ball.y, 73);
+});
+
+test("Breakout versus charges a top exit to the ball owner", () => {
+  const game = new BreakoutModel();
+  game.setSide("versus");
+  game.reset();
+  const ball = game.balls.find((candidate) => candidate.owner === "computer");
+  ball.y = -9;
+  ball.vy = -200;
+  game.update(0.02, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  assert.equal(game.lifeLost, true);
+  assert.equal(game.handleLifeLoss().gameOver, false);
+  assert.equal(game.playerLives.computer, 2);
 });
 
 test("Breakout versus awards a brick to the paddle that last hit its ball", () => {
