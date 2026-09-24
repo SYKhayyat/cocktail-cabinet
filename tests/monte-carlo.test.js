@@ -45,6 +45,24 @@ function runScenario(runs, steps, setup, advance, isFailure = (game) => game.lif
   return { successes, failures };
 }
 
+function runContactScenario(runs, steps, setup, advance) {
+  const originalRandom = Math.random;
+  let successes = 0;
+  let failures = 0;
+  try {
+    for (let run = 0; run < runs; run += 1) {
+      Math.random = seeded(1000 + run * 7919);
+      const game = setup();
+      for (let step = 0; step < steps && !game.won; step += 1) advance(game, step);
+      successes += game.paddleHits;
+      failures += game.paddleMisses;
+    }
+  } finally {
+    Math.random = originalRandom;
+  }
+  return { successes, failures };
+}
+
 function assertHumanLikeRatio(name, result, minimum, maximum) {
   assert.ok(result.failures > 0, `${name} computer never failed`);
   const ratio = result.successes / result.failures;
@@ -67,12 +85,12 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
     breakout: {
       minimum: 4,
       maximum: 15,
-      result: runScenario(runs, 5000, () => {
+      result: runContactScenario(runs, 5000, () => {
         const game = new BreakoutModel();
         game.setSide("blocks");
         game.reset();
         return game;
-      }, (game) => game.update(1 / 60, { mode: "mouse", keyDirection: 0, pointer: blankPointer() }), (game) => game.balls.length === 0),
+      }, (game) => game.update(1 / 60, { mode: "mouse", keyDirection: 0, pointer: blankPointer() })),
     },
     splat: {
       minimum: 5,

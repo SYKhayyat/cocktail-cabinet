@@ -2,14 +2,14 @@ import { clamp, circleHitsRect } from "../../engine.js";
 
 export const BRICK_LABELS = { extraLife: "+1 LIFE", double: "2 BALLS", speed: "SPEED", shortBar: "SHORT", longBar: "LONG", hazard: "DANGER" };
 const BRICK_TYPES = ["normal", "extraLife", "shortBar", "double", "speed", "longBar", "hazard"];
-const COMPUTER_REACTION_MIN = 0.08;
-const COMPUTER_REACTION_MAX = 0.14;
-const COMPUTER_ERROR_CHANCE = 0.35;
-const COMPUTER_ERROR_RANGE = 120;
-const COMPUTER_MISTAKE_CHANCE = 0.18;
-const COMPUTER_MISTAKE_DELAY_MIN = 0.28;
-const COMPUTER_MISTAKE_DELAY_MAX = 0.45;
-const COMPUTER_SPEED = 700;
+const COMPUTER_REACTION_MIN = 0.1;
+const COMPUTER_REACTION_MAX = 0.18;
+const COMPUTER_ERROR_CHANCE = 0.5;
+const COMPUTER_ERROR_RANGE = 180;
+const COMPUTER_MISTAKE_CHANCE = 0.3;
+const COMPUTER_MISTAKE_DELAY_MIN = 0.3;
+const COMPUTER_MISTAKE_DELAY_MAX = 0.5;
+const COMPUTER_SPEED = 600;
 
 export class BreakoutModel {
   constructor() {
@@ -37,6 +37,8 @@ export class BreakoutModel {
     this.pressStart = { x: 0, y: 0 };
     this.dragMoved = false;
     this.specialClock = 0;
+    this.paddleHits = 0;
+    this.paddleMisses = 0;
     this.won = false;
   }
   resetAfterLife() {
@@ -153,13 +155,17 @@ export class BreakoutModel {
         this.hitBrick(ball, brick);
         break;
       }
-      if (ball.y > 545) ball.dead = true;
+      if (ball.y > 545) {
+        ball.dead = true;
+        this.paddleMisses += 1;
+      }
     }
     this.balls = this.balls.filter((ball) => !ball.dead);
     if (!this.balls.length) this.lifeLost = true;
     if (this.bricks.every((brick) => !brick.hits)) this.won = true;
   }
   bounceFromPaddle(ball, paddle) {
+    this.paddleHits += 1;
     ball.vy *= -1.02;
     ball.vx += clamp((ball.x - (paddle.x + paddle.width / 2)) * 4, -200, 200);
     ball.y = paddle.y - ball.radius - 1;

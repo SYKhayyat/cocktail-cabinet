@@ -138,13 +138,22 @@ test("Breakout computer can make an off-center correction", () => {
   game.computerTargetError = 0;
   game.balls[0] = game.newBall(400, 200, 0, 300);
   const originalRandom = Math.random;
-  Math.random = () => 0.25;
+  Math.random = () => 0.4;
   try {
     game.update(1 / 60, { mode: "mouse", keyDirection: 0, pointer: pointer() });
   } finally {
     Math.random = originalRandom;
   }
   assert.ok(game.computer.targetX < 400 - game.computer.width / 2);
+});
+
+test("Breakout counts each ball that crosses the paddle plane as a miss", () => {
+  const game = new BreakoutModel();
+  game.reset();
+  game.balls[0].y = 544;
+  game.balls[0].vy = 100;
+  game.update(0.02, { mode: "mouse", keyDirection: 0, pointer: pointer() });
+  assert.equal(game.paddleMisses, 1);
 });
 
 test("Splat: human and computer controls, platform creation, jumps, and falling", () => {
