@@ -162,7 +162,7 @@ test("Breakout versus mode gives each side a paddle, ball, and central bricks", 
   game.reset();
   assert.equal(game.balls.length, 2);
   assert.deepEqual(game.balls.map((ball) => ball.owner), ["human", "computer"]);
-  assert.equal(game.human.y, 520);
+  assert.equal(game.human.y, 500);
   assert.equal(game.computer.y, 40);
   assert.equal(game.bricks.length, 25);
   assert.ok(game.bricks.every((brick) => brick.x >= 250 && brick.x <= 550 && brick.width === 54));

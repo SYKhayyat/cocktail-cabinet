@@ -21,7 +21,7 @@ export function draw(model, context) {
     context.fillStyle = "#fbbf24"; context.fillRect(model.computer.x, model.computer.y, model.computer.width, model.computer.height);
     drawText(context, `You ${model.scores.human}`, 16, 48, 14, "#fb7185");
     drawText(context, `Computer ${model.scores.computer}`, 784, 48, 14, "#fbbf24", "right");
-    drawText(context, "YOU · BOTTOM PADDLE", model.human.x + model.human.width / 2, 505, 10, "#fb7185", "center");
+    drawText(context, "YOU · BOTTOM PADDLE", model.human.x + model.human.width / 2, 485, 10, "#fb7185", "center");
     drawText(context, "COMPUTER · TOP PADDLE", model.computer.x + model.computer.width / 2, 28, 10, "#fbbf24", "center");
   } else {
     const paddle = model.activePaddle();

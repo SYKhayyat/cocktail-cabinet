@@ -33,13 +33,13 @@ export class BreakoutModel {
     this.winner = null;
     this.versusRoundOver = false;
     if (this.side === "versus") {
-      this.human = { x: 350, targetX: 350, y: 520, width: 112, height: 16, speed: 460 };
+      this.human = { x: 350, targetX: 350, y: 500, width: 112, height: 16, speed: 460 };
       this.computer = { x: 350, targetX: 350, y: 40, width: 112, height: 16 };
       this.balls = [this.newBall(350, 450, 180, -200, "human"), this.newBall(450, 110, -180, 200, "computer")];
       this.createVersusLayout();
     } else {
-      this.human = { x: 350, targetX: 350, y: 520, width: 112, height: 16, speed: 460 };
-      this.computer = { x: 350, targetX: 350, y: 520, width: 112, height: 16 };
+      this.human = { x: 350, targetX: 350, y: 500, width: 112, height: 16, speed: 460 };
+      this.computer = { x: 350, targetX: 350, y: 500, width: 112, height: 16 };
       this.balls = [this.newBall(400, 280, 180, 210)];
       if (this.layout) this.bricks = this.layout.map((brick) => ({ ...brick, hits: 1, active: true }));
       else this.createLayout();
@@ -64,8 +64,8 @@ export class BreakoutModel {
       this.balls = otherBall ? [newBall, otherBall] : [newBall];
       this.lifeLossOwner = null;
     } else {
-      this.human = { x: 350, targetX: 350, y: 520, width: 112, height: 16, speed: 460 };
-      this.computer = { x: 350, targetX: 350, y: 520, width: 112, height: 16 };
+      this.human = { x: 350, targetX: 350, y: 500, width: 112, height: 16, speed: 460 };
+      this.computer = { x: 350, targetX: 350, y: 500, width: 112, height: 16 };
       this.balls = [this.newBall(400, 280, 180, 210)];
     }
     this.computerReaction = 0.08;
