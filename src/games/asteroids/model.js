@@ -78,8 +78,13 @@ export class AsteroidsModel {
     }
     ship.aiReaction = Math.max(0, ship.aiReaction - dt);
     const targetAngle = Math.atan2(target.y - ship.y, target.x - ship.x);
-    const distance = Math.hypot(target.x - ship.x, target.y - ship.y);
-    const desiredAngle = this.side === "rocks" && distance < 105 ? targetAngle + Math.PI : ship.aiReaction > 0 ? ship.aiAim + ship.aiError : targetAngle;
+    const targetDistance = Math.hypot(target.x - ship.x, target.y - ship.y);
+    const hazards = this.side === "versus" ? [this.ship, ...this.asteroids] : [target];
+    const hazard = hazards.reduce((nearest, candidate) => !nearest || Math.hypot(candidate.x - ship.x, candidate.y - ship.y) < Math.hypot(nearest.x - ship.x, nearest.y - ship.y) ? candidate : nearest, null);
+    const hazardDistance = hazard ? Math.hypot(hazard.x - ship.x, hazard.y - ship.y) : Infinity;
+    const hazardAngle = hazard ? Math.atan2(hazard.y - ship.y, hazard.x - ship.x) : targetAngle;
+    const dodging = this.side === "versus" ? hazardDistance < 120 : targetDistance < 105;
+    const desiredAngle = dodging ? hazardAngle + Math.PI : ship.aiReaction > 0 ? ship.aiAim + ship.aiError : targetAngle;
     let difference = desiredAngle - ship.angle;
     while (difference > Math.PI) difference -= Math.PI * 2;
     while (difference < -Math.PI) difference += Math.PI * 2;
@@ -88,9 +93,9 @@ export class AsteroidsModel {
     ship.x = (ship.x + Math.cos(ship.angle) * ship.speed * dt + 800) % 800;
     ship.y = (ship.y + Math.sin(ship.angle) * ship.speed * dt + 560) % 560;
   }
-  fire(owner = "human", ship = this.ship, aimError = 0) {
+  fire(owner = "human", ship = this.ship, aimError = 0, aimAngle = ship.angle) {
     if (owner === "human") this.asteroidSpeed = Math.min(1.8, this.asteroidSpeed + 0.012);
-    const angle = ship.angle + aimError;
+    const angle = aimAngle + aimError;
     this.bullets.push({ x: ship.x, y: ship.y, vx: Math.cos(angle) * 360, vy: Math.sin(angle) * 360, life: 1, owner });
   }
   fractureAsteroid(asteroid) {
@@ -129,12 +134,17 @@ export class AsteroidsModel {
     else if (this.side === "rocks") this.aiShip(dt);
     else {
       this.steer(dt, input);
-      this.aiShip(dt, this.computerShip, this.shipCollisionCooldown > 0 ? null : this.ship);
+      this.aiShip(dt, this.computerShip);
     }
     this.shotClock -= dt;
     this.computerShotClock -= dt;
     if ((this.side === "ship" || this.side === "versus") && input.fire && this.shotClock <= 0) { this.fire("human", this.ship); this.shotClock = 0.18; }
-    if ((this.side === "rocks" || this.side === "versus") && this.computerShotClock <= 0) { this.fire("computer", this.side === "versus" ? this.computerShip : this.ship, (Math.random() - 0.5) * 0.42); this.computerShotClock = this.side === "versus" ? 1.1 + Math.random() * 0.3 : 1.3 + Math.random() * 0.3; }
+    if ((this.side === "rocks" || this.side === "versus") && this.computerShotClock <= 0) {
+      const computerTarget = this.side === "versus" ? this.computerShip.aiTarget : this.asteroids.reduce((nearest, asteroid) => !nearest || Math.hypot(asteroid.x - this.ship.x, asteroid.y - this.ship.y) < Math.hypot(nearest.x - this.ship.x, nearest.y - this.ship.y) ? asteroid : nearest, null);
+      const computerAim = computerTarget ? Math.atan2(computerTarget.y - (this.side === "versus" ? this.computerShip.y : this.ship.y), computerTarget.x - (this.side === "versus" ? this.computerShip.x : this.ship.x)) : (this.side === "versus" ? this.computerShip.angle : this.ship.angle);
+      this.fire("computer", this.side === "versus" ? this.computerShip : this.ship, (Math.random() - 0.5) * 0.42, computerAim);
+      this.computerShotClock = this.side === "versus" ? 1.1 + Math.random() * 0.3 : 1.3 + Math.random() * 0.3;
+    }
     if (this.side === "rocks") this.updateRockPlacement({ ...input, dt });
     if (this.side === "ship" || this.side === "versus") { this.spawnClock -= dt; if (this.spawnClock <= 0 && this.asteroids.length < 7) { this.spawnAsteroid(); this.spawnClock = Math.max(0.25, 1.3 - this.score * 0.012); } }
     for (const asteroid of this.asteroids) { asteroid.x = (asteroid.x + asteroid.vx * this.asteroidSpeed * dt + 800) % 800; asteroid.y = (asteroid.y + asteroid.vy * this.asteroidSpeed * dt + 560) % 560; asteroid.rotation += asteroid.spin * dt; }

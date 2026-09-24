@@ -753,6 +753,10 @@ test("Asteroids versus gives both pilots scores and lives", () => {
   game.update(0, { pointer: null, fire: false });
   assert.ok(game.computerShotClock >= 1.1);
   game.bullets = [];
+  const target = { x: 700, y: 280, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [], tone: 0, generation: 0 };
+  game.asteroids = [target];
+  game.update(0, { pointer: null, fire: false });
+  assert.equal(game.computerShip.aiTarget, target);
   game.bullets = [{ x: game.computerShip.x, y: game.computerShip.y, vx: 0, vy: 0, life: 1, owner: "human" }];
   game.update(0, { pointer: null, fire: false });
   assert.equal(game.playerLives.computer, 2);
