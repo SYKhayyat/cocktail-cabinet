@@ -31,6 +31,8 @@ export class BreakoutModel {
     this.lifeLossOwner = null;
     this.pendingLifeLossOwners = [];
     this.winner = null;
+    this.gameOver = false;
+    this.lifeLost = false;
     this.versusRoundOver = false;
     if (this.side === "versus") {
       this.human = { x: 350, targetX: 350, y: 500, width: 112, height: 16, speed: 460 };
@@ -61,7 +63,8 @@ export class BreakoutModel {
       const owner = this.lifeLossOwner || "human";
       const otherBall = this.balls.find((ball) => ball.owner !== owner);
       const newBall = owner === "computer" ? this.newBall(450, 160, -180, 200, "computer") : this.newBall(350, 450, 180, -200, "human");
-      this.balls = otherBall ? [newBall, otherBall] : [newBall];
+      const otherReplacement = otherBall || (owner === "computer" ? this.newBall(350, 450, 180, -200, "human") : this.newBall(450, 160, -180, 200, "computer"));
+      this.balls = [newBall, otherReplacement];
       this.lifeLossOwner = null;
     } else {
       this.human = { x: 350, targetX: 350, y: 500, width: 112, height: 16, speed: 460 };

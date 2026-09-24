@@ -225,6 +225,25 @@ test("Breakout versus charges a top exit to the ball owner", () => {
   assert.equal(replacement.y, 160);
 });
 
+test("Breakout versus restores two balls after simultaneous exits", () => {
+  const game = new BreakoutModel();
+  game.setSide("versus");
+  game.reset();
+  for (const ball of game.balls) {
+    ball.x = 400;
+    ball.y = 545;
+    ball.vx = 0;
+    ball.vy = 300;
+  }
+  game.update(0.02, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  assert.equal(game.balls.length, 0);
+  assert.equal(game.handleLifeLoss().gameOver, false);
+  game.resetAfterLife();
+  assert.equal(game.balls.length, 2);
+  assert.deepEqual(new Set(game.balls.map((ball) => ball.owner)), new Set(["human", "computer"]));
+  assert.equal(game.pendingLifeLossOwners.length, 1);
+});
+
 test("Breakout versus awards a brick to the paddle that last hit its ball", () => {
   const game = new BreakoutModel();
   game.setSide("versus");

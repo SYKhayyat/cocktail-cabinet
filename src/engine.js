@@ -81,6 +81,8 @@ export class GameEngine {
     this.stop();
     this.game = game;
     game.engine = this;
+    game.gameOver = false;
+    game.lifeLost = false;
     this.stopped = true;
     this.ready = true;
     this.countdown = 0;
