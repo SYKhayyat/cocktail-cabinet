@@ -55,7 +55,8 @@ export class AsteroidsModel {
       const dx = input.pointer.x - ship.x;
       const dy = input.pointer.y - ship.y;
       if (Math.hypot(dx, dy) > 24) ship.angle = Math.atan2(dy, dx);
-      ship.speed = thrust ? Math.min(ship.speed + 190 * dt, 220) : 0;
+      const pointerThrust = input.pointer.down ? 1 : 0;
+      ship.speed = thrust || pointerThrust ? Math.min(ship.speed + 190 * dt, 220) : 0;
     } else {
       ship.angle += turn * 3.2 * dt;
       ship.speed += thrust * 190 * dt;
@@ -96,7 +97,7 @@ export class AsteroidsModel {
   fire(owner = "human", ship = this.ship, aimError = 0, aimAngle = ship.angle) {
     if (owner === "human") this.asteroidSpeed = Math.min(1.8, this.asteroidSpeed + 0.012);
     const angle = aimAngle + aimError;
-    this.bullets.push({ x: ship.x, y: ship.y, vx: Math.cos(angle) * 360, vy: Math.sin(angle) * 360, life: 1, owner });
+    this.bullets.push({ x: ship.x + Math.cos(angle) * ship.radius, y: ship.y + Math.sin(angle) * ship.radius, vx: Math.cos(angle) * 360, vy: Math.sin(angle) * 360, life: 1, owner });
   }
   fractureAsteroid(asteroid) {
     const speed = Math.max(35, Math.hypot(asteroid.vx, asteroid.vy));

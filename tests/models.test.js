@@ -723,12 +723,22 @@ test("Asteroids mouse movement swivels and click or hold fires", () => {
   assert.equal(game.model.ship.x, startX);
   assert.equal(game.model.ship.y, startY);
   assert.equal(game.model.bullets.length, 1);
+  assert.equal(game.model.bullets[0].x, game.model.ship.x + Math.cos(game.model.ship.angle) * game.model.ship.radius);
+  assert.equal(game.model.bullets[0].y, game.model.ship.y + Math.sin(game.model.ship.angle) * game.model.ship.radius);
+  const holdX = game.model.ship.x;
   game.model.shotClock = 0;
   game.update(0.016, input({ pointer: pointer({ x: 700, y: 100, down: true }) }));
   assert.equal(game.model.bullets.length, 2);
+  assert.notEqual(game.model.ship.x, holdX);
   const thrustX = game.model.ship.x;
   game.update(0.016, input({ keys: new Set(["ArrowUp"]), pointer: pointer({ x: 700, y: 100, moved: true }) }));
   assert.notEqual(game.model.ship.x, thrustX);
+});
+
+test("Asteroids non-versus modes do not expose computer score or lives", () => {
+  const game = new AsteroidsGame();
+  game.reset();
+  assert.equal(game.playerLives, null);
 });
 
 test("Asteroids drag trajectory persists and click placement is randomized", () => {
