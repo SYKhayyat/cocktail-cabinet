@@ -1,80 +1,80 @@
 import { clamp } from "../../engine.js";
 
-const AI_TARGET_ERROR_CHANCE = 0.1;
-const AI_TARGET_ERROR_RANGE = 220;
+const COLUMN_WIDTH = 28;
+const GAP_HEIGHT = 100;
+const GRAVITY = 900;
+const JUMP_SPEED = 390;
+const COMPUTER_MISTAKE_CHANCE = 0.18;
+
 export class SplatModel {
   constructor() {
     this.id = "splat";
     this.title = "Splat";
-    this.description = "Guide the climber upward. It jumps automatically; move the mouse or use A/D to land on the highlighted platform and climb as high as possible.";
+    this.description = "Guide the falling object through the gaps. Click or press Space to boost upward before it hits a column.";
     this.side = "climber";
     this.score = 0;
   }
-  sideLabel() { return this.side === "climber" ? "You climb the columns" : "You lay out the columns"; }
+  sideLabel() { return this.side === "climber" ? "You guide the falling object" : "Computer climbs; you place the gaps"; }
   setSide(side) { this.side = side; }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;
-    this.climber = { x: 40, y: 500, width: 24, height: 32, vy: 0 };
-    this.platforms = [{ x: 0, y: 520, width: 800, height: 40, color: "#334155", active: true, isGround: true }];
-    this.targetY = 470;
+    this.player = { x: 60, y: 500, radius: 12, vy: 0 };
+    this.columns = [];
+    this.nextColumn = null;
     this.aiClock = 0;
-    this.aiTarget = null;
-    this.aiTargetOffset = 0;
-    this.nextPlatform = null;
-    this.nextX = 200;
-    if (this.side === "climber") {
-      const firstX = 40 + Math.random() * 220;
-      this.platforms.push({ x: firstX, y: 470, width: 120, height: 14, color: "#22d3ee", active: true });
-      this.targetY = 415;
-      this.nextPlatform = this.platforms[1];
-      this.nextX = clamp(firstX + (Math.random() > 0.5 ? 150 : -150), 40, 640);
-    }
+    this.won = false;
+    for (let index = 0; index < 5; index += 1) this.addColumn(150 + index * 145, 450 - index * 55);
+    this.nextColumn = this.columns[0];
   }
-  addPlatform(x) {
-    if (x < 25 || x > 655) return;
-    const platform = { x, y: this.targetY, width: 120, height: 14, color: "#22d3ee", active: true };
-    this.platforms.push(platform);
-    if (this.side === "climber" && !this.nextPlatform) this.nextPlatform = platform;
-    this.nextX = clamp(x + (Math.random() > 0.5 ? 150 : -150), 40, 640);
-    this.targetY -= 55;
-    this.score += 10;
+  addColumn(x = null, gapY = null) {
+    const columnX = x ?? 120 + this.columns.length * 145 + Math.random() * 40;
+    const columnGapY = gapY ?? 80 + Math.random() * 300;
+    const column = { x: clamp(columnX, 8, 800 - COLUMN_WIDTH - 8), y: 0, width: COLUMN_WIDTH, height: 560, gapY: clamp(columnGapY, 70, 450), gapHeight: GAP_HEIGHT, passed: false };
+    this.columns.push(column);
+    return column;
   }
   update(dt, input) {
-    if (this.side === "layout" && input.placePlatform !== undefined) this.addPlatform(input.placePlatform);
-    if (this.side === "climber") this.moveClimber(input, dt); else this.moveAiClimber(dt);
-    this.climber.vy = Math.min(this.climber.vy + 700 * dt, 500);
-    this.climber.y += this.climber.vy * dt;
-    const ground = this.platforms.find((platform) => platform.isGround);
-    if (ground && this.climber.y < ground.y - this.climber.height) ground.active = false;
-    for (const platform of this.platforms) {
-      if (platform.active !== false && this.climber.vy >= 0 && this.climber.y + this.climber.height >= platform.y && this.climber.y < platform.y + platform.height && this.climber.x + this.climber.width > platform.x && this.climber.x < platform.x + platform.width) {
-        this.climber.y = platform.y - this.climber.height;
-        this.climber.vy = -330;
-        this.aiTarget = null;
-        if (this.side === "climber") this.nextPlatform = this.platforms.filter((candidate) => candidate.active !== false && candidate.y < platform.y).sort((a, b) => b.y - a.y)[0] || null;
-        this.score += 5;
+    if (this.side === "layout" && input.placeColumnX !== undefined) this.addColumn(input.placeColumnX, this.player.y);
+    if (this.side === "climber") this.movePlayer(input, dt); else this.moveComputer(dt);
+    this.player.vy = Math.min(this.player.vy + GRAVITY * dt, 520);
+    this.player.y += this.player.vy * dt;
+    this.player.x = clamp(this.player.x, 16, 784);
+    for (const column of this.columns) {
+      if (column.passed || !this.horizontalCollision(column)) continue;
+      const insideGap = this.player.y + this.player.radius > column.gapY && this.player.y - this.player.radius < column.gapY + column.gapHeight;
+      if (!insideGap) {
+        this.lifeLost = true;
+        this.player.vy *= -0.35;
+        break;
+      }
+      if (this.player.vy < 0 && this.player.y < column.gapY + column.gapHeight * 0.55) {
+        column.passed = true;
+        this.score += 100;
+        this.nextColumn = this.columns.find((candidate) => !candidate.passed) || null;
+        this.computerMistake = Math.random() < COMPUTER_MISTAKE_CHANCE;
       }
     }
-    if (this.climber.y < 25) this.score += 100;
-    if (this.climber.y > 560) { this.lifeLost = true; return; }
-    if (this.side === "climber" && this.platforms.length < 8 && this.climber.y < this.targetY + 120) this.aiClock += dt;
-    const platformDelay = this.platforms.length < 2 ? 0.35 : 1.1;
-    if (this.side === "climber" && this.aiClock > platformDelay) { this.aiClock = 0; this.addPlatform(this.nextX); }
+    if (this.player.y > 560) this.lifeLost = true;
+    if (this.columns.every((column) => column.passed)) this.won = true;
   }
-  moveClimber(input, dt) {
-    const keyDirection = input.keyDirection || 0;
-    if (input.mode === "keyboard" || keyDirection) this.climber.x += keyDirection * 220 * dt;
-    else if (input.pointerMoved && input.pointerX > 0) this.climber.x += clamp(input.pointerX - this.climber.width / 2 - this.climber.x, -1, 1) * 220 * dt;
+  horizontalCollision(column) { return this.player.x + this.player.radius > column.x && this.player.x - this.player.radius < column.x + column.width; }
+  movePlayer(input, dt) {
+    const direction = input.keyDirection || 0;
+    if (direction) this.player.x += direction * 260 * dt;
+    else if (input.pointerMoved && input.pointerX > 0) this.player.x += clamp(input.pointerX - this.player.x, -1, 1) * 260 * dt;
+    if (input.jump && this.player.vy > -220) this.player.vy = -JUMP_SPEED;
   }
-  moveAiClimber(dt) {
-    if (this.aiTarget && this.climber.vy >= 0 && this.climber.y > this.aiTarget.y + this.climber.height) this.aiTarget = null;
-    if (!this.aiTarget || this.aiTarget.active === false) {
-      this.aiTarget = this.platforms.filter((platform) => platform.active !== false && platform.y < this.climber.y + 20).sort((a, b) => b.y - a.y)[0] || null;
-      this.aiTargetOffset = this.aiTarget && Math.random() < AI_TARGET_ERROR_CHANCE ? (Math.random() - 0.5) * AI_TARGET_ERROR_RANGE : 0;
+  moveComputer(dt) {
+    const column = this.columns.find((candidate) => !candidate.passed);
+    if (!column) return;
+    const center = column.x + column.width / 2;
+    this.player.x += clamp(center - this.player.x, -1, 1) * 190 * dt;
+    this.aiClock += dt;
+    if (Math.abs(this.player.x - center) < 55 && this.player.vy > -100 && this.player.y > column.gapY + column.gapHeight * 0.35 && this.aiClock > (this.computerMistake ? 0.4 : 0.12)) {
+      this.player.vy = -JUMP_SPEED;
+    this.aiClock = 0;
+    this.computerMistake = Math.random() < COMPUTER_MISTAKE_CHANCE;
     }
-    if (!this.aiTarget) return;
-    const target = this.aiTarget.x + this.aiTarget.width / 2 - this.climber.width / 2 + this.aiTargetOffset;
-    this.climber.x += clamp(target - this.climber.x, -1, 1) * 280 * dt;
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "The jump is automatic; your job is choosing the landing column." }; }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "Pass through every highlighted gap. Click or press Space to rise." }; }
 }

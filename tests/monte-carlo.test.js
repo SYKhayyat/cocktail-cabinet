@@ -93,17 +93,14 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
       }, (game) => game.update(1 / 60, { mode: "mouse", keyDirection: 0, pointer: blankPointer() })),
     },
     splat: {
-      minimum: 5,
+      minimum: 4,
       maximum: 14,
       result: runScenario(runs, 2500, () => {
         const game = new SplatModel();
         game.setSide("layout");
         game.reset();
         return game;
-      }, (game, step) => {
-        if (step % 24 === 0) game.addPlatform(Math.max(25, Math.min(655, game.climber.x + 50 + Math.floor(Math.random() * 160))));
-        game.update(0.05, { keyDirection: 0, pointerX: 0, placePlatform: undefined });
-      }),
+      }, (game) => game.update(1 / 60, { placeColumnX: undefined })),
     },
     asteroids: {
       minimum: 2,

@@ -16,9 +16,21 @@ export function draw(model, context) {
     if (brick.type !== "normal" && active) drawText(context, BRICK_LABELS[brick.type], brick.x + brick.width / 2, brick.y + 13, 7, "#07111f", "center");
     context.restore();
   });
-  const paddle = model.activePaddle();
-  context.fillStyle = model.side === "bottom" ? "#fb7185" : "#fbbf24"; context.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
-  model.balls.forEach((ball) => { context.fillStyle = "#f8fafc"; context.beginPath(); context.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2); context.fill(); });
-  drawText(context, model.side === "bottom" ? "Move the mouse or use A/D to control the bottom paddle" : "Click a block to cycle its type · drag to rearrange · the computer returns the ball", 16, 28, 14, "#cbd5e1");
+  if (model.side === "versus") {
+    context.fillStyle = "#fb7185"; context.fillRect(model.human.x, model.human.y, model.human.width, model.human.height);
+    context.fillStyle = "#fbbf24"; context.fillRect(model.computer.x, model.computer.y, model.computer.width, model.computer.height);
+    drawText(context, `You ${model.scores.human}`, 16, 48, 14, "#fb7185");
+    drawText(context, `Computer ${model.scores.computer}`, 784, 48, 14, "#fbbf24", "right");
+    drawText(context, "YOU · BOTTOM PADDLE", model.human.x + model.human.width / 2, 505, 10, "#fb7185", "center");
+    drawText(context, "COMPUTER · TOP PADDLE", model.computer.x + model.computer.width / 2, 28, 10, "#fbbf24", "center");
+  } else {
+    const paddle = model.activePaddle();
+    context.fillStyle = model.side === "bottom" ? "#fb7185" : "#fbbf24"; context.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+  }
+  model.balls.forEach((ball) => {
+    context.fillStyle = ball.owner === "computer" ? "#fbbf24" : "#f8fafc";
+    context.beginPath(); context.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2); context.fill();
+  });
+  drawText(context, model.side === "versus" ? "Both paddles are live · each ball carries points for the paddle that last hit it" : model.side === "bottom" ? "Move the mouse or use A/D to control the bottom paddle" : "Click a block to cycle its type · drag to rearrange · the computer returns the ball", 16, model.side === "versus" ? 68 : 28, 14, "#cbd5e1");
   drawText(context, "Green +1 life · Pink 2 balls · Yellow speed · Purple short bar · Orange long bar · Red danger", 16, 542, 12, "#cbd5e1");
 }

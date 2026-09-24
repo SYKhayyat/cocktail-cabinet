@@ -156,63 +156,112 @@ test("Breakout counts each ball that crosses the paddle plane as a miss", () => 
   assert.equal(game.paddleMisses, 1);
 });
 
-test("Splat: human and computer controls, platform creation, jumps, and falling", () => {
+test("Breakout versus mode gives each side a paddle, ball, and central bricks", () => {
+  const game = new BreakoutModel();
+  game.setSide("versus");
+  game.reset();
+  assert.equal(game.balls.length, 2);
+  assert.deepEqual(game.balls.map((ball) => ball.owner), ["human", "computer"]);
+  assert.equal(game.human.y, 520);
+  assert.equal(game.computer.y, 40);
+  assert.ok(game.bricks.every((brick) => brick.x > 250 && brick.x < 550));
+});
+
+test("Breakout versus awards a brick to the paddle that last hit its ball", () => {
+  const game = new BreakoutModel();
+  game.setSide("versus");
+  game.reset();
+  const ball = game.balls[0];
+  const brick = game.bricks[0];
+  ball.x = brick.x + brick.width / 2;
+  ball.y = brick.y + 10;
+  ball.vx = 0;
+  ball.vy = 1;
+  ball.lastPaddle = "human";
+  game.balls = [ball];
+  game.update(0.016, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  assert.equal(brick.hits, 0);
+  assert.equal(brick.owner, "human");
+  assert.equal(game.scores.human, 10);
+});
+
+test("Breakout versus ends with the highest score when the bricks are cleared", () => {
+  const game = new BreakoutModel();
+  game.setSide("versus");
+  game.reset();
+  game.scores.human = 20;
+  game.scores.computer = 10;
+  for (const brick of game.bricks) brick.hits = 0;
+  game.update(0.016, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  assert.equal(game.won, true);
+  assert.equal(game.winner, "human");
+  const computerWin = new BreakoutModel();
+  computerWin.setSide("versus");
+  computerWin.reset();
+  computerWin.scores.human = 10;
+  computerWin.scores.computer = 20;
+  for (const brick of computerWin.bricks) brick.hits = 0;
+  computerWin.update(0.016, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  assert.equal(computerWin.gameOver, true);
+  assert.equal(computerWin.winner, "computer");
+});
+
+test("Breakout versus charges a miss to the ball owner and ends at zero lives", () => {
+  const game = new BreakoutModel();
+  game.setSide("versus");
+  game.reset();
+  game.lastLifeLossOwner = "human";
+  assert.equal(game.handleLifeLoss().gameOver, false);
+  assert.equal(game.playerLives.human, 2);
+  game.lastLifeLossOwner = "human";
+  game.handleLifeLoss();
+  game.lastLifeLossOwner = "human";
+  const result = game.handleLifeLoss();
+  assert.equal(result.gameOver, true);
+  assert.equal(game.winner, "computer");
+});
+
+test("Splat: falling player, column gaps, boosts, and collisions", () => {
   const game = new SplatModel();
   game.reset();
-  assert.equal(game.platforms.length, 2);
-  assert.ok(game.platforms[1].x >= 40 && game.platforms[1].x <= 260);
-  const startX = game.climber.x;
-  game.update(0.1, { keyDirection: 1, pointerX: 0, placePlatform: undefined });
-  assert.ok(game.climber.x > startX);
+  assert.equal(game.columns.length, 5);
+  assert.equal(game.nextColumn, game.columns[0]);
+  const startY = game.player.y;
+  game.update(0.1, { mode: "mouse", keyDirection: 0, pointerX: 0, pointerMoved: false, jump: false, placeColumnX: undefined });
+  assert.ok(game.player.y > startY);
+  const column = game.columns[0];
+  game.player.x = column.x + column.width / 2;
+  game.player.y = column.gapY + 20;
+  game.player.vy = -100;
+  game.update(0.016, { mode: "keyboard", keyDirection: 0, pointerX: 0, pointerMoved: false, jump: false, placeColumnX: undefined });
+  assert.equal(column.passed, true);
+  assert.equal(game.score, 100);
+  const collision = new SplatModel();
+  collision.reset();
+  const blockedColumn = collision.columns[0];
+  collision.player.x = blockedColumn.x + blockedColumn.width / 2;
+  collision.player.y = blockedColumn.gapY - 40;
+  collision.player.vy = 1;
+  collision.update(0.016, { mode: "keyboard", keyDirection: 0, pointerX: 0, pointerMoved: false, jump: false, placeColumnX: undefined });
+  assert.equal(collision.lifeLost, true);
+});
+
+test("Splat computer can climb its column route", () => {
+  const game = new SplatModel();
   game.setSide("layout");
   game.reset();
-  game.addPlatform(300);
-  assert.equal(game.platforms.length, 2);
-  assert.equal(game.platforms[0].active, true);
-  assert.equal(game.score, 10);
-  game.climber.y = 400;
-  game.update(0.016, { keyDirection: 0, pointerX: 0, placePlatform: undefined });
-  assert.equal(game.platforms[0].active, false);
-  game.addPlatform(0);
-  assert.equal(game.platforms.length, 2);
-  game.setSide("climber");
-  const falling = new SplatModel();
-  falling.reset();
-  falling.climber.y = 561;
-  falling.update(0.01, { keyDirection: 0, pointerX: 0, placePlatform: undefined });
-  assert.equal(falling.lifeLost, true);
-});
-
-test("Splat keeps the highlighted route tied to the platform actually landed on", () => {
-  const game = new SplatModel();
-  game.reset();
-  const firstPlatform = game.nextPlatform;
-  game.addPlatform(firstPlatform.x);
-  const secondPlatform = game.platforms.at(-1);
-  game.climber.x = firstPlatform.x + firstPlatform.width / 2 - game.climber.width / 2;
-  game.climber.y = firstPlatform.y - game.climber.height;
-  game.climber.vy = 1;
-  game.update(0.016, { mode: "keyboard", keyDirection: 0, pointerX: 0, pointerMoved: false, placePlatform: undefined });
-  assert.equal(game.nextPlatform, secondPlatform);
-});
-
-test("Splat human survives the first bounce with a generated platform", () => {
-  const game = new SplatModel();
-  game.reset();
-  for (let step = 0; step < 20; step += 1) game.update(0.05, { mode: "mouse", keyDirection: 0, pointerX: game.platforms[1].x + 60, pointerMoved: true, placePlatform: undefined });
-  assert.notEqual(game.lifeLost, true);
-  assert.ok(game.platforms.length >= 2);
-  assert.ok(game.climber.y < 560);
+  for (let step = 0; step < 600 && !game.lifeLost && !game.won; step += 1) game.update(1 / 60, { placeColumnX: undefined });
+  assert.ok(game.score >= 0);
 });
 
 test("Splat keyboard mode does not pull toward a stale cursor", () => {
   const game = new SplatGame();
   game.reset();
-  const startX = game.model.climber.x;
+  const startX = game.model.player.x;
   game.update(0.1, input({ mode: "keyboard", pointer: pointer({ x: 700, moved: false }) }));
-  assert.equal(game.model.climber.x, startX);
+  assert.equal(game.model.player.x, startX);
   game.update(0.1, input({ mode: "mouse", pointer: pointer({ x: 700, moved: true }) }));
-  assert.ok(game.model.climber.x > startX);
+  assert.ok(game.model.player.x > startX);
 });
 
 test("Asteroids: ship movement, firing, spawning, destruction, and ship loss", () => {

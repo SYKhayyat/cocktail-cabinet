@@ -120,18 +120,31 @@ export class GameEngine {
         this.onMessage?.("You cleared every brick — you win!");
       } else if (this.game.lifeLost || this.game.gameOver) {
         this.game.lifeLost = false;
-        const lossReason = this.game.lossReason || "collision";
-        this.lives -= 1;
-        this.onLives?.(this.lives, this.maxLives);
-        if (this.lives > 0) {
-          if (this.game.resetAfterLife) this.game.resetAfterLife();
-          else this.game.reset(true, this.game.snake?.length);
-          this.countdown = 3;
-          this.onMessage?.(lossReason === "wall" ? "Wall hit — one life lost. Starting again in 3…" : "One life lost — starting again in 3…");
+        const customLifeLoss = this.game.handleLifeLoss?.();
+        if (customLifeLoss) {
+          this.onLives?.(this.game.playerLives?.human ?? this.lives, this.maxLives);
+          if (customLifeLoss.gameOver) {
+            this.stopped = true;
+            this.onMessage?.(customLifeLoss.message);
+          } else {
+            this.game.resetAfterLife?.();
+            this.countdown = 3;
+            this.onMessage?.(customLifeLoss.message);
+          }
         } else {
-          this.game.gameOver = true;
-          this.stopped = true;
-          this.onMessage?.("Out of lives — press New game to try again.");
+          const lossReason = this.game.lossReason || "collision";
+          this.lives -= 1;
+          this.onLives?.(this.lives, this.maxLives);
+          if (this.lives > 0) {
+            if (this.game.resetAfterLife) this.game.resetAfterLife();
+            else this.game.reset(true, this.game.snake?.length);
+            this.countdown = 3;
+            this.onMessage?.(lossReason === "wall" ? "Wall hit — one life lost. Starting again in 3…" : "One life lost — starting again in 3…");
+          } else {
+            this.game.gameOver = true;
+            this.stopped = true;
+            this.onMessage?.("Out of lives — press New game to try again.");
+          }
         }
       }
     }

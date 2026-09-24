@@ -10,7 +10,7 @@ import { StarfallGame } from "./games/starfall.js";
 const gameFactories = [
   ["snake", "Snake", "Grow or feed the snake", () => new SnakeGame()],
   ["breakout", "Breakout", "Paddle duel", () => new BreakoutGame()],
-  ["splat", "Splat", "Build a rising route", () => new SplatGame()],
+  ["splat", "Splat", "Boost through column gaps", () => new SplatGame()],
   ["asteroids", "Asteroids", "Fly or launch rocks", () => new AsteroidsGame()],
   ["missile", "Missile Command", "Defend or attack", () => new MissileCommandGame()],
   ["imitation", "Imitation", "Chat with AI or a second tab", () => new ImitationGame()],
@@ -44,8 +44,8 @@ let lastChatRevision = -1;
 
 const sideOptions = {
   snake: [["snake", "You vs computer — steer the snake"], ["apples", "Computer vs you — place apples"]],
-  breakout: [["bottom", "You vs computer — bottom paddle"], ["blocks", "Computer vs you — drag the blocks"]],
-  splat: [["climber", "You vs computer — climb the columns"], ["layout", "Computer vs you — lay out columns"]],
+  breakout: [["bottom", "You vs computer — bottom paddle"], ["blocks", "Computer vs you — drag the blocks"], ["versus", "You vs computer — central brick duel"]],
+  splat: [["climber", "You vs computer — guide the fall"], ["layout", "Computer vs you — place the columns"]],
   asteroids: [["ship", "You vs computer — fly the ship"], ["rocks", "Computer vs you — send asteroids"]],
   missile: [["defender", "You vs computer — defend cities"], ["attacker", "Computer vs you — attack cities"]],
   imitation: [["ai", "Chat with the local AI"], ["human", "Chat with a second tab"]],

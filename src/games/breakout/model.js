@@ -15,23 +15,36 @@ export class BreakoutModel {
   constructor() {
     this.id = "breakout";
     this.title = "Breakout";
-    this.description = "Normal play: move the bottom paddle and keep the ball alive. Setup play: drag the blocks while the computer controls the paddle.";
+    this.description = "Normal play: move the bottom paddle and keep the ball alive. Setup play: drag the blocks while the computer controls the paddle. Versus play: two paddles and two balls fight over the central bricks.";
     this.side = "bottom";
     this.score = 0;
     this.layout = null;
   }
-  sideLabel() { return this.side === "bottom" ? "You control the bottom paddle" : "You move the blocks"; }
+  sideLabel() { return this.side === "bottom" ? "You control the bottom paddle" : this.side === "versus" ? "Central brick duel" : "You move the blocks"; }
   setSide(side) { this.side = side; }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;
-    this.human = { x: 350, targetX: 350, y: 520, width: 112, height: 16, speed: 460 };
-    this.computer = { x: 350, targetX: 350, y: 520, width: 112, height: 16 };
+    this.scores = { human: 0, computer: 0 };
+    const startingLives = this.engine?.maxLives ?? 3;
+    this.playerLives = { human: startingLives, computer: startingLives };
+    this.lastLifeLossOwner = null;
+    this.winner = null;
+    this.versusRoundOver = false;
+    if (this.side === "versus") {
+      this.human = { x: 350, targetX: 350, y: 520, width: 112, height: 16, speed: 460 };
+      this.computer = { x: 350, targetX: 350, y: 40, width: 112, height: 16 };
+      this.balls = [this.newBall(350, 450, 180, -200, "human"), this.newBall(450, 110, -180, 200, "computer")];
+      this.createVersusLayout();
+    } else {
+      this.human = { x: 350, targetX: 350, y: 520, width: 112, height: 16, speed: 460 };
+      this.computer = { x: 350, targetX: 350, y: 520, width: 112, height: 16 };
+      this.balls = [this.newBall(400, 280, 180, 210)];
+      if (this.layout) this.bricks = this.layout.map((brick) => ({ ...brick, hits: 1, active: true }));
+      else this.createLayout();
+    }
     this.computerReaction = 0.08;
     this.computerLastVy = 0;
     this.computerTargetError = 0;
-    this.balls = [this.newBall(400, 280, 180, 210)];
-    if (this.layout) this.bricks = this.layout.map((brick) => ({ ...brick, hits: 1, active: true }));
-    else this.createLayout();
     this.dragIndex = null;
     this.dragOffset = { x: 0, y: 0 };
     this.pressStart = { x: 0, y: 0 };
@@ -42,12 +55,18 @@ export class BreakoutModel {
     this.won = false;
   }
   resetAfterLife() {
-    this.human = { x: 350, targetX: 350, y: 520, width: 112, height: 16, speed: 460 };
-    this.computer = { x: 350, targetX: 350, y: 520, width: 112, height: 16 };
+    if (this.side === "versus") {
+      this.human = { x: 350, targetX: 350, y: 520, width: 112, height: 16, speed: 460 };
+      this.computer = { x: 350, targetX: 350, y: 40, width: 112, height: 16 };
+      this.balls = [this.newBall(350, 450, 180, -200, "human"), this.newBall(450, 110, -180, 200, "computer")];
+    } else {
+      this.human = { x: 350, targetX: 350, y: 520, width: 112, height: 16, speed: 460 };
+      this.computer = { x: 350, targetX: 350, y: 520, width: 112, height: 16 };
+      this.balls = [this.newBall(400, 280, 180, 210)];
+    }
     this.computerReaction = 0.08;
     this.computerLastVy = 0;
     this.computerTargetError = 0;
-    this.balls = [this.newBall(400, 280, 180, 210)];
     this.dragIndex = null;
     this.won = false;
   }
@@ -60,9 +79,34 @@ export class BreakoutModel {
     }
     this.saveLayout();
   }
-  newBall(x, y, vx, vy) { return { x, y, vx, vy, radius: 8, dead: false }; }
+  createVersusLayout() {
+    this.bricks = [];
+    const special = { 3: "extraLife", 7: "shortBar", 10: "double", 14: "speed", 18: "longBar" };
+    for (let row = 0; row < 5; row += 1) for (let column = 0; column < 4; column += 1) {
+      const index = row * 4 + column;
+      this.bricks.push({ x: 302 + column * 50, y: 140 + row * 28, width: 44, height: 20, hits: 1, type: special[index] || "normal", active: true, phaseOffset: special[index] ? (index * 0.73) % 2.4 : 0, period: special[index] ? 1.6 + (index % 4) * 0.65 : 0, owner: null });
+    }
+  }
+  newBall(x, y, vx, vy, owner = null) { return { x, y, vx, vy, radius: 8, owner, lastPaddle: owner, dead: false }; }
   activePaddle() { return this.side === "bottom" ? this.human : this.computer; }
+  moveVersusPaddles(dt, input) {
+    const keyDirection = input.keyDirection || 0;
+    const pointerTarget = input.pointer.x - this.human.width / 2;
+    this.human.targetX = input.mode === "keyboard" || keyDirection ? this.human.x + keyDirection * this.human.speed * dt : input.pointer.moved ? pointerTarget : this.human.x;
+    this.human.targetX = clamp(this.human.targetX, 8, 792 - this.human.width);
+    this.human.x = moveToward(this.human.x, this.human.targetX, 720 * dt);
+    const computerBall = this.balls.find((ball) => ball.owner === "computer");
+    if (computerBall) {
+      this.computer.targetX = clamp(computerBall.x - this.computer.width / 2, 8, 792 - this.computer.width);
+      this.computer.x = moveToward(this.computer.x, this.computer.targetX, 480 * dt);
+    }
+  }
+  paddleForBall(ball) { return this.side === "versus" ? (ball.owner === "computer" ? this.computer : this.human) : this.activePaddle(); }
   moveHuman(dt, input) {
+    if (this.side === "versus") {
+      this.moveVersusPaddles(dt, input);
+      return;
+    }
     if (this.side === "blocks") {
       const leadBall = this.balls[0];
       this.computerReaction -= dt;
@@ -133,7 +177,6 @@ export class BreakoutModel {
   update(dt, input) {
     this.updateBlocks(input);
     this.moveHuman(dt, input);
-    const paddle = this.activePaddle();
     this.specialClock += dt;
     for (const brick of this.bricks) {
       if (brick.type === "normal") brick.active = true;
@@ -141,6 +184,7 @@ export class BreakoutModel {
     }
     for (const ball of this.balls) {
       if (ball.dead) continue;
+      const paddle = this.paddleForBall(ball);
       const previousY = ball.y;
       ball.x += ball.vx * dt;
       ball.y += ball.vy * dt;
@@ -158,32 +202,76 @@ export class BreakoutModel {
       if (ball.y > 545) {
         ball.dead = true;
         this.paddleMisses += 1;
+        this.lastLifeLossOwner = this.side === "versus" ? (ball.owner || "human") : null;
       }
     }
     this.balls = this.balls.filter((ball) => !ball.dead);
     if (!this.balls.length) this.lifeLost = true;
-    if (this.bricks.every((brick) => !brick.hits)) this.won = true;
+    if (this.bricks.every((brick) => !brick.hits)) {
+      if (this.side === "versus") this.finishVersus();
+      else this.won = true;
+    }
+  }
+  addScore(owner, amount) {
+    if (this.side === "versus" && owner) {
+      this.scores[owner] += amount;
+      this.score = this.scores.human;
+    } else this.score += amount;
   }
   bounceFromPaddle(ball, paddle) {
     this.paddleHits += 1;
+    const owner = this.side === "versus" ? (paddle === this.human ? "human" : "computer") : null;
+    if (owner) ball.lastPaddle = owner;
     ball.vy *= -1.02;
     ball.vx += clamp((ball.x - (paddle.x + paddle.width / 2)) * 4, -200, 200);
-    ball.y = paddle.y - ball.radius - 1;
-    this.score += 1;
+    ball.y = paddle.y < 300 ? paddle.y + paddle.height + ball.radius + 1 : paddle.y - ball.radius - 1;
+    this.addScore(owner, 1);
   }
   hitBrick(ball, brick) {
     const specialActive = brick.type !== "normal" && brick.active;
+    const owner = this.side === "versus" ? (ball.lastPaddle || ball.owner) : null;
+    const ownerPaddle = this.side === "versus" ? (owner === "computer" ? this.computer : this.human) : this.activePaddle();
+    if (owner) brick.owner = owner;
     ball.vy *= -1;
-    this.score += specialActive ? 25 : 10;
+    this.addScore(owner, specialActive ? 25 : 10);
     if (!specialActive) return;
-    if (brick.type === "extraLife") this.engine?.addLife?.();
+    if (brick.type === "extraLife" && owner !== "computer") this.engine?.addLife?.();
     if (brick.type === "speed") for (const other of this.balls) { other.vx *= 1.12; other.vy *= 1.12; }
-    if (brick.type === "double" && this.balls.length < 3) this.balls.push(this.newBall(ball.x, ball.y, -ball.vx * 0.82, ball.vy * 0.82));
-    if (brick.type === "shortBar") this.activePaddle().width = Math.max(64, this.activePaddle().width - 24);
-    if (brick.type === "longBar") this.activePaddle().width = Math.min(170, this.activePaddle().width + 32);
-    if (brick.type === "hazard") this.lifeLost = true;
+    if (brick.type === "double" && this.balls.length < 4) this.balls.push(this.newBall(ball.x, ball.y, -ball.vx * 0.82, ball.vy * 0.82, owner));
+    if (brick.type === "shortBar") ownerPaddle.width = Math.max(64, ownerPaddle.width - 24);
+    if (brick.type === "longBar") ownerPaddle.width = Math.min(170, ownerPaddle.width + 32);
+    if (brick.type === "hazard") {
+      this.lastLifeLossOwner = owner || (this.side === "versus" ? ball.owner : null);
+      this.lifeLost = true;
+    }
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "Clear every brick to win. Special bricks change the round." }; }
+  finishVersus() {
+    this.versusRoundOver = true;
+    if (this.scores.human > this.scores.computer) {
+      this.winner = "human";
+      this.won = true;
+    } else if (this.scores.computer > this.scores.human) {
+      this.winner = "computer";
+      this.gameOver = true;
+    } else {
+      this.winner = null;
+      this.gameOver = true;
+    }
+  }
+  handleLifeLoss() {
+    if (this.versusRoundOver) return { gameOver: true, message: this.winner ? `${this.winner === "human" ? "You win" : "Computer wins"} the duel.` : "The duel ended in a tie." };
+    if (this.side !== "versus") return null;
+    const owner = this.lastLifeLossOwner || "human";
+    this.playerLives[owner] = Math.max(0, this.playerLives[owner] - 1);
+    this.lastLifeLossOwner = null;
+    if (this.playerLives[owner] === 0) {
+      this.gameOver = true;
+      this.winner = owner === "human" ? "computer" : "human";
+      return { gameOver: true, message: `${owner === "human" ? "You" : "Computer"} lost all lives — ${this.winner === "human" ? "you win" : "computer wins"}!` };
+    }
+    return { gameOver: false, message: `${owner === "human" ? "You" : "Computer"} lost a life.` };
+  }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "versus" && this.winner ? `${this.winner === "human" ? "You win" : "Computer wins"} — highest score takes the duel.` : "Clear every brick to win. Special bricks change the round." }; }
 }
 
 function predictBallX(ball, seconds) {

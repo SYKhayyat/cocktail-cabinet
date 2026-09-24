@@ -12,6 +12,7 @@ export class BreakoutGame {
   get description() { return this.model.description; }
   get side() { return this.model.side; }
   get score() { return this.model.score; }
+  get scores() { return this.model.scores; }
   get human() { return this.model.human; }
   get computer() { return this.model.computer; }
   get balls() { return this.model.balls; }

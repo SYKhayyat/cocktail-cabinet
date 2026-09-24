@@ -6,7 +6,8 @@ export class SplatController {
       mode: input.mode,
       pointerX: input.pointer.x,
       pointerMoved: input.pointer.moved,
-      placePlatform: input.pointer.clicked ? input.pointer.x - 60 : undefined,
+      jump: input.pressed.has(" ") || input.pointer.clicked,
+      placeColumnX: input.pointer.clicked ? input.pointer.x : undefined,
     });
   }
 }
