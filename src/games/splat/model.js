@@ -37,7 +37,8 @@ export class SplatModel {
     if (Number.isInteger(settings.columnSpacing)) this.pendingSettings.columnSpacing = clamp(settings.columnSpacing, MIN_COLUMN_SPACING, MAX_COLUMN_SPACING);
   }
   applyPendingSettings() { this.columnSpacing = this.pendingSettings.columnSpacing; }
-  reset(keepScore = false) {
+  reset(keepScore = false, preserveLayout = false) {
+    const preservedColumns = preserveLayout && this.columns ? this.columns.map((column) => ({ ...column, passed: false })) : null;
     if (!keepScore) {
       this.score = 0;
       this.furthestColumns = 0;
@@ -59,11 +60,14 @@ export class SplatModel {
     this.won = false;
     this.gameOver = false;
     this.winner = null;
-    for (let index = 0; index < COLUMN_COUNT; index += 1) {
-      const gapY = 150 + ((index * 83 + 47) % 230);
-      this.columns.push({ x: 190 + index * this.columnSpacing, y: 0, width: COLUMN_WIDTH, height: 560, gapY, gapHeight: GAP_HEIGHT, passed: false });
+    if (preservedColumns) this.columns.push(...preservedColumns);
+    else {
+      for (let index = 0; index < COLUMN_COUNT; index += 1) {
+        const gapY = 150 + ((index * 83 + 47) % 230);
+        this.columns.push({ x: 190 + index * this.columnSpacing, y: 0, width: COLUMN_WIDTH, height: 560, gapY, gapHeight: GAP_HEIGHT, passed: false });
+      }
     }
-    this.nextColumn = this.columns[0];
+    this.nextColumn = this.columns[0] || null;
   }
   newPlayer() { return { x: 70, y: 280, radius: 12, vy: 0, columnsPassed: 0, passedColumns: new Set(), aiTargetY: null, aiReaction: 0, aiError: 0 }; }
   update(dt, input) {
@@ -212,15 +216,16 @@ export class SplatModel {
     });
     if (!column) return;
     const targetY = column.gapY + column.gapHeight / 2;
-    if (this.side === "race") {
+    const computerSide = this.side === "race" || this.side === "builder" || this.side === "layout";
+    if (computerSide) {
       if (player.aiTargetY === null || Math.abs(targetY - player.aiTargetY) > 24) {
         player.aiTargetY = targetY;
-        player.aiReaction = 0.08 + Math.random() * 0.12;
-        player.aiError = (Math.random() - 0.5) * 28;
+        player.aiReaction = 0.12 + Math.random() * 0.18;
+        player.aiError = (Math.random() - 0.5) * 36;
       }
       player.aiReaction = Math.max(0, player.aiReaction - dt);
     }
-    const desiredY = this.side === "race" && player.aiReaction > 0 ? player.aiTargetY + player.aiError : targetY;
+    const desiredY = computerSide && player.aiReaction > 0 ? player.aiTargetY + player.aiError : targetY;
     const difference = desiredY - player.y;
     if (this.computerMistake && player.x > column.x - 60) {
       this.lifeLost = true;

@@ -529,6 +529,22 @@ test("Splat builder adds columns, draws gaps, and drags columns", () => {
   assert.equal(game.cameraX, game.player.x - 110);
 });
 
+test("Splat New Game preserves authored columns and gaps", () => {
+  const game = new SplatGame();
+  game.setSide("builder");
+  game.reset();
+  const initialCount = game.model.columns.length;
+  game.handlePausedInput({ pointer: pointer({ x: 500, y: 200, released: true, dragDistance: 0 }) });
+  game.setTool("gap");
+  game.handlePausedInput({ pointer: pointer({ x: 500, y: 260, down: true, dragStartX: 500, dragStartY: 200 }) });
+  game.handlePausedInput({ pointer: pointer({ x: 500, y: 350, released: true, dragStartX: 500, dragStartY: 200 }) });
+  game.reset(false, true);
+  assert.equal(game.model.columns.length, initialCount + 1);
+  const preserved = game.model.columns.find((column) => column.x === 500);
+  assert.equal(preserved.gapY, 200);
+  assert.equal(preserved.gapHeight, 150);
+});
+
 test("Splat non-race life loss respawns without deleting authored columns", () => {
   const game = new SplatModel();
   game.setSide("builder");
@@ -616,6 +632,15 @@ test("Splat race computer has reaction and targeting error", () => {
   }
   assert.ok(game.computerPlayer.aiReaction > 0);
   assert.notEqual(game.computerPlayer.aiError, 0);
+});
+
+test("Splat builder computer has reaction and targeting error", () => {
+  const game = new SplatModel();
+  game.setSide("builder");
+  game.reset();
+  game.moveComputer(game.player, 1 / 60);
+  assert.ok(game.player.aiReaction > 0);
+  assert.notEqual(game.player.aiError, 0);
 });
 
 test("Splat computer can steer through a generated route", () => {

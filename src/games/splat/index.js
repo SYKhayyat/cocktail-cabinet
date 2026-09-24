@@ -22,7 +22,7 @@ export class SplatGame {
   setSide(side) { this.model.setSide(side); }
   setSettings(settings) { this.model.setSettings(settings); }
   applyPendingSettings() { this.model.applyPendingSettings(); }
-  reset(keepScore) { this.model.reset(keepScore); }
+  reset(keepScore, preserveLayout) { this.model.reset(keepScore, preserveLayout); }
   resetAfterLife() { this.model.resetAfterLife(); }
   handleLifeLoss() { return this.model.handleLifeLoss(); }
   update(dt, input) { this.controller.update(dt, input); }

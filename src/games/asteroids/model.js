@@ -70,8 +70,8 @@ export class AsteroidsModel {
     if (!target) return;
     if (ship.aiTarget !== target) {
       ship.aiTarget = target;
-      ship.aiReaction = 0.14 + Math.random() * 0.18;
-      ship.aiError = (Math.random() - 0.5) * 0.65;
+      ship.aiReaction = 0.2 + Math.random() * 0.24;
+      ship.aiError = (Math.random() - 0.5) * 0.9;
       ship.aiAim = Math.atan2(target.y - ship.y, target.x - ship.x);
     }
     ship.aiReaction = Math.max(0, ship.aiReaction - dt);
@@ -131,7 +131,7 @@ export class AsteroidsModel {
     this.shotClock -= dt;
     this.computerShotClock -= dt;
     if ((this.side === "ship" || this.side === "versus") && input.fire && this.shotClock <= 0) { this.fire("human", this.ship); this.shotClock = 0.18; }
-    if ((this.side === "rocks" || this.side === "versus") && this.computerShotClock <= 0) { this.fire("computer", this.side === "versus" ? this.computerShip : this.ship, (Math.random() - 0.5) * 0.24); this.computerShotClock = this.side === "versus" ? 1.1 + Math.random() * 0.3 : 1.3 + Math.random() * 0.3; }
+    if ((this.side === "rocks" || this.side === "versus") && this.computerShotClock <= 0) { this.fire("computer", this.side === "versus" ? this.computerShip : this.ship, (Math.random() - 0.5) * 0.42); this.computerShotClock = this.side === "versus" ? 1.1 + Math.random() * 0.3 : 1.3 + Math.random() * 0.3; }
     if (this.side === "rocks") this.updateRockPlacement({ ...input, dt });
     if (this.side === "ship" || this.side === "versus") { this.spawnClock -= dt; if (this.spawnClock <= 0 && this.asteroids.length < 7) { this.spawnAsteroid(); this.spawnClock = Math.max(0.25, 1.3 - this.score * 0.012); } }
     for (const asteroid of this.asteroids) { asteroid.x = (asteroid.x + asteroid.vx * this.asteroidSpeed * dt + 800) % 800; asteroid.y = (asteroid.y + asteroid.vy * this.asteroidSpeed * dt + 560) % 560; asteroid.rotation += asteroid.spin * dt; }

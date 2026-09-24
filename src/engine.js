@@ -234,7 +234,7 @@ export class GameEngine {
     this.game.applyPendingSettings?.();
     this.game.gameOver = false;
     this.game.lifeLost = false;
-    this.game.reset();
+    this.game.reset(false, true);
     this.onLives?.(this.lives, this.maxLives);
     this.onMessage?.("New game — starting in 3…");
   }
