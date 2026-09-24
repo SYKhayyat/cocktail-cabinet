@@ -159,7 +159,8 @@ test("Breakout counts each ball that crosses the paddle plane as a miss", () => 
 test("Splat: human and computer controls, platform creation, jumps, and falling", () => {
   const game = new SplatModel();
   game.reset();
-  assert.equal(game.platforms.length, 1);
+  assert.equal(game.platforms.length, 2);
+  assert.ok(game.platforms[1].x >= 40 && game.platforms[1].x <= 260);
   const startX = game.climber.x;
   game.update(0.1, { keyDirection: 1, pointerX: 0, placePlatform: undefined });
   assert.ok(game.climber.x > startX);
@@ -185,7 +186,7 @@ test("Splat: human and computer controls, platform creation, jumps, and falling"
 test("Splat human survives the first bounce with a generated platform", () => {
   const game = new SplatModel();
   game.reset();
-  for (let step = 0; step < 20; step += 1) game.update(0.05, { keyDirection: 0, pointerX: 400, placePlatform: undefined });
+  for (let step = 0; step < 20; step += 1) game.update(0.05, { mode: "mouse", keyDirection: 0, pointerX: game.platforms[1].x + 60, pointerMoved: true, placePlatform: undefined });
   assert.notEqual(game.lifeLost, true);
   assert.ok(game.platforms.length >= 2);
   assert.ok(game.climber.y < 560);

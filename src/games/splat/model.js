@@ -21,6 +21,12 @@ export class SplatModel {
     this.aiTarget = null;
     this.aiTargetOffset = 0;
     this.nextX = 200;
+    if (this.side === "climber") {
+      const firstX = 40 + Math.random() * 220;
+      this.platforms.push({ x: firstX, y: 470, width: 120, height: 14, color: "#22d3ee", active: true });
+      this.targetY = 415;
+      this.nextX = clamp(firstX + (Math.random() > 0.5 ? 150 : -150), 40, 640);
+    }
   }
   addPlatform(x) {
     if (x < 25 || x > 655) return;
