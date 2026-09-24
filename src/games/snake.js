@@ -2,6 +2,9 @@ import { clamp, drawText } from "../engine.js";
 
 const BOARD_WIDTH = 800;
 const BOARD_HEIGHT = 560;
+const AI_MISTAKE_CHANCE = 0.45;
+const AI_MIN_REACTION_STEPS = 1;
+const AI_MAX_REACTION_STEPS = 3;
 
 export class SnakeGame {
   constructor() {
@@ -125,8 +128,8 @@ export class SnakeGame {
       this.aiErrorSteps -= 1;
       this.nextDirection = current;
     } else {
-      this.aiErrorSteps = 2 + Math.floor(Math.random() * 3);
-      this.nextDirection = Math.random() < 0.2 ? choices[Math.floor(Math.random() * choices.length)] : choices[0];
+      this.aiErrorSteps = AI_MIN_REACTION_STEPS + Math.floor(Math.random() * (AI_MAX_REACTION_STEPS - AI_MIN_REACTION_STEPS + 1));
+      this.nextDirection = Math.random() < AI_MISTAKE_CHANCE ? choices[Math.floor(Math.random() * choices.length)] : choices[0];
     }
   }
   routeScore(head, direction, apple) {
