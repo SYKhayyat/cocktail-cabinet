@@ -224,7 +224,7 @@ test("Breakout versus charges a miss to the ball owner and ends at zero lives", 
 test("Splat: automatic rightward motion, gaps, scoring, and collisions", () => {
   const game = new SplatModel();
   game.reset();
-  assert.equal(game.columns.length, 80);
+  assert.equal(game.columns.length, 50);
   assert.equal(game.nextColumn, game.columns[0]);
   const startX = game.player.x;
   game.update(0.1, { thrust: 0, placeColumnX: undefined });
@@ -304,6 +304,19 @@ test("Splat quick key tap bounces without continued rise", () => {
   const afterTapY = game.model.player.y;
   game.update(0.016, input());
   assert.ok(game.model.player.y > afterTapY);
+});
+
+test("Splat releasing held drift stops the upward velocity", () => {
+  const game = new SplatGame();
+  game.reset();
+  game.update(0.016, input({ keys: new Set(["ArrowUp"]) }));
+  assert.equal(game.model.player.vy, -260);
+  const heldY = game.model.player.y;
+  game.update(0.016, input());
+  assert.equal(game.model.player.vy, 0);
+  assert.equal(game.model.player.y, heldY);
+  game.update(0.016, input());
+  assert.ok(game.model.player.y > heldY);
 });
 
 test("Splat computer can steer through a generated route", () => {

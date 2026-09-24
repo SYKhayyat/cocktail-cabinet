@@ -1,7 +1,7 @@
 import { clamp } from "../../engine.js";
 
 const COLUMN_WIDTH = 30;
-const COLUMN_COUNT = 80;
+const COLUMN_COUNT = 50;
 const DEFAULT_COLUMN_SPACING = 130;
 const MIN_COLUMN_SPACING = 90;
 const MAX_COLUMN_SPACING = 240;
@@ -22,6 +22,7 @@ export class SplatModel {
     this.columnSpacing = DEFAULT_COLUMN_SPACING;
     this.pendingSettings = { columnSpacing: DEFAULT_COLUMN_SPACING };
     this.furthestColumns = 0;
+    this.driftActive = 0;
   }
   sideLabel() { return this.side === "climber" ? "You steer the falling object" : "Computer steers; you place columns"; }
   setSide(side) { this.side = side; }
@@ -34,6 +35,7 @@ export class SplatModel {
       this.score = 0;
       this.furthestColumns = 0;
     }
+    this.driftActive = 0;
     this.player = { x: 70, y: 280, radius: 12, vy: 0 };
     this.columns = [];
     this.cameraX = 0;
@@ -83,15 +85,25 @@ export class SplatModel {
   horizontalCollision(column) { return this.player.x + this.player.radius > column.x && this.player.x - this.player.radius < column.x + column.width; }
   applyPlayerInput(input) {
     const drift = input.drift || 0;
-    if (drift < 0) this.player.vy = Math.min(this.player.vy, -DRIFT_SPEED);
-    if (drift > 0) this.player.vy = Math.max(this.player.vy, DRIFT_SPEED);
+    if (drift < 0) {
+      this.driftActive = -1;
+      this.player.vy = Math.min(this.player.vy, -DRIFT_SPEED);
+    }
+    if (drift > 0) {
+      this.driftActive = 1;
+      this.player.vy = Math.max(this.player.vy, DRIFT_SPEED);
+    }
+    if (!drift && this.driftActive) this.player.vy = 0;
+    if (!drift) this.driftActive = 0;
     if (input.bounce < 0) {
       this.player.y = clamp(this.player.y - BOUNCE_DISTANCE, 18, 542);
       this.player.vy = 0;
+      this.driftActive = 0;
     }
     if (input.bounce > 0) {
       this.player.y = clamp(this.player.y + BOUNCE_DISTANCE, 18, 542);
       this.player.vy = 0;
+      this.driftActive = 0;
     }
   }
   moveComputer(dt) {
