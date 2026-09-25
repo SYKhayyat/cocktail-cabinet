@@ -1136,6 +1136,11 @@ test("Starfall: movement, gem collection, star spawning, and collision loss", ()
   doubleClickController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, doubleClicked: true, released: true }) }));
   assert.equal(doubleClick.stars.length, 0);
   assert.equal(doubleClick.gems.length, 1);
+  const userLaunchMode = new StarfallModel();
+  userLaunchMode.setSide("stars");
+  userLaunchMode.reset();
+  for (let index = 0; index < 60; index += 1) userLaunchMode.update(0.016, input());
+  assert.equal(userLaunchMode.gems.length, 0);
   const angled = new StarfallModel();
   angled.setSide("stars");
   angled.reset();
@@ -1162,6 +1167,22 @@ test("Starfall: movement, gem collection, star spawning, and collision loss", ()
   seekingComputer.gems = [{ x: 700, y: 400, vx: 0, vy: 0, collected: false }];
   seekingComputer.update(0.016, input());
   assert.ok(seekingComputer.aiTargetX > 400);
+  const twoGemComputer = new StarfallModel();
+  twoGemComputer.setSide("stars");
+  twoGemComputer.reset();
+  twoGemComputer.gems = [{ x: 150, y: 400, vx: 0, vy: 0, collected: false }, { x: 700, y: 400, vx: 0, vy: 0, collected: false }];
+  let previousComputerX = twoGemComputer.runner.x;
+  let lastDirection = 0;
+  let directionChanges = 0;
+  for (let index = 0; index < 120; index += 1) {
+    twoGemComputer.update(0.016, input());
+    const direction = Math.sign(twoGemComputer.runner.x - previousComputerX);
+    if (direction && lastDirection && direction !== lastDirection) directionChanges += 1;
+    if (direction) lastDirection = direction;
+    previousComputerX = twoGemComputer.runner.x;
+  }
+  assert.ok(twoGemComputer.runner.x < 400);
+  assert.equal(directionChanges, 0);
   stableComputer.stars = [{ x: 440, y: 20, vy: 0, radius: 10 }];
   stableComputer.update(0.016, input());
   const stableTarget = stableComputer.aiTargetX;

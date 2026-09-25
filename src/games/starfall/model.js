@@ -37,7 +37,7 @@ export class StarfallModel {
     }
   }
   reset(keepScore = false) {
-    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.gemHoldTime = 0; this.gemSpawnClock = 0; this.gemSpawnCooldown = 0;
+    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.aiTargetGem = null; this.gemHoldTime = 0; this.gemSpawnClock = 0; this.gemSpawnCooldown = 0;
     if (this.side === "runner") for (let index = 0; index < 3; index += 1) this.gems.push(this.newGem(undefined, -20 - index * 80));
   }
   update(dt, input) {
@@ -100,18 +100,25 @@ export class StarfallModel {
     this.stars = this.stars.filter((star) => !star.dead && star.y < 560 && star.x > -30 && star.x < 830);
   }
   aiRunner(dt) {
-    const activeGems = this.gems.filter((gem) => !gem.collected);
+    const activeGems = this.gems.filter((gem) => !gem.collected && gem.y <= this.runner.y + 50);
     if (!this.stars.length && !activeGems.length) return;
+    const targetGem = activeGems.find((gem) => gem === this.aiTargetGem) || activeGems.reduce((nearest, gem) => {
+      const cost = Math.abs(gem.x - this.runner.x) + Math.abs(this.runner.y - gem.y) * 0.15;
+      const nearestCost = Math.abs(nearest.x - this.runner.x) + Math.abs(this.runner.y - nearest.y) * 0.15;
+      return cost < nearestCost ? gem : nearest;
+    }, activeGems[0]);
     const candidates = [20, 160, 300, 440, 580, 720, 780];
     const safe = candidates.filter((candidate) => this.stars.every((star) => Math.abs(candidate - star.x) > 45));
     const pool = safe.length ? safe : [this.runner.x < 400 ? 20 : 780];
     const target = pool.reduce((best, candidate) => {
-      const gemDistance = activeGems.length ? Math.min(...activeGems.map((gem) => Math.abs(candidate - gem.x) + Math.abs(this.runner.y - gem.y) * 0.12)) : Math.abs(candidate - this.runner.x);
-      return gemDistance < best.distance ? { x: candidate, distance: gemDistance } : best;
+      const distance = targetGem ? Math.abs(candidate - targetGem.x) : Math.abs(candidate - this.runner.x);
+      return distance < best.distance ? { x: candidate, distance } : best;
     }, { x: pool[0], distance: Infinity });
-    const targetIsSafe = this.aiTargetX !== null && this.stars.every((star) => Math.abs(this.aiTargetX - star.x) > 45);
-    const targetFollowsGem = activeGems.some((gem) => Math.abs(this.aiTargetX - gem.x) < 55);
-    if (this.aiTargetX === null || !targetIsSafe || (activeGems.length && !targetFollowsGem)) this.aiTargetX = target.x;
+    const targetIsSafe = this.aiTargetX === null || this.stars.every((star) => Math.abs(this.aiTargetX - star.x) > 45);
+    if (!targetIsSafe || this.aiTargetX === null || this.aiTargetGem !== targetGem) {
+      this.aiTargetX = target.x;
+      this.aiTargetGem = targetGem || null;
+    }
     this.runner.x = clamp(this.runner.x + clamp(this.aiTargetX - this.runner.x, -1, 1) * 300 * dt, 20, 780);
   }
   publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "The computer changes direction to dodge; it does not phase through stars." }; }
