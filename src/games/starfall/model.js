@@ -10,9 +10,12 @@ export class StarfallModel {
   }
   sideLabel() { return this.side === "runner" ? "You guide the runner" : "You send the stars"; }
   setSide(side) { this.side = side; }
+  newGem(x = 20 + Math.random() * 760, y = -20) {
+    return { x, y, vx: (Math.random() * 2 - 1) * 32, vy: 35 + Math.random() * 30, collected: false };
+  }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null;
-    if (this.side === "runner") for (let index = 0; index < 3; index += 1) this.gems.push({ x: 100 + index * 300, y: -20 - index * 90, vy: 45 + index * 8, collected: false });
+    if (this.side === "runner") for (let index = 0; index < 3; index += 1) this.gems.push(this.newGem(undefined, -20 - index * 80));
   }
   update(dt, input) {
     if (this.side === "runner") {
@@ -34,7 +37,7 @@ export class StarfallModel {
         for (let index = this.stars.length - 1; index >= 0; index -= 1) {
           if (this.stars[index].userCreated && (this.stars[index].age || 0) < 0.5) { this.stars.splice(index, 1); break; }
         }
-        this.gems.push({ x: clamp(input.spawnGem.x, 20, 780), y: 20, vy: 65, collected: false });
+        this.gems.push(this.newGem(clamp(input.spawnGem.x, 20, 780), 20));
       }
       this.aiRunner(dt);
     }
@@ -46,11 +49,14 @@ export class StarfallModel {
     for (const gem of this.gems) {
       if (gem.collected) {
         gem.respawn = (gem.respawn || 0) - dt;
-        if (gem.respawn <= 0) { gem.collected = false; gem.x = 20 + Math.random() * 760; gem.y = -20; }
+        if (gem.respawn <= 0) Object.assign(gem, this.newGem());
         continue;
       }
+      gem.x += (gem.vx || 0) * dt;
       gem.y += (gem.vy || 50) * dt;
-      if (gem.y > 580) { gem.x = 20 + Math.random() * 760; gem.y = -20; }
+      if (gem.x < 0) gem.x = 800;
+      if (gem.x > 800) gem.x = 0;
+      if (gem.y > 580) Object.assign(gem, this.newGem());
       if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, gem.x, gem.y, 10)) { gem.collected = true; gem.respawn = 0.7; this.score += 50; }
     }
     for (const star of this.stars) if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, star.x, star.y, star.radius)) { star.dead = true; this.lifeLost = true; }

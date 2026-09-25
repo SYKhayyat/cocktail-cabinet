@@ -1087,8 +1087,9 @@ test("Starfall: movement, gem collection, star spawning, and collision loss", ()
   const startX = game.runner.x;
   game.update(0.2, { mode: "keyboard", keyDirection: 1, pointerX: 0, spawnStar: undefined });
   assert.ok(game.runner.x > startX);
-  const gemStartY = game.gems[0].y;
-  game.update(0.5, { mode: "keyboard", keyDirection: 0, pointerX: 0, spawnStar: undefined });
+   const gemStartY = game.gems[0].y;
+   assert.ok(game.gems.every((gem) => Number.isFinite(gem.vx) && Number.isFinite(gem.vy)));
+   game.update(0.5, { mode: "keyboard", keyDirection: 0, pointerX: 0, spawnStar: undefined });
   assert.ok(game.gems[0].y > gemStartY);
   game.gems = [{ x: game.runner.x, y: game.runner.y, collected: false }];
   game.update(0.016, { keyDirection: 0, pointerX: 0, spawnStar: undefined });
