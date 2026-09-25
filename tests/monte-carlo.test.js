@@ -109,6 +109,7 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
         const game = new AsteroidsModel();
         game.setSide("rocks");
         game.reset();
+        for (let index = 0; index < 3; index += 1) game.spawnAsteroid();
         return game;
       }, (game, step) => {
         const spawnAsteroid = step % 60 === 0 ? { x: 20 + Math.random() * 760, y: 20 + Math.random() * 520 } : null;
