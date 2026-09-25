@@ -59,7 +59,7 @@ export class ImitationModel {
     this.modelCached = hasCachedModel();
     this.addMessage("System", this.modelCached ? "Loading the cached local AI model…" : "Starting the local AI model download…");
     await this.prepareProvider();
-    if (this.aiReady) this.addMessage("System", `The AI model is ready${this.modelDevice === "ollama" ? " through Ollama" : this.modelDevice === "webgpu" ? " with WebGPU" : " in the browser"}.`);
+    if (this.aiReady) this.addMessage("System", `The AI model is ready${this.modelDevice === "chrome" ? " through Chrome built-in AI" : this.modelDevice === "ollama" ? " through Ollama" : this.modelDevice === "webgpu" ? " with WebGPU" : " in the browser"}.`);
     else this.addMessage("System", `The AI model could not be downloaded: ${this.modelError || "unknown error"}`);
   }
   receive(message) {
@@ -205,7 +205,7 @@ export class ImitationModel {
       if (this.guessClock === 0) void this.handleGuess("start", true);
     }
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Loading the local AI model" : this.aiReady ? `AI companion ready${this.modelDevice === "ollama" ? " via Ollama" : this.modelDevice === "webgpu" ? " via WebGPU" : ""}` : this.modelError ? "The AI model needs attention" : this.modelCached ? "Load the cached AI model" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.phase === "guess" ? "Guess AI or human" : this.modelLoading ? "Downloading the AI model" : "Generate a mystery message" : "Submit text for AI classification", chatRevision: this.chatRevision, modelCached: this.modelCached, modelDevice: this.modelDevice }; }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Loading the local AI model" : this.aiReady ? `AI companion ready${this.modelDevice === "chrome" ? " via Chrome AI" : this.modelDevice === "ollama" ? " via Ollama" : this.modelDevice === "webgpu" ? " via WebGPU" : ""}` : this.modelError ? "The AI model needs attention" : this.modelCached ? "Load the cached AI model" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.phase === "guess" ? "Guess AI or human" : this.modelLoading ? "Downloading the AI model" : "Generate a mystery message" : "Submit text for AI classification", chatRevision: this.chatRevision, modelCached: this.modelCached, modelDevice: this.modelDevice }; }
 }
 
 function humanDelay(prompt, response) {

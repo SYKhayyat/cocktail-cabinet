@@ -36,6 +36,31 @@ async function fetchJson(url, options = {}, milliseconds = 1500) {
   }
 }
 
+async function loadChromeModel(onProgress) {
+  const api = globalThis.LanguageModel;
+  if (!api?.availability || !api.create) throw new Error("Chrome built-in AI is unavailable.");
+  const options = {
+    expectedInputs: [{ type: "text", languages: ["en"] }],
+    expectedOutputs: [{ type: "text", languages: ["en"] }],
+  };
+  const availability = await api.availability(options);
+  if (availability === "unavailable") throw new Error("Chrome built-in AI is unavailable on this device.");
+  onProgress?.({ device: "chrome", progress: 0, text: availability === "available" ? "Connected to Chrome built-in AI." : "Downloading Chrome built-in AI…" });
+  const session = await api.create({
+    ...options,
+    monitor(monitor) {
+      monitor.addEventListener("downloadprogress", (event) => onProgress?.({ device: "chrome", progress: event.loaded, text: "Downloading Chrome built-in AI…" }));
+    },
+  });
+  return {
+    device: "chrome",
+    chat: async ({ messages }) => {
+      const response = await session.prompt(messages);
+      return { choices: [{ message: { content: response } }] };
+    },
+  };
+}
+
 async function loadOllamaModel(onProgress) {
   for (const baseUrl of OLLAMA_BASE_URLS) {
     try {
@@ -63,6 +88,9 @@ export function loadLocalModel(onProgress) {
   if (!enginePromise) {
     void requestPersistentStorage();
     enginePromise = (async () => {
+      try {
+        return await loadChromeModel(onProgress);
+      } catch { }
       try {
         return await loadOllamaModel(onProgress);
       } catch {
