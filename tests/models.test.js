@@ -820,6 +820,17 @@ test("Missile Command misses continue off-screen without a fireball", () => {
   assert.notEqual(game.interceptors[0].x, missedX);
 });
 
+test("Missile Command attacker missiles can destroy a battery", () => {
+  const game = new MissileModel();
+  game.setSide("attacker");
+  game.reset();
+  const battery = game.bases[0];
+  game.enemyMissiles = [{ x: battery.x, y: battery.y - 5, targetX: battery.x, targetY: battery.y, speed: 90, color: "#fb7185", targetObject: battery, kind: "battery", dead: false, isSplit: false }];
+  game.update(0, { attack: null });
+  assert.equal(battery.alive, false);
+  assert.equal(game.lifeLost, false);
+});
+
 test("Missile Command attacker supports direct clicks and drag trajectories", () => {
   const direct = new MissileModel();
   direct.setSide("attacker");
