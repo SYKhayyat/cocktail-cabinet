@@ -72,8 +72,9 @@ export class MissileModel {
     }
     const smart = this.level > 1 && Math.random() < 0.18;
     const splitCount = this.level > 2 && Math.random() < 0.32 ? 1 : 0;
-    const startX = 40 + Math.random() * 720;
-    this.enemyMissiles.push({ x: startX, y: 20, targetX: destination.target.x, targetY: destination.target.y, speed: 78 + this.level * 8 + this.score * 0.15, color: smart ? "#fbbf24" : "#fb7185", kind: destination.kind, targetObject: destination.target, smart, splitCount, isSplit: false, dead: false, freeFlight: Boolean(options.freeFlight), vx: options.vx || 0, vy: options.vy || 0 });
+    const startX = options.startX ?? 40 + Math.random() * 720;
+    const startY = options.startY ?? 20;
+    this.enemyMissiles.push({ x: startX, y: startY, targetX: destination.target.x, targetY: destination.target.y, speed: 78 + this.level * 8 + this.score * 0.15, color: smart ? "#fbbf24" : "#fb7185", kind: destination.kind, targetObject: destination.target, smart, splitCount, isSplit: false, dead: false, freeFlight: Boolean(options.freeFlight), vx: options.vx || 0, vy: options.vy || 0 });
   }
   launchPlayerEnemy(pointer) {
     if (!pointer) return;
@@ -83,7 +84,7 @@ export class MissileModel {
       const dy = pointer.dragDeltaY || pointer.y - pointer.dragStartY;
       const angle = Math.atan2(dy, dx);
       const speed = 180;
-      this.launchEnemy(null, { freeFlight: true, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed });
+      this.launchEnemy(null, { freeFlight: true, startX: pointer.dragStartX, startY: pointer.dragStartY, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed });
       return;
     }
     const interactive = "clicked" in pointer || "released" in pointer || "down" in pointer || "dragDistance" in pointer;

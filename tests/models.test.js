@@ -867,8 +867,17 @@ test("Missile Command attacker supports direct clicks and drag trajectories", ()
   dragged.reset();
   dragged.update(0, { attack: { x: 160, y: 180, released: true, dragDistance: 40, dragStartX: 120, dragStartY: 140, dragDeltaX: 40, dragDeltaY: 40 } });
   assert.equal(dragged.enemyMissiles[0].freeFlight, true);
+  assert.equal(dragged.enemyMissiles[0].x, 120);
+  assert.equal(dragged.enemyMissiles[0].y, 140);
   assert.ok(dragged.enemyMissiles[0].vx > 0);
   assert.ok(dragged.enemyMissiles[0].vy > 0);
+  const controlled = new MissileCommandGame();
+  controlled.setSide("attacker");
+  controlled.reset();
+  controlled.update(0, input({ pointer: pointer({ x: 70, y: 400, down: true, clicked: true }) }));
+  assert.equal(controlled.model.enemyMissiles.length, 0);
+  controlled.update(0, input({ pointer: pointer({ x: 70, y: 400, released: true, clicked: true }) }));
+  assert.equal(controlled.model.enemyMissiles.length, 1);
 });
 
 test("Missile Command computer interceptors expire at their target", () => {
