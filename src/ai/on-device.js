@@ -17,9 +17,11 @@ export function loadLocalModel(onProgress) {
       if (!support.ok) throw new Error(support.reason);
       if (support.device === "webgpu") {
         try {
+          const adapter = await withTimeout(navigator.gpu.requestAdapter(), 4000, "WebGPU adapter unavailable");
+          if (!adapter) return loadWasmModel(onProgress);
           const webllm = await import(WEBLLM_URL);
           const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
-          const engine = await webllm.CreateWebWorkerMLCEngine(worker, WEBGPU_MODEL_ID, { initProgressCallback: (report) => onProgress?.({ ...report, device: "webgpu" }) });
+          const engine = await withTimeout(webllm.CreateWebWorkerMLCEngine(worker, WEBGPU_MODEL_ID, { initProgressCallback: (report) => onProgress?.({ ...report, device: "webgpu" }) }), 90000, "WebGPU model initialization timed out");
           let fallbackPromise;
           return { device: "webgpu", chat: async (request) => {
             try {
@@ -79,4 +81,8 @@ function loadWasmModel(onProgress) {
     };
     worker.postMessage({ type: "load", modelId: WASM_MODEL_ID, device: "wasm" });
   });
+}
+
+function withTimeout(promise, milliseconds, message) {
+  return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(message)), milliseconds))]);
 }

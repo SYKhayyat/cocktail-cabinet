@@ -93,11 +93,11 @@ export class ImitationModel {
     try {
       const engine = await loadLocalModel((report) => { this.lastModelStatus = report.text || report.status || "Thinking"; });
       this.aiReady = true;
-      const reply = await engine.chat({
+      const reply = await withTimeout(engine.chat({
         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: text }],
         temperature: 0.7,
         max_tokens: 90,
-      });
+      }), 60000, "The local AI took too long to respond.");
       const response = reply?.choices?.[0]?.message?.content?.trim() || "";
       const wait = humanDelay(text, response) - (Date.now() - started);
       if (wait > 0) await waitFor(wait);
@@ -169,6 +169,10 @@ export class ImitationModel {
 function humanDelay(prompt, response) {
   const words = `${prompt} ${response}`.trim().split(/\s+/).length;
   return Math.min(4200, 450 + words * 42 + Math.random() * 650);
+}
+
+function withTimeout(promise, milliseconds, message) {
+  return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(message)), milliseconds))]);
 }
 
 function waitFor(milliseconds) {
