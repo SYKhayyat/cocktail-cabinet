@@ -20,7 +20,15 @@ export function loadLocalModel(onProgress) {
           const webllm = await import(WEBLLM_URL);
           const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
           const engine = await webllm.CreateWebWorkerMLCEngine(worker, WEBGPU_MODEL_ID, { initProgressCallback: (report) => onProgress?.({ ...report, device: "webgpu" }) });
-          return { device: "webgpu", chat: (request) => engine.chat.completions.create(request) };
+          let fallbackPromise;
+          return { device: "webgpu", chat: async (request) => {
+            try {
+              return await engine.chat.completions.create(request);
+            } catch {
+              fallbackPromise ||= loadWasmModel(onProgress);
+              return (await fallbackPromise).chat(request);
+            }
+          } };
         } catch {
           onProgress?.({ device: "wasm", progress: 0, text: "Switching to the lightweight local model…" });
         }

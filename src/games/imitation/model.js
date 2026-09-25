@@ -29,6 +29,7 @@ export class ImitationModel {
     this.lastModelStatus = "";
     this.mystery = null;
     this.guessClock = 4;
+    this.guessToken = 0;
     this.addMessage("System", this.side === "ai" ? "AI companion ready. Say hello when you are ready." : this.side === "human" ? "Looking for another tab or window…" : this.side === "guess" ? "Waiting a few seconds for another window. The AI will provide a mystery message if none joins." : "Write a sample message for the AI to classify.");
     if (this.side !== "human") void this.prepareProvider();
   }
@@ -52,20 +53,34 @@ export class ImitationModel {
     }
     if (message.type === "chat") this.addMessage("Partner", message.text);
     if (message.type === "guess-sample" && this.side === "guess") {
+      this.guessToken += 1;
       this.mystery = { source: "human", text: message.text };
       this.addMessage("Mystery", message.text);
       this.phase = "guess";
     }
   }
   addMessage(sender, text) {
-    this.chatLog.push({ sender, text, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) });
+    const message = { sender, text, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) };
+    this.chatLog.push(message);
     this.chatLog = this.chatLog.slice(-18);
     this.chatRevision += 1;
     if (sender === "Partner") this.score += 5;
+    return message;
   }
   sendMessage(text) {
     const clean = text.trim().slice(0, 240);
-    if (!clean || this.phase === "result") return null;
+    if (!clean) return null;
+    if (this.phase === "result") {
+      if (this.side === "guess" && ["next", "continue", "new"].includes(clean.toLowerCase())) {
+        this.addMessage("You", clean);
+        this.phase = "guess-waiting";
+        this.mystery = null;
+        this.guessClock = 4;
+        this.addMessage("System", "Send start to generate the next mystery message.");
+        return clean;
+      }
+      return null;
+    }
     this.addMessage("You", clean);
     if (this.side === "ai") void this.askAi(clean);
     if (this.side === "guess") void this.handleGuess(clean);
@@ -93,8 +108,12 @@ export class ImitationModel {
     }
   }
   async askAi(text) {
+    const thinking = this.addMessage("System", "AI is thinking…");
     const response = await this.requestAi(text);
+    this.chatLog = this.chatLog.filter((message) => message !== thinking);
+    this.chatRevision += 1;
     if (response) this.addMessage("AI", response);
+    else this.addMessage("System", "The AI could not respond this time. Try again.");
   }
   async handleGuess(text, forceAi = false) {
     const value = text.toLowerCase();
@@ -105,9 +124,15 @@ export class ImitationModel {
         return;
       }
       this.phase = "guess-loading";
+      const token = ++this.guessToken;
       this.addMessage("System", "Generating a mystery message…");
       const response = await this.requestAi("Create the mystery message now.", MYSTERY_PROMPT);
-      if (!response) return;
+      if (token !== this.guessToken || this.mystery) return;
+      if (!response) {
+        this.phase = "guess-waiting";
+        this.addMessage("System", "The AI could not create a mystery message this time. Try again.");
+        return;
+      }
       this.mystery = { source: "ai", text: response };
       this.addMessage("Mystery", response);
       this.phase = "guess";
@@ -120,8 +145,14 @@ export class ImitationModel {
     this.phase = "result";
   }
   async classifyText(text) {
+    const thinking = this.addMessage("System", "AI is thinking…");
     const response = await this.requestAi(text, CLASSIFIER_PROMPT);
-    if (!response) return;
+    this.chatLog = this.chatLog.filter((message) => message !== thinking);
+    this.chatRevision += 1;
+    if (!response) {
+      this.addMessage("System", "The AI could not classify that text this time. Try again.");
+      return;
+    }
     const classification = response.match(/\b(AI|HUMAN)\b/i)?.[1]?.toUpperCase() || "UNCLEAR";
     this.addMessage("AI", `${classification}\n${response.replace(/^\s*(AI|HUMAN)\s*/i, "").trim()}`);
   }

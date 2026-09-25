@@ -41,8 +41,8 @@
         </div>
 
         <div class="controls-row">
-          <label for="sideSelect">You control</label>
-          <select id="sideSelect"></select>
+          <span id="gameSideControls"><label for="sideSelect">You control</label>
+          <select id="sideSelect"></select></span>
           <span id="gameActions" class="action-group">
             <label class="lives-control" for="livesInput">Lives <input id="livesInput" type="number" min="1" max="9" value="3" /></label>
             <button id="restartButton" type="button">New game</button>
@@ -78,11 +78,11 @@
           </form>
         </div>
 
-        <div class="screen-frame">
+        <div id="screenFrame" class="screen-frame">
           <canvas id="gameCanvas" width="800" height="560" aria-label="Arcade game board"></canvas>
         </div>
 
-        <div class="game-stats">
+        <div id="gameStats" class="game-stats">
           <div><span>Score</span><strong id="score">0</strong></div>
           <div><span>Lives</span><strong id="lives">3/3</strong></div>
         </div>

@@ -31,6 +31,9 @@ const restartButton = document.querySelector("#restartButton");
 const pauseButton = document.querySelector("#pauseButton");
 const continueButton = document.querySelector("#continueButton");
 const gameActions = document.querySelector("#gameActions");
+const gameSideControls = document.querySelector("#gameSideControls");
+const gameStats = document.querySelector("#gameStats");
+const screenFrame = document.querySelector("#screenFrame");
 const splatTools = document.querySelector("#splatTools");
 const splatAddColumn = document.querySelector("#splatAddColumn");
 const splatAddGap = document.querySelector("#splatAddGap");
@@ -162,6 +165,10 @@ function loadGame(id) {
   description.textContent = game.description;
   renderSideOptions(game);
   gameActions.hidden = id === "imitation";
+  gameSideControls.hidden = id === "imitation";
+  gameStats.hidden = id === "imitation";
+  screenFrame.hidden = id === "imitation";
+  document.querySelector(".machine").classList.toggle("imitation-layout", id === "imitation");
   settingsPanel.hidden = id !== "snake" && id !== "splat";
   settingsTitle.textContent = id === "splat" ? "Splat settings" : "Snake settings";
   snakeSettings.hidden = id !== "snake";
@@ -185,7 +192,7 @@ const engine = new GameEngine(canvas, {
   onState: (state) => {
     title.textContent = state.title;
     description.textContent = state.description;
-    status.textContent = engine.ready ? "Press New game to start" : engine.countdown > 0 ? "Get ready…" : state.status;
+    status.textContent = activeId === "imitation" ? state.status : engine.ready ? "Press New game to start" : engine.countdown > 0 ? "Get ready…" : state.status;
     if (state.chatRevision !== undefined && state.chatRevision !== lastChatRevision) {
       lastChatRevision = state.chatRevision;
       renderChat(engine.game);
