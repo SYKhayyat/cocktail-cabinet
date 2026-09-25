@@ -1,8 +1,10 @@
-const WASM_MODEL_ID = "HuggingFaceTB/SmolLM2-360M-Instruct";
-const MODEL_CACHE_KEY = "cocktail-cabinet-local-ai-ready-v3";
+const WEBGPU_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-q4f16";
+const WASM_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-q4f16";
+const MODEL_CACHE_KEY = "cocktail-cabinet-local-ai-ready-v4";
 
 export function localModelSupport() {
   if (typeof window === "undefined") return { ok: false, device: "none", reason: "Local AI requires a browser." };
+  if (navigator.gpu) return { ok: true, device: "webgpu", reason: "" };
   return { ok: true, device: "wasm", reason: "" };
 }
 
@@ -23,7 +25,18 @@ function markModelReady() {
 export function loadLocalModel(onProgress) {
   if (!enginePromise) {
     void requestPersistentStorage();
-    enginePromise = loadWasmModel(onProgress).catch((error) => {
+    enginePromise = (async () => {
+      const support = localModelSupport();
+      if (!support.ok) throw new Error(support.reason);
+      if (support.device === "webgpu") {
+        try {
+          const adapter = await navigator.gpu.requestAdapter();
+          if (adapter) return await loadModelWorker("webgpu", onProgress);
+        } catch { }
+        onProgress?.({ device: "wasm", progress: 0, text: "WebGPU is unavailable; using the local fallback…" });
+      }
+      return loadModelWorker("wasm", onProgress);
+    })().catch((error) => {
       enginePromise = null;
       throw error;
     });
@@ -31,8 +44,8 @@ export function loadLocalModel(onProgress) {
   return enginePromise;
 }
 
-function loadWasmModel(onProgress) {
-  if (typeof Worker === "undefined") return Promise.reject(new Error("WebAssembly workers are unavailable in this browser."));
+function loadModelWorker(device, onProgress) {
+  if (typeof Worker === "undefined") return Promise.reject(new Error("AI workers are unavailable in this browser."));
   const worker = new Worker(new URL("./wasm-worker.js", import.meta.url), { type: "module" });
   return new Promise((resolve, reject) => {
     const pending = new Map();
@@ -45,7 +58,7 @@ function loadWasmModel(onProgress) {
     });
     worker.onmessage = (event) => {
       const message = event.data;
-      if (message.type === "progress") onProgress?.({ ...message, device: "wasm" });
+      if (message.type === "progress") onProgress?.({ ...message, device });
       if (message.type === "error") {
         const error = new Error(message.error || "The local AI model failed.");
         for (const entry of pending.values()) entry.reject(error);
@@ -57,7 +70,7 @@ function loadWasmModel(onProgress) {
       if (message.type === "ready") {
         ready = true;
         markModelReady();
-        resolve({ device: "wasm", chat: (requestPayload) => request({ ...requestPayload, type: "generate" }) });
+        resolve({ device, chat: (requestPayload) => request({ ...requestPayload, type: "generate" }) });
       }
       if (message.type === "response") {
         const entry = pending.get(message.id);
@@ -73,6 +86,6 @@ function loadWasmModel(onProgress) {
       pending.clear();
       if (!ready) reject(error);
     };
-    worker.postMessage({ type: "load", modelId: WASM_MODEL_ID, device: "wasm" });
+    worker.postMessage({ type: "load", modelId: device === "webgpu" ? WEBGPU_MODEL_ID : WASM_MODEL_ID, device });
   });
 }

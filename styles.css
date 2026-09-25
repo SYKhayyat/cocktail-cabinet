@@ -92,6 +92,8 @@ canvas { display: block; width: min(100%, 68.57vh); height: auto; aspect-ratio: 
 .chat-message.partner { border-color: var(--accent-2); }
 .chat-meta { display: block; color: var(--muted); font-size: 0.68rem; }
 .chat-message p { color: var(--ink); font-size: 0.85rem; line-height: 1.4; }
+.chat-message.waiting p::after { content: ""; animation: thinking-dots 1.2s steps(4, end) infinite; }
+@keyframes thinking-dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75%, 100% { content: "..."; } }
 .chat-form { display: flex; gap: 8px; border-top: 1px solid var(--line); padding: 10px; }
 .chat-form input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; color: var(--ink); background: var(--panel-2); font: inherit; }
 .chat-form input:focus { outline: 2px solid var(--accent-2); }

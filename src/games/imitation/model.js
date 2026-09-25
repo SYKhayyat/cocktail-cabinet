@@ -118,7 +118,7 @@ export class ImitationModel {
       const reply = await withTimeout(engine.chat({
         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: text }],
         temperature: 0.7,
-        max_tokens: 32,
+        max_tokens: 48,
       }), 120000, "The local AI took too long to respond.");
       const response = reply?.choices?.[0]?.message?.content?.trim() || "";
       const wait = humanDelay(text, response) - (Date.now() - started);
@@ -136,7 +136,9 @@ export class ImitationModel {
       this.addMessage("System", "Download the AI model before chatting.");
       return;
     }
-    const thinking = this.addMessage("System", "AI is thinking…");
+    const thinking = this.addMessage("System", "AI is thinking");
+    thinking.waiting = true;
+    this.chatRevision += 1;
     const response = await this.requestAi(text);
     this.chatLog = this.chatLog.filter((message) => message !== thinking);
     this.chatRevision += 1;
@@ -182,7 +184,9 @@ export class ImitationModel {
       this.addMessage("System", "Download the AI model before classifying text.");
       return;
     }
-    const thinking = this.addMessage("System", "AI is thinking…");
+    const thinking = this.addMessage("System", "AI is thinking");
+    thinking.waiting = true;
+    this.chatRevision += 1;
     const response = await this.requestAi(text, CLASSIFIER_PROMPT);
     this.chatLog = this.chatLog.filter((message) => message !== thinking);
     this.chatRevision += 1;

@@ -10,16 +10,16 @@ self.onmessage = async (event) => {
   try {
     if (message.type === "load") {
       generator = await pipeline("text-generation", message.modelId, {
-        device: "wasm",
-        dtype: "q4",
+        device: message.device,
+        dtype: message.device === "webgpu" ? "q4f16" : "q4",
         progress_callback: (report) => self.postMessage({ type: "progress", ...report }),
       });
-      self.postMessage({ type: "ready", device: "wasm" });
+      self.postMessage({ type: "ready", device: message.device });
       return;
     }
     if (message.type === "generate") {
       const output = await generator(message.messages, {
-        max_new_tokens: message.max_tokens || 32,
+        max_new_tokens: message.max_tokens || 48,
         do_sample: true,
         temperature: message.temperature || 0.7,
         top_p: 0.9,

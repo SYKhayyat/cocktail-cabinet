@@ -68,7 +68,7 @@ function renderChat(game) {
   chatMessages.replaceChildren();
   for (const message of game.chatLog) {
     const row = document.createElement("div");
-    row.className = `chat-message ${message.sender.toLowerCase()}`;
+    row.className = `chat-message ${message.sender.toLowerCase()}${message.waiting ? " waiting" : ""}`;
     const meta = document.createElement("span");
     meta.className = "chat-meta";
     meta.textContent = `${message.sender} · ${message.time}`;
