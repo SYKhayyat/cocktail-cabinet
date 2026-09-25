@@ -119,7 +119,8 @@ export class StarfallModel {
       this.aiTargetX = target.x;
       this.aiTargetGem = targetGem || null;
     }
-    this.runner.x = clamp(this.runner.x + clamp(this.aiTargetX - this.runner.x, -1, 1) * 300 * dt, 20, 780);
+    if (Math.abs(this.aiTargetX - this.runner.x) < 1) this.runner.x = this.aiTargetX;
+    else this.runner.x = clamp(this.runner.x + clamp(this.aiTargetX - this.runner.x, -1, 1) * 300 * dt, 20, 780);
   }
   publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "The computer changes direction to dodge; it does not phase through stars." }; }
 }
