@@ -74,7 +74,7 @@ export class ImitationModel {
     if (this.aiReady) this.addMessage("System", `The AI model is ready${this.modelDevice === "chrome" ? " through Chrome built-in AI" : this.modelDevice === "ollama" ? " through Ollama" : this.modelDevice === "webgpu" ? " with WebGPU" : " in the browser"}.`);
     else this.addMessage("System", `The AI model could not be downloaded: ${this.modelError || "unknown error"}`);
   }
-  startNextRound() {
+  startNextRound(announce = true) {
     if (this.side !== "guess") return;
     clearTimeout(this.restartTimer);
     this.restartTimer = null;
@@ -88,12 +88,14 @@ export class ImitationModel {
     this.guessClock = 4;
     this.guessFallbackStarted = false;
     this.onRoundStart?.();
-    this.addMessage("System", "Next round.");
+    if (announce) this.addMessage("System", "Next round.");
   }
   restartGuess() {
     if (this.side !== "guess") return;
     this.guessStats = { right: 0, wrong: 0 };
-    this.startNextRound();
+    this.chatLog = [];
+    this.chatRevision += 1;
+    this.startNextRound(false);
   }
   receive(message) {
     if (!message || message.from === this.matchId) return;
