@@ -723,8 +723,9 @@ test("Asteroids mouse movement swivels and click or hold fires", () => {
   assert.equal(game.model.ship.x, startX);
   assert.equal(game.model.ship.y, startY);
   assert.equal(game.model.bullets.length, 1);
-  assert.equal(game.model.bullets[0].x, game.model.ship.x + Math.cos(game.model.ship.angle) * game.model.ship.radius);
-  assert.equal(game.model.bullets[0].y, game.model.ship.y + Math.sin(game.model.ship.angle) * game.model.ship.radius);
+  const bullet = game.model.bullets[0];
+  assert.ok(Math.abs(bullet.x - bullet.vx * 0.016 - (game.model.ship.x + Math.cos(game.model.ship.angle) * game.model.ship.radius)) < 0.0001);
+  assert.ok(Math.abs(bullet.y - bullet.vy * 0.016 - (game.model.ship.y + Math.sin(game.model.ship.angle) * game.model.ship.radius)) < 0.0001);
   const holdX = game.model.ship.x;
   game.model.shotClock = 0;
   game.update(0.016, input({ pointer: pointer({ x: 700, y: 100, down: true }) }));
