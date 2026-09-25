@@ -1063,7 +1063,7 @@ test("Imitation Guess waits for a peer before using the AI fallback", () => {
   assert.equal(game.mystery, null);
   assert.deepEqual(game.guessStats, { right: 0, wrong: 0 });
   game.sendMessage("next");
-  assert.equal(game.phase, "guess-peer");
+  assert.equal(game.phase, "guess-waiting");
 });
 
 test("Guess uses the local AI after a prompt receives no human response", async () => {
