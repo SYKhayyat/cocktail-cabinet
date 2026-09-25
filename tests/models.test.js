@@ -1134,10 +1134,18 @@ test("Starfall: movement, gem collection, star spawning, and collision loss", ()
   const angledController = new StarfallController(angled);
   angledController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 300, released: true, dragDistance: 80, dragDeltaX: 60, dragDeltaY: -60 }) }));
   assert.ok(angled.stars[0].vx > 0);
+  const held = new StarfallModel();
+  held.setSide("stars");
+  held.reset();
+  const heldController = new StarfallController(held);
+  for (let index = 0; index < 30; index += 1) heldController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 300, down: true }) }));
+  assert.equal(held.gems.length, 1);
   const stableComputer = new StarfallModel();
   stableComputer.setSide("stars");
   stableComputer.reset();
+  const idleX = stableComputer.runner.x;
   stableComputer.update(0.016, input());
+  assert.equal(stableComputer.runner.x, idleX);
   stableComputer.stars = [{ x: 440, y: 20, vy: 0, radius: 10 }];
   stableComputer.update(0.016, input());
   const stableTarget = stableComputer.aiTargetX;

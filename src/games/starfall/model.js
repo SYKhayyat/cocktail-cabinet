@@ -14,7 +14,7 @@ export class StarfallModel {
     return { x, y, vx: (Math.random() * 2 - 1) * 32, vy: 35 + Math.random() * 30, collected: false };
   }
   reset(keepScore = false) {
-    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null;
+    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.gemHoldTime = 0; this.gemSpawnClock = 0;
     if (this.side === "runner") for (let index = 0; index < 3; index += 1) this.gems.push(this.newGem(undefined, -20 - index * 80));
   }
   update(dt, input) {
@@ -38,6 +38,17 @@ export class StarfallModel {
           if (this.stars[index].userCreated && (this.stars[index].age || 0) < 0.5) { this.stars.splice(index, 1); break; }
         }
         this.gems.push(this.newGem(clamp(input.spawnGem.x, 20, 780), 20));
+      }
+      if (input.pointerDown && !input.spawnGem) {
+        this.gemHoldTime += dt;
+        this.gemSpawnClock -= dt;
+        if (this.gemHoldTime >= 0.35 && this.gemSpawnClock <= 0 && this.gems.length < 12) {
+          this.gems.push(this.newGem(clamp(input.pointerX, 20, 780), 20));
+          this.gemSpawnClock = 0.2;
+        }
+      } else {
+        this.gemHoldTime = 0;
+        this.gemSpawnClock = 0;
       }
       this.aiRunner(dt);
     }
@@ -63,6 +74,7 @@ export class StarfallModel {
     this.stars = this.stars.filter((star) => !star.dead && star.y < 560 && star.x > -30 && star.x < 830);
   }
   aiRunner(dt) {
+    if (!this.stars.length) return;
     const candidates = [20, 160, 300, 440, 580, 720, 780];
     const targetIsSafe = this.aiTargetX !== null && this.stars.every((star) => Math.abs(this.aiTargetX - star.x) > 45);
     if (!targetIsSafe) {

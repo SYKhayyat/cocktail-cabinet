@@ -4,9 +4,10 @@ export class StarfallController {
     this.model.update(dt, {
       keyDirection: (input.keys.has("ArrowRight") || input.keys.has("d") ? 1 : 0) - (input.keys.has("ArrowLeft") || input.keys.has("a") ? 1 : 0),
        pointerX: input.pointer.x,
+       pointerDown: input.pointer.down,
        mode: input.mode,
        spawnStar: !input.pointer.doubleClicked && (input.pointer.released || (input.pointer.clicked && !input.pointer.down)) ? input.pointer : null,
-       spawnGem: input.pointer.doubleClicked && input.pointer.released ? input.pointer : null,
+       spawnGem: input.pointer.doubleClicked ? input.pointer : null,
     });
   }
 }

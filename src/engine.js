@@ -93,15 +93,20 @@ export class GameEngine {
       this.input.pointer.doubleClicked = false;
       this.activePointerId = null;
     };
-    this.handleWheel = (event) => {
+     this.handleDoubleClick = () => {
+       this.input.pointer.doubleClicked = true;
+       this.input.pointer.released = true;
+     };
+     this.handleWheel = (event) => {
       this.input.scrollDeltaX += Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
     };
 
     window.addEventListener("keydown", this.handleKeyDown);
     window.addEventListener("keyup", this.handleKeyUp);
     canvas.addEventListener("pointermove", this.handlePointerMove);
-    canvas.addEventListener("pointerdown", this.handlePointerDown);
-    canvas.addEventListener("wheel", this.handleWheel, { passive: true });
+     canvas.addEventListener("pointerdown", this.handlePointerDown);
+     canvas.addEventListener("dblclick", this.handleDoubleClick);
+     canvas.addEventListener("wheel", this.handleWheel, { passive: true });
     window.addEventListener("pointerup", this.handlePointerUp);
     window.addEventListener("pointercancel", this.handlePointerCancel);
   }
@@ -275,8 +280,9 @@ export class GameEngine {
     window.removeEventListener("keydown", this.handleKeyDown);
     window.removeEventListener("keyup", this.handleKeyUp);
     this.canvas.removeEventListener("pointermove", this.handlePointerMove);
-    this.canvas.removeEventListener("pointerdown", this.handlePointerDown);
-    this.canvas.removeEventListener("wheel", this.handleWheel);
+     this.canvas.removeEventListener("pointerdown", this.handlePointerDown);
+     this.canvas.removeEventListener("dblclick", this.handleDoubleClick);
+     this.canvas.removeEventListener("wheel", this.handleWheel);
     window.removeEventListener("pointerup", this.handlePointerUp);
     window.removeEventListener("pointercancel", this.handlePointerCancel);
   }
