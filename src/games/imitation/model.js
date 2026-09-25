@@ -63,7 +63,7 @@ export class ImitationModel {
   }
   receive(message) {
     if (!message || message.from === this.matchId) return;
-    if (message.type === "hello" || message.type === "guess-ready") {
+    if (message.type === "hello" || message.type === "hello-ack" || message.type === "guess-ready") {
       this.peerId = message.from;
       this.matchmaking = 0;
       if (this.side === "guess") {
@@ -119,7 +119,7 @@ export class ImitationModel {
         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: text }],
         temperature: 0.7,
         max_tokens: 90,
-      }), 60000, "The local AI took too long to respond.");
+      }), 120000, "The local AI took too long to respond.");
       const response = reply?.choices?.[0]?.message?.content?.trim() || "";
       const wait = humanDelay(text, response) - (Date.now() - started);
       if (wait > 0) await waitFor(wait);

@@ -13,6 +13,7 @@ import { SplatGame } from "../src/games/splat.js";
 import { AsteroidsGame } from "../src/games/asteroids.js";
 import { MissileCommandGame } from "../src/games/missile.js";
 import { ImitationGame } from "../src/games/imitation.js";
+import { ImitationController, CHANNEL_NAME } from "../src/games/imitation/controller.js";
 import { StarfallGame } from "../src/games/starfall.js";
 
 const pointer = (values = {}) => ({ x: 0, y: 0, moved: false, clicked: false, down: false, ...values });
@@ -976,6 +977,35 @@ test("Imitation: messages, peer handshake, score, trimming, and search countdown
   assert.equal(game.sendMessage("   "), null);
   game.receive({ type: "chat", from: "peer", text: "x".repeat(300) });
   assert.ok(game.chatLog.length <= 18);
+});
+
+test("Imitation controllers acknowledge each other across two pages", async () => {
+  const OriginalBroadcastChannel = globalThis.BroadcastChannel;
+  const channels = new Set();
+  class TestBroadcastChannel {
+    constructor(name) { this.name = name; channels.add(this); }
+    postMessage(data) {
+      for (const channel of channels) {
+        if (channel !== this && channel.name === this.name) queueMicrotask(() => channel.onmessage?.({ data }));
+      }
+    }
+    close() { channels.delete(this); }
+  }
+  globalThis.BroadcastChannel = TestBroadcastChannel;
+  try {
+    const first = new ImitationController(new ImitationModel());
+    const second = new ImitationController(new ImitationModel());
+    first.model.setSide("human");
+    second.model.setSide("human");
+    first.reset();
+    second.reset();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(first.model.peerId, second.model.matchId);
+    assert.equal(second.model.peerId, first.model.matchId);
+    assert.equal(first.channel.name, CHANNEL_NAME);
+  } finally {
+    globalThis.BroadcastChannel = OriginalBroadcastChannel;
+  }
 });
 
 test("Imitation exposes four provider-neutral modes", () => {

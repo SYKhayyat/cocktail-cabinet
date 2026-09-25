@@ -5,6 +5,7 @@ const MODEL_CACHE_KEY = "cocktail-cabinet-local-ai-ready-v1";
 
 export function localModelSupport() {
   if (typeof window === "undefined") return { ok: false, device: "none", reason: "Local AI requires a browser." };
+  if (/Firefox/i.test(navigator.userAgent)) return { ok: true, device: "wasm", reason: "" };
   if (navigator.gpu) return { ok: true, device: "webgpu", reason: "" };
   return { ok: true, device: "wasm", reason: "" };
 }

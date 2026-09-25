@@ -7,7 +7,7 @@ export class ImitationController {
     this.model.reset(keepScore);
     if (this.model.side === "human" || this.model.side === "guess") this.connectChannel();
   }
-  closeChannel() { this.channel?.close(); this.channel = null; }
+  closeChannel() { clearInterval(this.announceTimer); this.announceTimer = null; this.channel?.close(); this.channel = null; }
   connectChannel() {
     if (typeof BroadcastChannel === "undefined") {
       this.model.addMessage("System", "This browser does not support tab or window chat.");
@@ -15,8 +15,17 @@ export class ImitationController {
       return;
     }
     this.channel = new BroadcastChannel(CHANNEL_NAME);
-    this.channel.onmessage = (event) => this.model.receive(event.data);
-    this.channel.postMessage({ type: "hello", from: this.model.matchId });
+    this.channel.onmessage = (event) => {
+      this.model.receive(event.data);
+      if (event.data?.type === "hello" && event.data.from !== this.model.matchId) this.channel.postMessage({ type: "hello-ack", from: this.model.matchId });
+      if (this.model.peerId) this.announceTimer && clearInterval(this.announceTimer);
+    };
+    const announce = () => {
+      if (this.model.peerId) { clearInterval(this.announceTimer); this.announceTimer = null; return; }
+      this.channel?.postMessage({ type: "hello", from: this.model.matchId });
+    };
+    announce();
+    this.announceTimer = setInterval(announce, 1000);
   }
   sendMessage(text) {
     const clean = this.model.sendMessage(text);
