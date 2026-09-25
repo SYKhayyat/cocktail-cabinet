@@ -977,6 +977,24 @@ test("Imitation: messages, peer handshake, score, trimming, and search countdown
   assert.ok(game.chatLog.length <= 18);
 });
 
+test("Imitation exposes four provider-neutral modes", () => {
+  const game = new ImitationModel();
+  for (const side of ["ai", "human", "guess", "write"]) {
+    game.setSide(side);
+    game.reset();
+    assert.equal(game.side, side);
+    assert.ok(game.chatLog[0].sender === "System");
+  }
+  game.setSide("guess");
+  game.reset();
+  game.sendMessage("Could this be a person?");
+  assert.equal(game.chatLog.at(-1).sender, "System");
+  game.setSide("write");
+  game.reset();
+  game.sendMessage("A sample sentence to classify.");
+  assert.equal(game.chatLog.at(-1).sender, "System");
+});
+
 test("Starfall: movement, gem collection, star spawning, and collision loss", () => {
   const game = new StarfallModel();
   game.reset();
