@@ -44,6 +44,8 @@ const chatInput = document.querySelector("#chatInput");
 const chatMessages = document.querySelector("#chatMessages");
 const guessControls = document.querySelector("#guessControls");
 const guessButtons = [...document.querySelectorAll("[data-guess]")];
+const guessStats = document.querySelector("#guessStats");
+const guessRestart = document.querySelector("#guessRestart");
 const settingsPanel = document.querySelector("#settingsPanel");
 const settingsTitle = document.querySelector("#settingsTitle");
 const snakeSettings = document.querySelector("#snakeSettings");
@@ -84,6 +86,8 @@ function renderChat(game) {
 
 function renderGuessControls(state) {
   guessControls.hidden = state.side !== "Guess AI or human";
+  const stats = state.guessStats || { ai: 0, human: 0 };
+  guessStats.textContent = `AI ${stats.ai} · Human ${stats.human}`;
   for (const button of guessButtons) {
     const choice = button.dataset.guess;
     const result = state.guessResult;
@@ -242,6 +246,9 @@ pauseButton.addEventListener("click", () => engine.pauseGame());
 continueButton.addEventListener("click", () => engine.continueGame());
 livesInput.addEventListener("change", () => engine.setLives(livesInput.value));
 downloadModelButton.addEventListener("click", () => engine.game.downloadModel?.());
+guessRestart.addEventListener("click", () => {
+  if (activeId === "imitation") engine.game.restartGuess?.();
+});
 for (const button of guessButtons) button.addEventListener("click", () => {
   if (activeId === "imitation") engine.game.sendMessage(button.dataset.guess);
 });

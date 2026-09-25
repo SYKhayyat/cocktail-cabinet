@@ -73,8 +73,10 @@
           <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
           <div id="guessControls" class="guess-controls" hidden>
             <span>Was this message written by AI or a human?</span>
+            <strong id="guessStats">AI 0 · Human 0</strong>
             <button type="button" data-guess="ai">AI</button>
             <button type="button" data-guess="human">Human</button>
+            <button id="guessRestart" type="button">Restart round</button>
           </div>
           <form id="chatForm" class="chat-form">
             <label class="sr-only" for="chatInput">Message</label>

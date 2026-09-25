@@ -97,6 +97,8 @@ canvas { display: block; width: min(100%, 68.57vh); height: auto; aspect-ratio: 
 .guess-controls { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding: 10px 12px; color: var(--muted); font-size: 0.8rem; }
 .guess-controls[hidden] { display: none; }
 .guess-controls button { border: 1px solid var(--line); border-radius: 8px; padding: 8px 16px; background: var(--panel-2); color: var(--ink); font: inherit; font-weight: 800; }
+.guess-controls #guessStats { margin-left: auto; color: var(--ink); }
+.guess-controls #guessRestart { padding-inline: 10px; }
 .guess-controls button.is-correct, .guess-controls button.is-answer { border-color: #4ade80; box-shadow: 0 0 14px #4ade80aa; }
 .guess-controls button.is-incorrect { border-color: #ef4444; box-shadow: 0 0 14px #ef4444aa; }
 .guess-controls button:disabled { cursor: default; opacity: 0.9; }

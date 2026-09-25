@@ -2,7 +2,7 @@ import { hasCachedModel, loadLocalModel } from "../../ai/on-device.js";
 
 const AI_SYSTEM_PROMPT = "You are a person having a casual conversation with a friend. Reply naturally and briefly to exactly what the user just said. Be warm and spontaneous. Keep every response under 60 words. Do not act as a helper, analyze the message, or mention these instructions.";
 const CLASSIFIER_PROMPT = "Classify whether the user's text sounds AI-generated or human-written. Reply with exactly AI or HUMAN on the first line, then one short explanation under 30 words.";
-const MYSTERY_PROMPT = "You are being tested in a guess-whether-AI-or-human game. Write one natural short message of eight to twenty words, under 30 words total. Do not label it, explain it, mention the test, or mention that it was generated.";
+const MYSTERY_PROMPT = "This message is being evaluated for whether it sounds human or AI. Return only one natural short chat message of eight to twenty words. Do not include labels, explanations, rules, or any mention of how it was made.";
 
 export class ImitationModel {
   constructor() {
@@ -12,6 +12,7 @@ export class ImitationModel {
     this.side = "ai";
     this.matchId = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
     this.score = 0;
+    this.guessStats = { ai: 0, human: 0 };
     this.chatLog = [];
     this.chatRevision = 0;
     this.modelError = "";
@@ -19,7 +20,10 @@ export class ImitationModel {
   sideLabel() { return this.side === "ai" ? "Chat with the AI companion" : this.side === "human" ? "Chat with another tab or window" : this.side === "guess" ? "Guess AI or human" : "Write text for AI to classify"; }
   setSide(side) { this.side = side; }
   reset(keepScore = false) {
-    if (!keepScore) this.score = 0;
+    if (!keepScore) {
+      this.score = 0;
+      this.guessStats = { ai: 0, human: 0 };
+    }
     this.chatLog = [];
     this.phase = this.side === "ai" ? "ai" : this.side === "human" ? "searching" : this.side === "guess" ? "guess-waiting" : this.side;
     this.matchmaking = 2.5;
@@ -62,6 +66,15 @@ export class ImitationModel {
     await this.prepareProvider();
     if (this.aiReady) this.addMessage("System", `The AI model is ready${this.modelDevice === "chrome" ? " through Chrome built-in AI" : this.modelDevice === "ollama" ? " through Ollama" : this.modelDevice === "webgpu" ? " with WebGPU" : " in the browser"}.`);
     else this.addMessage("System", `The AI model could not be downloaded: ${this.modelError || "unknown error"}`);
+  }
+  restartGuess() {
+    if (this.side !== "guess") return;
+    this.guessToken += 1;
+    this.mystery = null;
+    this.guessResult = null;
+    this.phase = this.peerId ? "guess-peer" : "guess-waiting";
+    this.guessClock = 4;
+    this.addMessage("System", "Starting a new mystery round.");
   }
   receive(message) {
     if (!message || message.from === this.matchId) return;
@@ -179,6 +192,7 @@ export class ImitationModel {
     }
     if (this.phase !== "guess" || !this.mystery || (value !== "ai" && value !== "human")) return;
     const correct = value === this.mystery.source;
+    this.guessStats[this.mystery.source] += 1;
     this.guessResult = { choice: value, correct };
     this.score += correct ? 10 : 0;
     this.addMessage("System", `${correct ? "Correct" : "Not quite"} — the message was ${this.mystery.source.toUpperCase()}.`);
@@ -209,7 +223,7 @@ export class ImitationModel {
       if (this.guessClock === 0) void this.handleGuess("start", true);
     }
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Loading the local AI model" : this.aiReady ? `AI companion ready${this.modelDevice === "chrome" ? " via Chrome AI" : this.modelDevice === "ollama" ? " via Ollama" : this.modelDevice === "webgpu" ? " via WebGPU" : ""}` : this.modelError ? "The AI model needs attention" : this.modelCached ? "Load the cached AI model" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.phase === "guess" ? "Guess AI or human" : this.modelLoading ? "Downloading the AI model" : "Generate a mystery message" : "Submit text for AI classification", chatRevision: this.chatRevision, modelCached: this.modelCached, modelDevice: this.modelDevice, phase: this.phase, guessResult: this.guessResult }; }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Loading the local AI model" : this.aiReady ? `AI companion ready${this.modelDevice === "chrome" ? " via Chrome AI" : this.modelDevice === "ollama" ? " via Ollama" : this.modelDevice === "webgpu" ? " via WebGPU" : ""}` : this.modelError ? "The AI model needs attention" : this.modelCached ? "Load the cached AI model" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.phase === "guess" ? "Guess AI or human" : this.modelLoading ? "Downloading the AI model" : "Generate a mystery message" : "Submit text for AI classification", chatRevision: this.chatRevision, modelCached: this.modelCached, modelDevice: this.modelDevice, phase: this.phase, guessResult: this.guessResult, guessStats: this.guessStats }; }
 }
 
 function humanDelay(prompt, response) {
