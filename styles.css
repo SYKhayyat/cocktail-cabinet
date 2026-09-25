@@ -94,6 +94,12 @@ canvas { display: block; width: min(100%, 68.57vh); height: auto; aspect-ratio: 
 .chat-message p { color: var(--ink); font-size: 0.85rem; line-height: 1.4; }
 .chat-message.waiting p::after { content: ""; animation: thinking-dots 1.2s steps(4, end) infinite; }
 @keyframes thinking-dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75%, 100% { content: "..."; } }
+.guess-controls { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding: 10px 12px; color: var(--muted); font-size: 0.8rem; }
+.guess-controls[hidden] { display: none; }
+.guess-controls button { border: 1px solid var(--line); border-radius: 8px; padding: 8px 16px; background: var(--panel-2); color: var(--ink); font: inherit; font-weight: 800; }
+.guess-controls button.is-correct, .guess-controls button.is-answer { border-color: #4ade80; box-shadow: 0 0 14px #4ade80aa; }
+.guess-controls button.is-incorrect { border-color: #ef4444; box-shadow: 0 0 14px #ef4444aa; }
+.guess-controls button:disabled { cursor: default; opacity: 0.9; }
 .chat-form { display: flex; gap: 8px; border-top: 1px solid var(--line); padding: 10px; }
 .chat-form input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; color: var(--ink); background: var(--panel-2); font: inherit; }
 .chat-form input:focus { outline: 2px solid var(--accent-2); }

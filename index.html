@@ -71,6 +71,11 @@
 
         <div id="chatPanel" class="chat-panel" hidden>
           <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
+          <div id="guessControls" class="guess-controls" hidden>
+            <span>Was this message written by AI or a human?</span>
+            <button type="button" data-guess="ai">AI</button>
+            <button type="button" data-guess="human">Human</button>
+          </div>
           <form id="chatForm" class="chat-form">
             <label class="sr-only" for="chatInput">Message</label>
             <input id="chatInput" autocomplete="off" maxlength="240" placeholder="Type a message · Enter to send" />
