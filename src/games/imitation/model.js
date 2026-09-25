@@ -118,7 +118,7 @@ export class ImitationModel {
       const reply = await withTimeout(engine.chat({
         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: text }],
         temperature: 0.7,
-        max_tokens: 48,
+        max_tokens: 32,
       }), 120000, "The local AI took too long to respond.");
       const response = reply?.choices?.[0]?.message?.content?.trim() || "";
       const wait = humanDelay(text, response) - (Date.now() - started);

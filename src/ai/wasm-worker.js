@@ -18,16 +18,16 @@ self.onmessage = async (event) => {
       return;
     }
     if (message.type === "generate") {
-      const prompt = message.messages.map((entry) => `${entry.role}: ${entry.content}`).join("\n");
-      const output = await generator(prompt, {
-        max_new_tokens: message.max_tokens || 48,
+      const output = await generator(message.messages, {
+        max_new_tokens: message.max_tokens || 32,
         do_sample: true,
         temperature: message.temperature || 0.7,
         top_p: 0.9,
         return_full_text: false,
       });
       const text = Array.isArray(output?.[0]?.generated_text) ? output[0].generated_text.at(-1)?.content : output?.[0]?.generated_text;
-      self.postMessage({ type: "response", id: message.id, text: String(text || "").trim() });
+      const cleanText = String(text || "").replace(/^\s*(?:assistant|ai)\s*:\s*/i, "").trim();
+      self.postMessage({ type: "response", id: message.id, text: cleanText });
     }
   } catch (error) {
     if (message.type === "load") self.postMessage({ type: "error", error: error.message || "The local AI model failed to load." });

@@ -1,5 +1,5 @@
-const WASM_MODEL_ID = "onnx-community/Qwen2.5-0.5B-Instruct";
-const MODEL_CACHE_KEY = "cocktail-cabinet-local-ai-ready-v1";
+const WASM_MODEL_ID = "HuggingFaceTB/SmolLM2-135M-Instruct";
+const MODEL_CACHE_KEY = "cocktail-cabinet-local-ai-ready-v2";
 
 export function localModelSupport() {
   if (typeof window === "undefined") return { ok: false, device: "none", reason: "Local AI requires a browser." };
