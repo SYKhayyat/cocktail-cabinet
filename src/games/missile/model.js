@@ -61,7 +61,7 @@ export class MissileModel {
       ...this.bases.filter((base) => base.alive).map((base) => ({ target: base, kind: "battery" })),
     ];
     const destination = target || targets[Math.floor(Math.random() * targets.length)] || { target: this.cities[0], kind: "city" };
-    const aircraft = Math.random() < 0.12;
+    const aircraft = this.side === "defender" && Math.random() < 0.12;
     if (aircraft) {
       this.enemyMissiles.push({ x: Math.random() < 0.5 ? 24 : 776, y: 70 + Math.random() * 80, targetX: Math.random() < 0.5 ? 820 : -20, targetY: 70 + Math.random() * 80, speed: 70 + this.level * 8, color: "#f472b6", kind: Math.random() < 0.5 ? "bomber" : "satellite", aircraft: true, dropClock: 1.4, isSplit: false, dead: false });
       return;
@@ -78,7 +78,7 @@ export class MissileModel {
     const dy = target.targetY - target.y;
     const distance = Math.hypot(dx, dy);
     const flightTime = Math.hypot(target.x - base.x, target.y - base.y) / 245;
-    this.interceptors.push({ x: base.x, y: base.y - 20, targetX: target.x + (distance ? dx / distance * target.speed * flightTime : 0), targetY: target.y + (distance ? dy / distance * target.speed * flightTime : 0), speed: 245, color: "#22d3ee", machine: true });
+    this.interceptors.push({ x: base.x, y: base.y - 20, targetX: target.x + (distance ? dx / distance * target.speed * flightTime : 0) + (Math.random() - 0.5) * 120, targetY: target.y + (distance ? dy / distance * target.speed * flightTime : 0) + (Math.random() - 0.5) * 90, speed: 245, color: "#22d3ee", machine: true });
   }
   update(dt, input) {
     if (this.side === "defender") this.updateDefender(dt, input);
