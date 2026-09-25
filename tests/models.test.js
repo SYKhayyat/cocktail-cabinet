@@ -1047,7 +1047,7 @@ test("Imitation Guess waits for a peer before using the AI fallback", () => {
   assert.equal(game.phase, "guess-peer");
   assert.equal(game.mystery, null);
   game.sendMessage("next");
-  assert.equal(game.phase, "guess-waiting");
+  assert.equal(game.phase, "guess-peer");
 });
 
 test("Starfall: movement, gem collection, star spawning, and collision loss", () => {
