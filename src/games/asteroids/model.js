@@ -70,7 +70,11 @@ export class AsteroidsModel {
       if (!nearest) return asteroid;
       return Math.hypot(asteroid.x - ship.x, asteroid.y - ship.y) < Math.hypot(nearest.x - ship.x, nearest.y - ship.y) ? asteroid : nearest;
     }, null);
-    if (!target) return;
+    if (!target) {
+      ship.aiTarget = null;
+      ship.aiReaction = 0;
+      return;
+    }
     if (ship.aiTarget !== target) {
       ship.aiTarget = target;
       ship.aiReaction = 0.2 + Math.random() * 0.24;
@@ -142,8 +146,11 @@ export class AsteroidsModel {
     if ((this.side === "ship" || this.side === "versus") && input.fire && this.shotClock <= 0) { this.fire("human", this.ship); this.shotClock = 0.18; }
     if ((this.side === "rocks" || this.side === "versus") && this.computerShotClock <= 0) {
       const computerShip = this.side === "versus" ? this.computerShip : this.ship;
-      this.fire("computer", computerShip, 0, computerShip.angle);
-      this.computerShotClock = this.side === "versus" ? 1.1 + Math.random() * 0.3 : 1.3 + Math.random() * 0.3;
+      const computerTarget = this.side === "versus" ? this.computerShip.aiTarget : this.asteroids.reduce((nearest, asteroid) => !nearest || Math.hypot(asteroid.x - this.ship.x, asteroid.y - this.ship.y) < Math.hypot(nearest.x - this.ship.x, nearest.y - this.ship.y) ? asteroid : nearest, null);
+      if (computerTarget) {
+        this.fire("computer", computerShip, 0, computerShip.angle);
+        this.computerShotClock = this.side === "versus" ? 1.1 + Math.random() * 0.3 : 1.3 + Math.random() * 0.3;
+      } else this.computerShotClock = 0.5;
     }
     if (this.side === "rocks") {
       if (input.spawnAsteroid && this.asteroids.length < 8) this.spawnAsteroidAt(input.spawnAsteroid.x, input.spawnAsteroid.y, this.ship);

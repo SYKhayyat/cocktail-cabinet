@@ -759,6 +759,20 @@ test("Asteroids controller does not turn drag starts into normal rocks", () => {
   assert.equal(game.model.asteroids.length, 1);
 });
 
+test("Asteroids computer waits and holds position without rocks", () => {
+  const game = new AsteroidsModel();
+  game.setSide("rocks");
+  game.reset();
+  game.computerShotClock = 0;
+  const startX = game.ship.x;
+  const startY = game.ship.y;
+  game.update(1, { fire: false, spawnAsteroid: null });
+  assert.equal(game.bullets.length, 0);
+  assert.equal(game.ship.x, startX);
+  assert.equal(game.ship.y, startY);
+  assert.equal(game.ship.aiTarget, null);
+});
+
 test("Asteroids drag trajectory persists and click placement is randomized", () => {
   const game = new AsteroidsModel();
   game.setSide("rocks");
