@@ -217,8 +217,12 @@ export class ImitationModel {
     this.onAiChosen?.();
     this.phase = "guess-loading";
     const token = ++this.guessToken;
-    this.addMessage("System", "AI is writing…");
+    const waiting = this.addMessage("System", "");
+    waiting.waiting = true;
+    this.chatRevision += 1;
     const response = await this.requestAi(this.prompt, GUESS_RESPONSE_PROMPT);
+    this.chatLog = this.chatLog.filter((message) => message !== waiting);
+    this.chatRevision += 1;
     if (token !== this.guessToken || this.roundSource !== "ai" || this.mystery) return;
     if (!response) {
       this.phase = "guess-waiting";

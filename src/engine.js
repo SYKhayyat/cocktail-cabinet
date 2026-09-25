@@ -99,9 +99,10 @@ export class GameEngine {
     game.engine = this;
     game.gameOver = false;
     game.lifeLost = false;
-    this.stopped = true;
+    const interactive = game.id === "imitation";
+    this.stopped = !interactive;
     this.paused = false;
-    this.ready = true;
+    this.ready = !interactive;
     this.countdown = 0;
     this.lives = this.maxLives;
     game.applyPendingSettings?.();
@@ -243,9 +244,9 @@ export class GameEngine {
     if (!this.game) return;
     this.game.setSide(side);
     this.game.applyPendingSettings?.();
-    this.stopped = true;
+    this.stopped = false;
     this.paused = false;
-    this.ready = true;
+    this.ready = false;
     this.countdown = 0;
     this.lives = this.maxLives;
     this.game.gameOver = false;
