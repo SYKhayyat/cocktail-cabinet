@@ -19,11 +19,14 @@ export class GameEngine {
     this.input = {
       keys: new Set(),
       pressed: new Set(),
-      pointer: { x: 0, y: 0, down: false, clicked: false, moved: false, released: false, dragStartX: 0, dragStartY: 0, lastX: 0, lastY: 0, dragDeltaX: 0, dragDeltaY: 0, dragDistance: 0 },
+      pointer: { x: 0, y: 0, down: false, clicked: false, moved: false, released: false, doubleClicked: false, dragStartX: 0, dragStartY: 0, lastX: 0, lastY: 0, dragDeltaX: 0, dragDeltaY: 0, dragDistance: 0 },
       mode: "keyboard",
       scrollDeltaX: 0
     };
     this.activePointerId = null;
+    this.lastPointerClickAt = 0;
+    this.lastPointerClickX = 0;
+    this.lastPointerClickY = 0;
 
     this.handleKeyDown = (event) => {
       const tagName = event.target?.tagName;
@@ -57,6 +60,15 @@ export class GameEngine {
       if (this.activePointerId !== null) return;
       this.activePointerId = event.pointerId;
       this.handlePointerMove(event);
+      const now = performance.now();
+      const isDoubleClick = now - this.lastPointerClickAt < 350 && Math.hypot(event.clientX - this.lastPointerClickX, event.clientY - this.lastPointerClickY) < 24;
+      this.input.pointer.doubleClicked = isDoubleClick;
+      if (isDoubleClick) this.lastPointerClickAt = 0;
+      else {
+        this.lastPointerClickAt = now;
+        this.lastPointerClickX = event.clientX;
+        this.lastPointerClickY = event.clientY;
+      }
       this.input.pointer.down = true;
       this.input.pointer.clicked = true;
       this.input.pointer.released = false;
@@ -78,6 +90,7 @@ export class GameEngine {
     this.handlePointerCancel = () => {
       this.input.pointer.down = false;
       this.input.pointer.released = false;
+      this.input.pointer.doubleClicked = false;
       this.activePointerId = null;
     };
     this.handleWheel = (event) => {
@@ -215,6 +228,7 @@ export class GameEngine {
     this.input.pressed.clear();
     this.input.pointer.clicked = false;
     this.input.pointer.released = false;
+    this.input.pointer.doubleClicked = false;
     this.input.pointer.dragDeltaX = 0;
     this.input.pointer.dragDeltaY = 0;
     this.input.pointer.dragDistance = 0;

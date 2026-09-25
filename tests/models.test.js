@@ -1109,6 +1109,37 @@ test("Starfall: movement, gem collection, star spawning, and collision loss", ()
   const dragged = new StarfallController(computer);
   dragged.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, y: 0, released: true, dragDistance: 24 }) }));
   assert.equal(computer.stars.at(-1).x, 240);
+  const mouseRunner = new StarfallModel();
+  mouseRunner.reset();
+  const mouseController = new StarfallController(mouseRunner);
+  let previousMouseX = mouseRunner.runner.x;
+  for (let index = 0; index < 20; index += 1) {
+    mouseController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 700 }) }));
+    assert.ok(mouseRunner.runner.x > previousMouseX);
+    previousMouseX = mouseRunner.runner.x;
+  }
+  const doubleClick = new StarfallModel();
+  doubleClick.setSide("stars");
+  doubleClick.reset();
+  const doubleClickController = new StarfallController(doubleClick);
+  doubleClickController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, doubleClicked: true, released: true }) }));
+  assert.equal(doubleClick.stars.length, 0);
+  assert.equal(doubleClick.gems.length, 1);
+  const angled = new StarfallModel();
+  angled.setSide("stars");
+  angled.reset();
+  const angledController = new StarfallController(angled);
+  angledController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 300, released: true, dragDistance: 80, dragDeltaX: 60, dragDeltaY: -60 }) }));
+  assert.ok(angled.stars[0].vx > 0);
+  const stableComputer = new StarfallModel();
+  stableComputer.setSide("stars");
+  stableComputer.reset();
+  stableComputer.update(0.016, input());
+  stableComputer.stars = [{ x: 440, y: 20, vy: 0, radius: 10 }];
+  stableComputer.update(0.016, input());
+  const stableTarget = stableComputer.aiTargetX;
+  for (let index = 0; index < 20; index += 1) stableComputer.update(0.016, input());
+  assert.equal(stableComputer.aiTargetX, stableTarget);
 });
 
 test("all game facades reset, update, and expose public state", () => {
