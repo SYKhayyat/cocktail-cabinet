@@ -11,6 +11,7 @@ export function localModelSupport() {
 }
 
 let enginePromise = null;
+let engineValue = null;
 
 export function hasCachedModel() {
   try {
@@ -93,6 +94,10 @@ async function loadOllamaModel(onProgress) {
 }
 
 export function loadLocalModel(onProgress) {
+  if (engineValue?.cancelled) {
+    engineValue = null;
+    enginePromise = null;
+  }
   if (!enginePromise) {
     void requestPersistentStorage();
     enginePromise = (async () => {
@@ -121,7 +126,11 @@ export function loadLocalModel(onProgress) {
         if (ollamaError) throw new Error(`Ollama unavailable: ${ollamaError.message}; browser fallback failed: ${error.message}`);
         throw error;
       }
-    })().catch((error) => {
+    })().then((engine) => {
+      engineValue = engine;
+      return engine;
+    }).catch((error) => {
+      engineValue = null;
       enginePromise = null;
       throw error;
     });
@@ -133,29 +142,44 @@ function loadModelWorker(device, onProgress) {
   if (typeof Worker === "undefined") return Promise.reject(new Error("AI workers are unavailable in this browser."));
   const worker = new Worker(new URL("./wasm-worker.js", import.meta.url), { type: "module" });
   return new Promise((resolve, reject) => {
-    const pending = new Map();
-    let ready = false;
-    let sequence = 0;
-    const request = (payload) => new Promise((requestResolve, requestReject) => {
-      const id = ++sequence;
-      pending.set(id, { resolve: requestResolve, reject: requestReject });
-      worker.postMessage({ ...payload, id });
-    });
+     const pending = new Map();
+     let ready = false;
+     let cancelled = false;
+     let engine;
+     let sequence = 0;
+     const rejectPending = (error) => {
+       for (const entry of pending.values()) entry.reject(error);
+       pending.clear();
+     };
+     const cancel = () => {
+       if (cancelled) return;
+       cancelled = true;
+       if (engine) engine.cancelled = true;
+       worker.terminate();
+       rejectPending(new Error("The local AI request was cancelled."));
+     };
+     const request = (payload) => new Promise((requestResolve, requestReject) => {
+       if (cancelled) { requestReject(new Error("The local AI worker is unavailable.")); return; }
+       const id = ++sequence;
+       pending.set(id, { resolve: requestResolve, reject: requestReject });
+       worker.postMessage({ ...payload, id });
+     });
     worker.onmessage = (event) => {
       const message = event.data;
       if (message.type === "progress") onProgress?.({ ...message, device });
-      if (message.type === "error") {
-        const error = new Error(message.error || "The local AI model failed.");
-        for (const entry of pending.values()) entry.reject(error);
-        pending.clear();
-        if (!ready) reject(error);
-        worker.terminate();
-        return;
-      }
+       if (message.type === "error") {
+         const error = new Error(message.error || "The local AI model failed.");
+         cancelled = true;
+         rejectPending(error);
+         if (!ready) reject(error);
+         worker.terminate();
+         return;
+       }
       if (message.type === "ready") {
         ready = true;
          markModelReady(message.device === "webgpu" ? WEBGPU_MODEL_ID : WASM_MODEL_ID, device);
-        resolve({ device, chat: (requestPayload) => request({ ...requestPayload, type: "generate" }) });
+         engine = { device, cancelled: false, cancel, chat: (requestPayload) => request({ ...requestPayload, type: "generate" }) };
+         resolve(engine);
       }
       if (message.type === "response") {
         const entry = pending.get(message.id);
@@ -165,12 +189,13 @@ function loadModelWorker(device, onProgress) {
         else entry.resolve({ choices: [{ message: { content: message.text } }] });
       }
     };
-    worker.onerror = (event) => {
-      const error = new Error(event.message || "The local AI worker failed.");
-      for (const entry of pending.values()) entry.reject(error);
-      pending.clear();
-      if (!ready) reject(error);
-    };
+     worker.onerror = (event) => {
+       const error = new Error(event.message || "The local AI worker failed.");
+       cancelled = true;
+       rejectPending(error);
+       if (!ready) reject(error);
+       worker.terminate();
+     };
     worker.postMessage({ type: "load", modelId: device === "webgpu" ? WEBGPU_MODEL_ID : WASM_MODEL_ID, device });
   });
 }

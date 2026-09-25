@@ -2,8 +2,8 @@ import { drawText } from "../../engine.js";
 
 export function draw(model, context) {
   context.fillStyle = "#080d18"; context.fillRect(0, 0, 800, 560);
-  const title = model.side === "ai" ? "AI COMPANION" : model.side === "human" ? model.peerId ? "SECOND TAB OR WINDOW CONNECTED" : `SEARCHING · ${Math.ceil(model.matchmaking)}s` : model.side === "guess" ? "AI OR HUMAN?" : model.side === "provide" ? "PROVIDE A GUESSING MESSAGE" : "CLASSIFY THIS TEXT";
+  const title = model.side === "ai" ? "AI COMPANION" : model.side === "human" ? model.peerId ? "PLAYER CONNECTED" : `SEARCHING · ${Math.ceil(model.matchmaking)}s` : model.side === "guess" ? "AI OR HUMAN?" : model.side === "provide" ? "PROVIDE A GUESSING MESSAGE" : "CLASSIFY THIS TEXT";
   drawText(context, title, 28, 48, 18, "#22d3ee");
-  drawText(context, model.side === "ai" ? "Your conversation is in the chat panel below." : model.side === "human" ? model.peerId ? "Messages appear in the chat panel below." : "Open another tab or window to join." : model.side === "guess" ? "Wait for a provider message, or let the AI create one." : model.side === "provide" ? model.peerId ? "Send a natural message for the Guess tab." : "Open a Guess AI or human tab to connect." : "Submit a sample for the future AI classifier.", 28, 88, 16, "#cbd5e1");
+  drawText(context, model.side === "ai" ? "Your conversation is in the chat panel below." : model.side === "human" ? model.peerId ? "Messages appear in the chat panel below." : "Open another player connection below." : model.side === "guess" ? "Wait for a provider message, or let the AI create one." : model.side === "provide" ? model.peerId ? "Send a natural message for the Guess player." : "Open a Guess player connection to connect." : "Submit a sample for the future AI classifier.", 28, 88, 16, "#cbd5e1");
   drawText(context, "Type below and press Enter or Send.", 28, 120, 14, "#64748b");
 }

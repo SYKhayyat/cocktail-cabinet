@@ -18,6 +18,9 @@ export class ImitationGame {
   sideLabel() { return this.model.sideLabel(); }
   setSide(side) { this.model.setSide(side); }
   setStateListener(listener) { this.model.setStateListener(listener); }
+  createManualInvite() { return this.controller.createManualInvite(); }
+  acceptManualInvite(text) { return this.controller.acceptManualInvite(text); }
+  acceptManualAnswer(text) { return this.controller.acceptManualAnswer(text); }
   reset(keepScore) { this.controller.reset(keepScore); }
   sendMessage(text) { this.controller.sendMessage(text); }
   downloadModel() { return this.model.downloadModel(); }

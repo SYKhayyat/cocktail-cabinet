@@ -71,6 +71,17 @@
 
         <div id="chatPanel" class="chat-panel" hidden>
           <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
+          <div id="manualConnect" class="manual-connect" hidden>
+            <strong>Connect a separate browser</strong>
+             <p>Create an invite, paste it into the other browser, then paste the answer back. No application server or account is used.</p>
+            <div class="manual-actions">
+              <button id="createInviteButton" type="button">Create invite</button>
+              <button id="joinInviteButton" type="button">Join with invite</button>
+              <button id="finishConnectionButton" type="button">Finish with answer</button>
+            </div>
+            <label class="sr-only" for="signalText">Connection invite or answer</label>
+            <textarea id="signalText" rows="4" placeholder="Connection code appears here"></textarea>
+          </div>
           <div id="guessControls" class="guess-controls" hidden>
             <span>Was this message written by AI or a human?</span>
             <strong id="guessStats">AI 0 · Human 0</strong>
@@ -97,7 +108,7 @@
 
         <div class="machine-footer">
           <span id="roundStatus">Press a key or click to begin</span>
-          <span>Static site · no server · no account</span>
+           <span>Static site · no app server · no account</span>
         </div>
       </section>
     </main>

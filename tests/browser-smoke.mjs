@@ -42,7 +42,7 @@ async function targetFor(url) {
 }
 
 async function waitFor(page, expression, description) {
-  for (let attempt = 0; attempt < 60; attempt += 1) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
     if (await page.evaluate(expression)) return;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
@@ -55,7 +55,7 @@ async function openPage(url) {
   await page.open();
   await page.command("Page.enable");
   await page.command("Runtime.enable");
-  await page.command("Page.navigate", { url });
+  await page.command("Page.navigate", { url: `${url}${url.includes("?") ? "&" : "?"}cdp=${Date.now()}` });
   await waitFor(page, "document.readyState === 'complete' && document.querySelectorAll('.game-card').length === 7", "cabinet boot");
   return { target, page };
 }
@@ -81,10 +81,12 @@ async function main() {
       if (!sideCount) throw new Error(`Game ${index + 1} has no side options`);
     }
     await selectImitation(first.page);
+    const manualVisible = await first.page.evaluate("!document.querySelector('#manualConnect').hidden");
+    if (!manualVisible) throw new Error("Separate-browser connection controls are hidden");
     second = await openPage(pageUrl);
     await selectImitation(second.page);
-    await waitFor(first.page, "document.querySelector('#roundStatus')?.textContent === 'Two tabs or windows are connected'", "first Imitation connection");
-    await waitFor(second.page, "document.querySelector('#roundStatus')?.textContent === 'Two tabs or windows are connected'", "second Imitation connection");
+    await waitFor(first.page, "document.querySelector('#roundStatus')?.textContent === 'Two players are connected'", "first Imitation connection");
+    await waitFor(second.page, "document.querySelector('#roundStatus')?.textContent === 'Two players are connected'", "second Imitation connection");
     await first.page.evaluate("(()=>{const input=document.querySelector('#chatInput'); input.value='CDP smoke message'; document.querySelector('#chatForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); return true})()");
     const messageSelector = "[...document.querySelectorAll('#chatMessages p')].some((node) => node.textContent === 'CDP smoke message')";
     await waitFor(first.page, messageSelector, "first Imitation local message");

@@ -30,7 +30,7 @@ The machine code makes decisions from current positions and collision state. It 
 
 A static browser page cannot safely hold a Claude API key: anything sent to a browser can be read by a visitor. The first draft therefore uses local JavaScript opponents with explainable decisions. This satisfies the static/no-key constraint without pretending that an unapproved external AI service is secure. If the instructor requires a model, the next step is an approved local browser model behind the same `AiController` interface.
 
-Imitation uses `BroadcastChannel` for a two-tab first draft. It waits through a visible matchmaking delay before starting. True cross-device play needs WebRTC signaling or a tiny signaling service; neither is silently pretended to exist in this draft.
+Imitation uses `BroadcastChannel` for same-browser tabs and manual WebRTC offer/answer signaling for separate browsers. It waits through a visible matchmaking delay before starting. The manual connection keeps the site static, but players must copy one connection code between browsers.
 
 ## Fix pass
 
@@ -38,7 +38,7 @@ Imitation uses `BroadcastChannel` for a two-tab first draft. It waits through a 
 - Every game accepts mouse input; keyboard input remains available where it helps.
 - Snake exposes starting length, board size, and wrap settings.
 - Breakout has a normal paddle mode and a setup mode where bricks can be dragged while the computer plays.
-- Imitation uses one visible chat transcript, supports two tabs on one computer, and sends AI replies after a human-like delay. Its local model fallback never exposes WebGPU or model errors as a user-facing feature.
+- Imitation uses one visible chat transcript, supports same-browser tabs and manual WebRTC connections between separate browsers, and sends AI replies after a human-like delay. Its local model fallback never exposes WebGPU or model errors as a user-facing feature.
 - Chat typing keeps spaces and Enter/Submit behavior independent from arcade keyboard controls.
 
 ## Deployment and CI

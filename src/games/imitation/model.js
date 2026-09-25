@@ -18,7 +18,7 @@ export class ImitationModel {
     this.chatRevision = 0;
     this.modelError = "";
   }
-  sideLabel() { return this.side === "ai" ? "Chat with the AI companion" : this.side === "human" ? "Chat with another tab or window" : this.side === "guess" ? "Guess AI or human" : this.side === "provide" ? "Provide a guessing message" : "Write text for AI to classify"; }
+  sideLabel() { return this.side === "ai" ? "Chat with the AI companion" : this.side === "human" ? "Chat with another player" : this.side === "guess" ? "Guess AI or human" : this.side === "provide" ? "Provide a guessing message" : "Write text for AI to classify"; }
   setSide(side) { this.side = side; }
   setStateListener(listener) { this.stateListener = listener; }
   notifyState() { this.stateListener?.(); }
@@ -49,7 +49,7 @@ export class ImitationModel {
     this.guessClock = 4;
     this.guessToken = 0;
     this.guessFallbackStarted = false;
-    this.addMessage("System", this.side === "ai" ? "AI companion ready. Download the model, then say hello." : this.side === "human" ? "Looking for another tab or window…" : this.side === "guess" ? this.aiReady ? "Get ready to guess the next message." : "Download the AI model before playing Guess." : this.side === "provide" ? "Open a Guess AI or human tab, then send a message here for it to guess." : "Write a sample message for the AI to classify.");
+    this.addMessage("System", this.side === "ai" ? "AI companion ready. Download the model, then say hello." : this.side === "human" ? "Looking for another player…" : this.side === "guess" ? this.aiReady ? "Get ready to guess the next message." : "Download the AI model before playing Guess." : this.side === "provide" ? "Open a Guess player connection, then send a message here for it to guess." : "Write a sample message for the AI to classify.");
   }
   async prepareProvider() {
     if (this.aiReady || this.modelLoading) return;
@@ -121,8 +121,8 @@ export class ImitationModel {
       if (this.side === "guess") {
         this.phase = "guess-peer";
         this.addMessage("System", "A new round is ready.");
-      } else if (this.side === "provide") this.addMessage("System", "A Guess tab is connected. Send a message for it to guess.");
-      else this.addMessage("System", "Another tab or window found. You can chat now.");
+      } else if (this.side === "provide") this.addMessage("System", "A Guess player is connected. Send a message for it to guess.");
+      else this.addMessage("System", "Another player found. You can chat now.");
     }
     if (message.type === "chat") this.addMessage("Partner", message.text);
     if (message.type === "round-start" && this.side === "provide") {
@@ -201,7 +201,7 @@ export class ImitationModel {
         max_tokens: requestOptions.maxTokens ?? 96,
         format: requestOptions.format,
         tools: requestOptions.tools,
-      }), 120000, "The local AI took too long to respond.");
+       }), 120000, "The local AI took too long to respond.", () => engine.cancel?.());
       const response = reply?.choices?.[0]?.message?.content?.trim() || "";
       const wait = humanDelay(text, response) - (Date.now() - started);
       if (wait > 0) await waitFor(wait);
@@ -281,7 +281,7 @@ export class ImitationModel {
       }
     }
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Loading the local AI model" : this.aiReady ? `AI companion ready${this.modelDevice === "chrome" ? " via Chrome AI" : this.modelDevice === "ollama" ? " via Ollama" : this.modelDevice === "webgpu" ? " via WebGPU" : ""}` : this.modelError ? "The AI model needs attention" : this.modelCached ? "Load the cached AI model" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.modelLoading ? "Downloading the AI model" : this.aiReady ? "Guess AI or human" : "Download the AI model to play" : this.side === "provide" ? this.peerId ? "Guess tab connected" : "Waiting for a Guess tab" : "Submit text for AI classification", chatRevision: this.chatRevision, modelCached: this.modelCached, modelDevice: this.modelDevice, modelStatus: this.lastModelStatus, phase: this.phase, guessResult: this.guessResult, guessStats: this.guessStats }; }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Loading the local AI model" : this.aiReady ? `AI companion ready${this.modelDevice === "chrome" ? " via Chrome AI" : this.modelDevice === "ollama" ? " via Ollama" : this.modelDevice === "webgpu" ? " via WebGPU" : ""}` : this.modelError ? "The AI model needs attention" : this.modelCached ? "Load the cached AI model" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two players are connected" : "Open another player connection to join" : this.side === "guess" ? this.modelLoading ? "Downloading the AI model" : this.aiReady ? "Guess AI or human" : "Download the AI model to play" : this.side === "provide" ? this.peerId ? "Guess player connected" : "Waiting for a Guess player" : "Submit text for AI classification", chatRevision: this.chatRevision, modelCached: this.modelCached, modelDevice: this.modelDevice, modelStatus: this.lastModelStatus, phase: this.phase, guessResult: this.guessResult, guessStats: this.guessStats }; }
 }
 
 function modelProgressText(report = {}) {
@@ -299,8 +299,15 @@ function humanDelay(prompt, response) {
   return Math.min(4200, 450 + words * 42 + Math.random() * 650);
 }
 
-function withTimeout(promise, milliseconds, message) {
-  return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(message)), milliseconds))]);
+function withTimeout(promise, milliseconds, message, onTimeout) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      onTimeout?.();
+      reject(new Error(message));
+    }, milliseconds);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 function waitFor(milliseconds) {

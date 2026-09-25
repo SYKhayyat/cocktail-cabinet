@@ -46,6 +46,11 @@ const guessControls = document.querySelector("#guessControls");
 const guessButtons = [...document.querySelectorAll("[data-guess]")];
 const guessStats = document.querySelector("#guessStats");
 const guessRestart = document.querySelector("#guessRestart");
+const manualConnect = document.querySelector("#manualConnect");
+const createInviteButton = document.querySelector("#createInviteButton");
+const joinInviteButton = document.querySelector("#joinInviteButton");
+const finishConnectionButton = document.querySelector("#finishConnectionButton");
+const signalText = document.querySelector("#signalText");
 const settingsPanel = document.querySelector("#settingsPanel");
 const settingsTitle = document.querySelector("#settingsTitle");
 const snakeSettings = document.querySelector("#snakeSettings");
@@ -58,12 +63,12 @@ const snakeWrap = document.querySelector("#snakeWrap");
 let lastChatRevision = -1;
 
 const sideOptions = {
-  snake: [["snake", "You vs computer — steer the snake"], ["apples", "Computer vs you — place apples"]],
+  snake: [["snake", "Solo — steer the snake"], ["apples", "Computer vs you — place apples"]],
   breakout: [["bottom", "Solo — keep the ball alive"], ["blocks", "Computer vs you — drag the blocks"], ["versus", "You vs computer — central brick duel"]],
   splat: [["climber", "Solo — steer the ball"], ["race", "You vs computer — two-ball race"], ["builder", "Computer navigates — place columns"]],
   asteroids: [["ship", "Solo — fly the ship"], ["versus", "You vs computer — both ships"], ["rocks", "Computer vs you — send asteroids"]],
   missile: [["defender", "You vs computer — defend cities"], ["attacker", "Computer vs you — attack cities"]],
-  imitation: [["ai", "Chat with the local AI"], ["human", "Chat with another tab or window"], ["guess", "Guess AI or human"], ["provide", "Provide a guessing message"], ["write", "Write text for AI to classify"]],
+  imitation: [["ai", "Chat with the local AI"], ["human", "Chat with another player"], ["guess", "Guess AI or human"], ["provide", "Provide a guessing message"], ["write", "Write text for AI to classify"]],
   starfall: [["runner", "Solo — guide the runner"], ["stars", "Computer vs you — send stars"]]
 };
 
@@ -177,6 +182,11 @@ function updateSplatTools() {
   splatAddGap.classList.toggle("active", game.tool === "gap");
 }
 
+function updateImitationTools() {
+  const game = games.get("imitation");
+  manualConnect.hidden = activeId !== "imitation" || !["human", "guess", "provide"].includes(game.side);
+}
+
 function loadGame(id) {
   activeId = id;
   const game = games.get(id);
@@ -216,6 +226,7 @@ function loadGame(id) {
   });
   engine.load(game);
   updateSplatTools();
+  updateImitationTools();
   restartButton.blur();
 }
 
@@ -248,6 +259,7 @@ sideSelect.addEventListener("change", () => {
   lastChatRevision = -1;
   engine.setSide(sideSelect.value);
   updateSplatTools();
+  updateImitationTools();
 });
 [snakeCols, snakeRows, snakeLength, snakeWrap].forEach((control) => control.addEventListener("change", applySnakeSettings));
 splatSpacing.addEventListener("change", applySplatSettings);
@@ -264,6 +276,27 @@ guessRestart.addEventListener("click", () => {
 for (const button of guessButtons) button.addEventListener("click", () => {
   if (activeId === "imitation") engine.game.chooseGuess(button.dataset.guess);
 });
+async function runManualConnection(action) {
+  try {
+    message.textContent = "Working…";
+    await action();
+  } catch (error) {
+    message.textContent = error.message || "The connection could not be completed.";
+  }
+}
+createInviteButton.addEventListener("click", () => runManualConnection(async () => {
+  signalText.value = await engine.game.createManualInvite();
+  message.textContent = "Copy this invite into the other browser.";
+}));
+joinInviteButton.addEventListener("click", () => runManualConnection(async () => {
+  signalText.value = await engine.game.acceptManualInvite(signalText.value);
+  message.textContent = "Copy this answer back into the first browser.";
+}));
+finishConnectionButton.addEventListener("click", () => runManualConnection(async () => {
+  await engine.game.acceptManualAnswer(signalText.value);
+  signalText.value = "";
+  message.textContent = "Connecting…";
+}));
 chatForm.addEventListener("submit", (event) => {
   event.preventDefault();
   if (activeId !== "imitation") return;

@@ -437,23 +437,25 @@ The prior balance/CDP findings remain valid and actionable. Lamdan adds the larg
 - Added model download progress text with loaded/total byte counts when the worker reports it.
 - Stored the resolved model ID and device in the local AI cache record instead of storing only a bare `ready` flag.
 - Deleted the unused `src/ai/worker.js` WebLLM spike.
-- Added `tests/browser-smoke.mjs` and `npm run test:browser`. It checks cabinet boot, all seven cards, all side selectors, two real Imitation targets, connection state, and local/remote message rendering through CDP.
+- Added `tests/browser-smoke.mjs` and `npm run test:browser`. It checks cabinet boot, all seven cards, all side selectors, the separate-browser connection panel, two real Imitation targets, connection state, and local/remote message rendering through CDP.
 - Added model tests for Breakout reaction/difficulty, Splat gap narrowing, and Imitation peer departure.
+- Added manual WebRTC offer/answer controls to Imitation. One browser creates an invite, the other creates an answer, and the first pastes the answer back. This provides a static-site path for separate browsers without an application server.
+- Added worker cancellation and fresh-worker recovery for timed-out browser AI requests.
+- The teacher’s clarification resolves the four-mode concern: the intended reversal is player control versus setup/placement control. Snake, Splat, Breakout, and the other games already provide that kind of role reversal, so the honest Solo labels are appropriate.
 
 ### Verification
 
 - `npm test`: **77 passed, 0 failed**.
 - `npm run check`: passed.
 - Syntax checks passed for the changed model, AI, Imitation, and browser-test modules.
-- `npm run test:browser`: passed against Chromium CDP.
+- `npm run test:browser`: passed against Chromium CDP for boot, selectors, same-browser Imitation, and the separate-browser control surface. The manual WebRTC exchange still needs one real non-headless browser pass because the headless target does not expose a usable `RTCPeerConnection` for that path.
 - Splat race isolated simulation: 72 full-route completions and 128 failures across 200 mirrored-AI runs.
 - Breakout and Splat changes have direct regression tests.
 
 ### Remaining blockers
 
-1. **True separate-browser Imitation is still not implemented.** The smallest static-only solution is manual WebRTC offer/answer signaling: one browser creates an invite, the other pastes it and creates an answer, then the first pastes the answer back. This avoids a server but adds a clunky setup step. A normal WebRTC experience requires a signaling service, which conflicts with the strict no-server requirement.
-2. **The four solo modes are now honestly labeled but are still not versus modes.** Implementing actual opponents would satisfy the assignment more fully than changing the labels.
-3. **The literal Claude requirement remains unresolved.** The current browser-local alternatives are Chrome built-in AI, Ollama, and Transformers.js with Llama 3.2. The project should not claim literal Claude support without an approved browser-safe Claude runtime.
-4. **AI generation timeout recovery is not complete.** Progress reporting and cache metadata are fixed, but a timed-out worker can still continue an in-flight generation. Full recovery requires abort/terminate support and a fresh worker.
-5. **The custom domain remains an external deployment task.** It was intentionally not changed in this pass.
-6. **Canvas and Slack submission actions remain external tasks.** They were intentionally not fabricated or claimed as complete.
+1. **Manual WebRTC still needs a real-browser verification pass.** The static controls and signaling code are implemented, but the headless CDP environment does not expose a usable `RTCPeerConnection` for the full offer/answer exchange. Test it in two normal browser windows on the target network before claiming separate-browser play is proven.
+2. **The literal Claude requirement remains unresolved.** The current browser-local alternatives are Chrome Built-in AI, Ollama, and Transformers.js with Llama 3.2. These are valid no-key alternatives, but they are not Claude.
+3. **The custom domain remains an external deployment task.** It was intentionally not changed in this pass.
+4. **Canvas and Slack submission actions remain external tasks.** They were intentionally not fabricated or claimed as complete.
+5. **The four solo labels are not considered blockers after the teacher clarification.** They represent the player side of the player/setup reversal; the actual computer-controlled reverse modes remain available.
