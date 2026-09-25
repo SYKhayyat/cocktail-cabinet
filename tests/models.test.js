@@ -1006,7 +1006,7 @@ test("Imitation Guess waits for a peer before using the AI fallback", () => {
   game.reset();
   game.peerId = "peer";
   game.update(5);
-  assert.equal(game.phase, "guess-loading");
+  assert.equal(game.phase, "guess-waiting");
   game.mystery = { source: "ai", text: "A mystery" };
   game.phase = "guess";
   game.sendMessage("ai");
