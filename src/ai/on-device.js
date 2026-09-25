@@ -1,5 +1,7 @@
 const WEBGPU_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-q4f16";
 const WASM_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-q4f16";
+const OLLAMA_MODEL = "llama3.2:1b";
+const OLLAMA_BASE_URL = "http://localhost:11434";
 const MODEL_CACHE_KEY = "cocktail-cabinet-local-ai-ready-v4";
 
 export function localModelSupport() {
@@ -22,10 +24,45 @@ function markModelReady() {
   try { localStorage.setItem(MODEL_CACHE_KEY, "ready"); } catch { }
 }
 
+async function fetchJson(url, options = {}, milliseconds = 1500) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), milliseconds);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    if (!response.ok) throw new Error(`Local runtime returned HTTP ${response.status}.`);
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function loadOllamaModel(onProgress) {
+  const tags = await fetchJson(`${OLLAMA_BASE_URL}/api/tags`);
+  const installed = (tags.models || []).some((entry) => entry.name === OLLAMA_MODEL || entry.name === `${OLLAMA_MODEL}:latest`);
+  if (!installed) throw new Error(`${OLLAMA_MODEL} is not installed in Ollama.`);
+  onProgress?.({ device: "ollama", progress: 1, text: "Connected to Ollama." });
+  return {
+    device: "ollama",
+    chat: async ({ messages, temperature, max_tokens }) => {
+      const data = await fetchJson(`${OLLAMA_BASE_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: OLLAMA_MODEL, messages, stream: false, options: { temperature, num_predict: max_tokens } }),
+      }, 120000);
+      return { choices: [{ message: { content: data.message?.content || "" } }] };
+    },
+  };
+}
+
 export function loadLocalModel(onProgress) {
   if (!enginePromise) {
     void requestPersistentStorage();
     enginePromise = (async () => {
+      try {
+        return await loadOllamaModel(onProgress);
+      } catch {
+        onProgress?.({ device: "browser", progress: 0, text: "Ollama is unavailable; using the browser model…" });
+      }
       const support = localModelSupport();
       if (!support.ok) throw new Error(support.reason);
       if (support.device === "webgpu") {
