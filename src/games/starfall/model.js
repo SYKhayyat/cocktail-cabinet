@@ -28,16 +28,21 @@ export class StarfallModel {
         const dragX = input.spawnStar.dragDeltaX || 0;
         const dragY = input.spawnStar.dragDeltaY || 0;
         const horizontalSpeed = input.spawnStar.dragDistance ? clamp(dragX / Math.max(Math.abs(dragY), 1) * 180, -240, 240) : 0;
-        this.stars.push({ x: input.spawnStar.x, y: 20, vx: horizontalSpeed, vy: 130 + this.score * 2, radius: 10 });
+        this.stars.push({ x: input.spawnStar.x, y: 20, vx: horizontalSpeed, vy: 130 + this.score * 2, radius: 10, age: 0, userCreated: true });
       }
-      if (input.spawnGem && this.gems.length < 12) this.gems.push({ x: clamp(input.spawnGem.x, 20, 780), y: 20, vy: 65, collected: false });
+      if (input.spawnGem && this.gems.length < 12) {
+        for (let index = this.stars.length - 1; index >= 0; index -= 1) {
+          if (this.stars[index].userCreated && (this.stars[index].age || 0) < 0.5) { this.stars.splice(index, 1); break; }
+        }
+        this.gems.push({ x: clamp(input.spawnGem.x, 20, 780), y: 20, vy: 65, collected: false });
+      }
       this.aiRunner(dt);
     }
     if (this.side === "runner") {
       this.spawnClock -= dt;
       if (this.spawnClock <= 0) { this.stars.push({ x: 20 + Math.random() * 760, y: 20, vy: 130 + this.score * 2, radius: 10 }); this.spawnClock = Math.max(0.28, 1.1 - this.score * 0.006); }
     }
-    for (const star of this.stars) { star.x += (star.vx || 0) * dt; star.y += star.vy * dt; }
+    for (const star of this.stars) { star.x += (star.vx || 0) * dt; star.y += star.vy * dt; star.age = (star.age || 0) + dt; }
     for (const gem of this.gems) {
       if (gem.collected) {
         gem.respawn = (gem.respawn || 0) - dt;

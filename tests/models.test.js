@@ -1122,6 +1122,8 @@ test("Starfall: movement, gem collection, star spawning, and collision loss", ()
   doubleClick.setSide("stars");
   doubleClick.reset();
   const doubleClickController = new StarfallController(doubleClick);
+  doubleClickController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, released: true }) }));
+  assert.equal(doubleClick.stars.length, 1);
   doubleClickController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, doubleClicked: true, released: true }) }));
   assert.equal(doubleClick.stars.length, 0);
   assert.equal(doubleClick.gems.length, 1);
