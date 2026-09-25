@@ -826,7 +826,28 @@ test("Missile Command: aiming, launching, interception, targeting, and base loss
   dead.bases[1].alive = false;
   dead.bases[2].alive = false;
   dead.update(0, { aim: null, launch: false });
-  assert.equal(dead.lifeLost, true);
+  assert.equal(dead.lifeLost, false);
+});
+
+test("Missile Command uses arrow-selected batteries and click-to-launch", () => {
+  const game = new MissileCommandGame();
+  game.reset();
+  game.update(0, input({ pressed: new Set(["ArrowRight"]), pointer: pointer({ x: 250, y: 180, clicked: true }) }));
+  assert.equal(game.model.selectedBattery, 2);
+  assert.deepEqual(game.model.target, { x: 250, y: 180 });
+  assert.equal(game.model.interceptors.length, 1);
+  assert.equal(game.model.bases[2].missiles, 9);
+  const before = game.model.interceptors.length;
+  game.update(0, input({ pressed: new Set([" "]) }));
+  assert.equal(game.model.interceptors.length, before);
+});
+
+test("Missile Command ends when all cities are lost without reserves", () => {
+  const game = new MissileModel();
+  game.reset();
+  game.cities.forEach((city) => { city.alive = false; });
+  game.update(0, { aim: null, launch: false });
+  assert.equal(game.gameOver, true);
 });
 
 test("Imitation: messages, peer handshake, score, trimming, and search countdown", () => {

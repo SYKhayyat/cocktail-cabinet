@@ -3,7 +3,8 @@ export class MissileController {
   update(dt, input) {
     this.model.update(dt, {
       aim: input.pointer,
-      launch: input.pressed.has(" "),
+      batteryDirection: (input.pressed.has("ArrowRight") ? 1 : 0) - (input.pressed.has("ArrowLeft") ? 1 : 0),
+      launch: input.pointer.clicked,
       attack: input.pointer.clicked ? input.pointer : null,
     });
   }

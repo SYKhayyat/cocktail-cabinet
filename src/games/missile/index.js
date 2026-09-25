@@ -9,10 +9,13 @@ export class MissileCommandGame {
   get description() { return this.model.description; }
   get side() { return this.model.side; }
   get score() { return this.model.score; }
+  get gameOver() { return this.model.gameOver; }
+  set gameOver(value) { this.model.gameOver = value; }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
   setSide(side) { this.model.setSide(side); }
   reset(keepScore) { this.model.reset(keepScore); }
+  handleLifeLoss() { return this.model.handleLifeLoss(); }
   update(dt, input) { this.controller.update(dt, input); }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }
