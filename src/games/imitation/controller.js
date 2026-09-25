@@ -5,7 +5,7 @@ export class ImitationController {
   reset(keepScore = false) {
     this.closeChannel();
     this.model.reset(keepScore);
-    if (this.model.side === "human") this.connectChannel();
+    if (this.model.side === "human" || this.model.side === "guess") this.connectChannel();
   }
   closeChannel() { this.channel?.close(); this.channel = null; }
   connectChannel() {
@@ -21,6 +21,7 @@ export class ImitationController {
   sendMessage(text) {
     const clean = this.model.sendMessage(text);
     if (clean && this.model.side === "human") this.channel?.postMessage({ type: "chat", from: this.model.matchId, text: clean });
+    if (clean && this.model.side === "guess" && this.model.peerId && !["start", "new", "ai", "human"].includes(clean.toLowerCase())) this.channel?.postMessage({ type: "guess-sample", from: this.model.matchId, text: clean });
   }
   update(dt) { this.model.update(dt); }
 }

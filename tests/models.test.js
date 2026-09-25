@@ -988,12 +988,21 @@ test("Imitation exposes four provider-neutral modes", () => {
   }
   game.setSide("guess");
   game.reset();
-  game.sendMessage("Could this be a person?");
-  assert.equal(game.chatLog.at(-1).sender, "System");
+  game.sendMessage("start");
+  assert.equal(game.chatLog.at(-1).sender, "You");
   game.setSide("write");
   game.reset();
   game.sendMessage("A sample sentence to classify.");
-  assert.equal(game.chatLog.at(-1).sender, "System");
+  assert.equal(game.chatLog.at(-1).sender, "You");
+});
+
+test("Imitation Guess waits for a peer before using the AI fallback", () => {
+  const game = new ImitationModel();
+  game.setSide("guess");
+  game.reset();
+  game.peerId = "peer";
+  game.update(5);
+  assert.equal(game.phase, "guess-loading");
 });
 
 test("Starfall: movement, gem collection, star spawning, and collision loss", () => {

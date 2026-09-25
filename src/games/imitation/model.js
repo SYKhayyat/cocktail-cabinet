@@ -1,5 +1,9 @@
 import { loadLocalModel } from "../../ai/on-device.js";
 
+const AI_SYSTEM_PROMPT = "You are a friendly, general-purpose chat companion. Reply naturally in one or two short sentences. Do not mention this website or games unless the user asks.";
+const CLASSIFIER_PROMPT = "Classify whether the user's text sounds AI-generated or human-written. Reply with exactly AI or HUMAN on the first line, then one short explanation.";
+const MYSTERY_PROMPT = "Write one natural short message of eight to twenty words. Do not label it, explain it, or mention that it was generated.";
+
 export class ImitationModel {
   constructor() {
     this.id = "imitation";
@@ -16,23 +20,42 @@ export class ImitationModel {
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;
     this.chatLog = [];
-    this.phase = this.side === "ai" ? "ai" : this.side === "human" ? "searching" : this.side;
+    this.phase = this.side === "ai" ? "ai" : this.side === "human" ? "searching" : this.side === "guess" ? "guess-waiting" : this.side;
     this.matchmaking = 2.5;
     this.peerId = null;
     this.aiClock = 0;
     this.aiReady = false;
     this.aiUnavailable = false;
     this.lastModelStatus = "";
-    this.addMessage("System", this.side === "ai" ? "AI companion ready. Say hello when you are ready." : this.side === "human" ? "Looking for another tab or window…" : this.side === "guess" ? "Read the message, then decide whether it came from an AI or a human." : "Write a sample message for the AI to classify.");
+    this.mystery = null;
+    this.guessClock = 4;
+    this.addMessage("System", this.side === "ai" ? "AI companion ready. Say hello when you are ready." : this.side === "human" ? "Looking for another tab or window…" : this.side === "guess" ? "Waiting a few seconds for another window. The AI will provide a mystery message if none joins." : "Write a sample message for the AI to classify.");
+    if (this.side !== "human") void this.prepareProvider();
+  }
+  async prepareProvider() {
+    try {
+      await loadLocalModel((report) => { this.lastModelStatus = report.text || report.status || "Loading local AI"; });
+      this.aiReady = true;
+    } catch {
+      this.aiUnavailable = true;
+    }
   }
   receive(message) {
     if (!message || message.from === this.matchId) return;
-    if (message.type === "hello") {
+    if (message.type === "hello" || message.type === "guess-ready") {
       this.peerId = message.from;
       this.matchmaking = 0;
-      this.addMessage("System", "Second tab found. You can chat now.");
+      if (this.side === "guess") {
+        this.phase = "guess-peer";
+        this.addMessage("System", "Another window joined. They can provide the mystery message.");
+      } else this.addMessage("System", "Another tab or window found. You can chat now.");
     }
     if (message.type === "chat") this.addMessage("Partner", message.text);
+    if (message.type === "guess-sample" && this.side === "guess") {
+      this.mystery = { source: "human", text: message.text };
+      this.addMessage("Mystery", message.text);
+      this.phase = "guess";
+    }
   }
   addMessage(sender, text) {
     this.chatLog.push({ sender, text, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) });
@@ -45,38 +68,78 @@ export class ImitationModel {
     if (!clean || this.phase === "result") return null;
     this.addMessage("You", clean);
     if (this.side === "ai") void this.askAi(clean);
-    if (this.side === "guess") this.addMessage("System", "Your guess is recorded. The classifier provider can be connected next.");
-    if (this.side === "write") this.addMessage("System", "Sample recorded. The AI classifier provider can be connected next.");
+    if (this.side === "guess") void this.handleGuess(clean);
+    if (this.side === "write") void this.classifyText(clean);
     return clean;
   }
-  async askAi(text) {
-    if (this.aiUnavailable) return;
+  async requestAi(text, systemPrompt = AI_SYSTEM_PROMPT) {
+    if (this.aiUnavailable) return "";
+    const started = Date.now();
     try {
-      const engine = await loadLocalModel();
+      const engine = await loadLocalModel((report) => { this.lastModelStatus = report.text || report.status || "Thinking"; });
       this.aiReady = true;
-      const reply = await engine.chat.completions.create({
-        messages: [
-          { role: "system", content: "You are a friendly, general-purpose chat companion. Reply naturally in one or two short sentences. Do not mention this website or games unless the user asks." },
-          { role: "user", content: text },
-        ],
+      const reply = await engine.chat({
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: text }],
         temperature: 0.7,
         max_tokens: 90,
       });
-      await wait(700 + Math.random() * 900);
-      const response = reply?.choices?.[0]?.message?.content?.trim();
-      if (response) this.addMessage("AI", response);
-      else this.addMessage("System", "The AI returned no response. Try again.");
+      const response = reply?.choices?.[0]?.message?.content?.trim() || "";
+      const wait = humanDelay(text, response) - (Date.now() - started);
+      if (wait > 0) await waitFor(wait);
+      return response;
     } catch {
       this.aiUnavailable = true;
-      this.addMessage("System", "The AI companion is unavailable in this browser.");
+      return "";
     }
+  }
+  async askAi(text) {
+    const response = await this.requestAi(text);
+    if (response) this.addMessage("AI", response);
+  }
+  async handleGuess(text, forceAi = false) {
+    const value = text.toLowerCase();
+    if (value === "start" || value === "new") {
+      if (this.peerId && !forceAi) {
+        this.phase = "guess-peer";
+        this.addMessage("System", "Your partner can now send the mystery message.");
+        return;
+      }
+      this.phase = "guess-loading";
+      this.addMessage("System", "Generating a mystery message…");
+      const response = await this.requestAi("Create the mystery message now.", MYSTERY_PROMPT);
+      if (!response) return;
+      this.mystery = { source: "ai", text: response };
+      this.addMessage("Mystery", response);
+      this.phase = "guess";
+      return;
+    }
+    if (this.phase !== "guess" || !this.mystery || (value !== "ai" && value !== "human")) return;
+    const correct = value === this.mystery.source;
+    this.score += correct ? 10 : 0;
+    this.addMessage("System", `${correct ? "Correct" : "Not quite"} — the message was ${this.mystery.source.toUpperCase()}.`);
+    this.phase = "result";
+  }
+  async classifyText(text) {
+    const response = await this.requestAi(text, CLASSIFIER_PROMPT);
+    if (!response) return;
+    const classification = response.match(/\b(AI|HUMAN)\b/i)?.[1]?.toUpperCase() || "UNCLEAR";
+    this.addMessage("AI", `${classification}\n${response.replace(/^\s*(AI|HUMAN)\s*/i, "").trim()}`);
   }
   update(dt) {
     if (this.side === "human" && !this.peerId) this.matchmaking = Math.max(0, this.matchmaking - dt);
+    if (this.side === "guess" && !this.mystery && this.phase !== "guess-loading" && this.phase !== "result") {
+      this.guessClock = Math.max(0, this.guessClock - dt);
+      if (this.guessClock === 0) void this.handleGuess("start", true);
+    }
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? "Local AI companion · provider-ready" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? "Guess whether a message came from AI or human" : "Submit text for AI classification", chatRevision: this.chatRevision }; }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.aiReady ? "AI companion ready" : "Warming up the AI companion" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.phase === "guess" ? "Guess AI or human" : "Generate a mystery message" : "Submit text for AI classification", chatRevision: this.chatRevision }; }
 }
 
-function wait(milliseconds) {
+function humanDelay(prompt, response) {
+  const words = `${prompt} ${response}`.trim().split(/\s+/).length;
+  return Math.min(4200, 450 + words * 42 + Math.random() * 650);
+}
+
+function waitFor(milliseconds) {
   return new Promise((resolve) => globalThis.setTimeout(resolve, milliseconds));
 }
