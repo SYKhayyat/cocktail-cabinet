@@ -124,7 +124,7 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
         game.reset();
         return game;
       }, (game, step) => {
-        const attack = step % 45 === 0 ? { x: 40 + Math.random() * 720 } : null;
+        const attack = step % 15 === 0 ? { x: 40 + Math.random() * 720 } : null;
         game.update(1 / 60, { aim: blankPointer(), launch: false, attack });
       }),
     },
