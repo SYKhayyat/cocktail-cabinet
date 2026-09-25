@@ -1,5 +1,5 @@
-const WASM_MODEL_ID = "HuggingFaceTB/SmolLM2-135M-Instruct";
-const MODEL_CACHE_KEY = "cocktail-cabinet-local-ai-ready-v2";
+const WASM_MODEL_ID = "HuggingFaceTB/SmolLM2-360M-Instruct";
+const MODEL_CACHE_KEY = "cocktail-cabinet-local-ai-ready-v3";
 
 export function localModelSupport() {
   if (typeof window === "undefined") return { ok: false, device: "none", reason: "Local AI requires a browser." };
