@@ -34,6 +34,7 @@ const gameActions = document.querySelector("#gameActions");
 const gameSideControls = document.querySelector("#gameSideControls");
 const gameStats = document.querySelector("#gameStats");
 const screenFrame = document.querySelector("#screenFrame");
+const downloadModelButton = document.querySelector("#downloadModelButton");
 const splatTools = document.querySelector("#splatTools");
 const splatAddColumn = document.querySelector("#splatAddColumn");
 const splatAddGap = document.querySelector("#splatAddGap");
@@ -165,9 +166,10 @@ function loadGame(id) {
   description.textContent = game.description;
   renderSideOptions(game);
   gameActions.hidden = id === "imitation";
-  gameSideControls.hidden = id === "imitation";
+  gameSideControls.hidden = false;
   gameStats.hidden = id === "imitation";
   screenFrame.hidden = id === "imitation";
+  downloadModelButton.hidden = id !== "imitation";
   document.querySelector(".machine").classList.toggle("imitation-layout", id === "imitation");
   settingsPanel.hidden = id !== "snake" && id !== "splat";
   settingsTitle.textContent = id === "splat" ? "Splat settings" : "Snake settings";
@@ -193,6 +195,10 @@ const engine = new GameEngine(canvas, {
     title.textContent = state.title;
     description.textContent = state.description;
     status.textContent = activeId === "imitation" ? state.status : engine.ready ? "Press New game to start" : engine.countdown > 0 ? "Get ready…" : state.status;
+    if (activeId === "imitation") {
+      downloadModelButton.disabled = Boolean(engine.game.model?.aiReady || engine.game.model?.modelLoading);
+      downloadModelButton.textContent = engine.game.model?.modelLoading ? "Downloading…" : engine.game.model?.aiReady ? "AI model ready" : "Download AI model";
+    }
     if (state.chatRevision !== undefined && state.chatRevision !== lastChatRevision) {
       lastChatRevision = state.chatRevision;
       renderChat(engine.game);
@@ -220,6 +226,7 @@ restartButton.addEventListener("click", () => engine.restart());
 pauseButton.addEventListener("click", () => engine.pauseGame());
 continueButton.addEventListener("click", () => engine.continueGame());
 livesInput.addEventListener("change", () => engine.setLives(livesInput.value));
+downloadModelButton.addEventListener("click", () => engine.game.downloadModel?.());
 chatForm.addEventListener("submit", (event) => {
   event.preventDefault();
   if (activeId !== "imitation") return;

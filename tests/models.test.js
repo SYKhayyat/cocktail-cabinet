@@ -986,6 +986,10 @@ test("Imitation exposes four provider-neutral modes", () => {
     assert.equal(game.side, side);
     assert.ok(game.chatLog[0].sender === "System");
   }
+  game.setSide("ai");
+  game.reset();
+  game.sendMessage("hello");
+  assert.equal(game.chatLog.at(-1).sender, "System");
   game.setSide("guess");
   game.reset();
   game.sendMessage("start");

@@ -24,21 +24,26 @@ export class ImitationModel {
     this.matchmaking = 2.5;
     this.peerId = null;
     this.aiClock = 0;
-    this.aiReady = false;
+    this.aiReady = this.aiReady || false;
     this.aiUnavailable = false;
+    this.modelLoading = false;
     this.lastModelStatus = "";
     this.mystery = null;
     this.guessClock = 4;
     this.guessToken = 0;
-    this.addMessage("System", this.side === "ai" ? "AI companion ready. Say hello when you are ready." : this.side === "human" ? "Looking for another tab or window…" : this.side === "guess" ? "Waiting a few seconds for another window. The AI will provide a mystery message if none joins." : "Write a sample message for the AI to classify.");
-    if (this.side !== "human") void this.prepareProvider();
+    this.addMessage("System", this.side === "ai" ? "AI companion ready. Download the model, then say hello." : this.side === "human" ? "Looking for another tab or window…" : this.side === "guess" ? "Waiting a few seconds for another window. The AI will provide a mystery message if none joins." : "Write a sample message for the AI to classify.");
   }
   async prepareProvider() {
+    if (this.aiReady || this.modelLoading) return;
+    this.modelLoading = true;
     try {
-      await loadLocalModel((report) => { this.lastModelStatus = report.text || report.status || "Loading local AI"; });
+      await loadLocalModel((report) => { this.lastModelStatus = report.text || report.status || "Downloading local AI"; });
       this.aiReady = true;
+      this.aiUnavailable = false;
     } catch {
       this.aiUnavailable = true;
+    } finally {
+      this.modelLoading = false;
     }
   }
   receive(message) {
@@ -88,7 +93,7 @@ export class ImitationModel {
     return clean;
   }
   async requestAi(text, systemPrompt = AI_SYSTEM_PROMPT) {
-    if (this.aiUnavailable) return "";
+    if (this.aiUnavailable || (!this.aiReady && !this.modelLoading)) return "";
     const started = Date.now();
     try {
       const engine = await loadLocalModel((report) => { this.lastModelStatus = report.text || report.status || "Thinking"; });
@@ -108,6 +113,10 @@ export class ImitationModel {
     }
   }
   async askAi(text) {
+    if (!this.aiReady && !this.modelLoading) {
+      this.addMessage("System", "Download the AI model before chatting.");
+      return;
+    }
     const thinking = this.addMessage("System", "AI is thinking…");
     const response = await this.requestAi(text);
     this.chatLog = this.chatLog.filter((message) => message !== thinking);
@@ -121,6 +130,11 @@ export class ImitationModel {
       if (this.peerId && !forceAi) {
         this.phase = "guess-peer";
         this.addMessage("System", "Your partner can now send the mystery message.");
+        return;
+      }
+      if (!this.aiReady && !this.modelLoading) {
+        this.phase = "guess-waiting";
+        this.addMessage("System", "Download the AI model before generating a mystery message.");
         return;
       }
       this.phase = "guess-loading";
@@ -145,6 +159,10 @@ export class ImitationModel {
     this.phase = "result";
   }
   async classifyText(text) {
+    if (!this.aiReady && !this.modelLoading) {
+      this.addMessage("System", "Download the AI model before classifying text.");
+      return;
+    }
     const thinking = this.addMessage("System", "AI is thinking…");
     const response = await this.requestAi(text, CLASSIFIER_PROMPT);
     this.chatLog = this.chatLog.filter((message) => message !== thinking);
@@ -163,7 +181,7 @@ export class ImitationModel {
       if (this.guessClock === 0) void this.handleGuess("start", true);
     }
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.aiReady ? "AI companion ready" : "Warming up the AI companion" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.phase === "guess" ? "Guess AI or human" : "Generate a mystery message" : "Submit text for AI classification", chatRevision: this.chatRevision }; }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Downloading the AI model" : this.aiReady ? "AI companion ready" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.phase === "guess" ? "Guess AI or human" : this.modelLoading ? "Downloading the AI model" : "Generate a mystery message" : "Submit text for AI classification", chatRevision: this.chatRevision }; }
 }
 
 function humanDelay(prompt, response) {
