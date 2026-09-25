@@ -53,7 +53,8 @@ export class MissileModel {
     if (!base || !base.alive || base.missiles <= 0) return false;
     base.missiles -= 1;
     const speed = this.selectedBattery === 1 ? 470 : 270;
-    this.interceptors.push({ x: base.x, y: base.y - 20, targetX: this.target.x, targetY: this.target.y, speed, color: "#22d3ee", battery: base });
+    const travelAngle = Math.atan2(this.target.y - (base.y - 20), this.target.x - base.x);
+    this.interceptors.push({ x: base.x, y: base.y - 20, targetX: this.target.x, targetY: this.target.y, speed, color: "#22d3ee", battery: base, travelAngle });
     return true;
   }
   launchEnemy(target = null) {
@@ -120,7 +121,7 @@ export class MissileModel {
     }
     for (const missile of this.enemyMissiles) this.moveEnemy(missile, dt);
     for (const missile of this.interceptors) this.moveInterceptor(missile, dt);
-    for (const interceptor of this.interceptors) for (const enemy of this.enemyMissiles) if (circleHitsCircle(interceptor.x, interceptor.y, INTERCEPTOR_RADIUS, enemy.x, enemy.y, ENEMY_RADIUS)) { interceptor.dead = true; enemy.dead = true; this.score += 15; }
+    for (const interceptor of this.interceptors) for (const enemy of this.enemyMissiles) if (circleHitsCircle(interceptor.x, interceptor.y, 4, enemy.x, enemy.y, 5)) { interceptor.dead = true; enemy.dead = true; this.score += 15; }
     for (const enemy of this.enemyMissiles) if (enemy.targetObject?.alive && enemy.y >= enemy.targetY - enemy.targetObject.radius - 8) { enemy.targetObject.alive = false; enemy.dead = true; }
     this.enemyMissiles = this.enemyMissiles.filter((missile) => !missile.dead && missile.y < 560);
     this.interceptors = this.interceptors.filter((missile) => !missile.dead);
@@ -129,8 +130,16 @@ export class MissileModel {
   updateEntities(dt) {
     for (const interceptor of this.interceptors) {
       if (this.moveInterceptor(interceptor, dt)) {
-        interceptor.dead = true;
-        this.fireballs.push({ x: interceptor.targetX, y: interceptor.targetY, radius: FIREBALL_RADIUS, life: FIREBALL_LIFE });
+        const caught = this.enemyMissiles.some((enemy) => !enemy.dead && circleHitsCircle(interceptor.targetX, interceptor.targetY, FIREBALL_RADIUS, enemy.x, enemy.y, ENEMY_RADIUS));
+        if (caught) {
+          interceptor.dead = true;
+          this.fireballs.push({ x: interceptor.targetX, y: interceptor.targetY, radius: FIREBALL_RADIUS, life: FIREBALL_LIFE });
+        } else {
+          interceptor.missed = true;
+          interceptor.life = 3;
+          interceptor.vx = Math.cos(interceptor.travelAngle || 0) * interceptor.speed;
+          interceptor.vy = Math.sin(interceptor.travelAngle || 0) * interceptor.speed;
+        }
       }
     }
     for (const fireball of this.fireballs) {
@@ -153,6 +162,12 @@ export class MissileModel {
     this.interceptors = this.interceptors.filter((missile) => !missile.dead);
   }
   moveInterceptor(interceptor, dt) {
+    if (interceptor.missed) {
+      interceptor.x += interceptor.vx * dt;
+      interceptor.y += interceptor.vy * dt;
+      interceptor.life -= dt;
+      return interceptor.life <= 0;
+    }
     const dx = interceptor.targetX - interceptor.x;
     const dy = interceptor.targetY - interceptor.y;
     const length = Math.hypot(dx, dy);

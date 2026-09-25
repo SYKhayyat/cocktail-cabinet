@@ -806,6 +806,20 @@ test("Missile Command varies enemy targets across a salvo", () => {
   assert.ok(new Set(targets).size > 1);
 });
 
+test("Missile Command misses continue off-screen without a fireball", () => {
+  const game = new MissileModel();
+  game.reset();
+  game.target = { x: 250, y: 200 };
+  game.launchInterceptor();
+  game.interceptors[0].x = game.target.x;
+  game.interceptors[0].y = game.target.y;
+  game.update(0.016, { aim: null, launch: false });
+  assert.equal(game.fireballs.length, 0);
+  const missedX = game.interceptors[0].x;
+  game.update(1, { aim: null, launch: false });
+  assert.ok(game.interceptors[0].x > missedX);
+});
+
 test("Missile Command: aiming, launching, interception, targeting, and base loss", () => {
   const game = new MissileModel();
   game.reset();
