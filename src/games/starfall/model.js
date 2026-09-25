@@ -4,7 +4,7 @@ export class StarfallModel {
   constructor() {
     this.id = "starfall";
     this.title = "Starfall";
-    this.description = "Normal play: move the mouse to guide the runner through falling stars and collect blue gems. Flipped play: click to send stars.";
+    this.description = "Guide the runner with the mouse or keyboard, collect falling blue gems, and avoid red stars. In flipped play, click or drag to send stars.";
     this.side = "runner";
     this.score = 0;
   }
@@ -12,12 +12,12 @@ export class StarfallModel {
   setSide(side) { this.side = side; }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3;
-    for (let index = 0; index < 3; index += 1) this.gems.push({ x: 100 + index * 300, y: 80 + Math.random() * 120, collected: false });
+    for (let index = 0; index < 3; index += 1) this.gems.push({ x: 100 + index * 300, y: -20 - index * 90, vy: 45 + index * 8, collected: false });
   }
   update(dt, input) {
     if (this.side === "runner") {
       const direction = input.keyDirection || 0;
-      if (direction) this.runner.x += direction * 240 * dt;
+      if (direction || input.mode === "keyboard") this.runner.x += direction * 240 * dt;
       else if (input.pointerX > 0) this.runner.x += clamp(input.pointerX - this.runner.x, -1, 1) * 260 * dt;
       this.runner.x = clamp(this.runner.x, 20, 780);
     } else {
@@ -29,7 +29,11 @@ export class StarfallModel {
       if (this.spawnClock <= 0) { this.stars.push({ x: 20 + Math.random() * 760, y: 20, vy: 130 + this.score * 2, radius: 10 }); this.spawnClock = Math.max(0.28, 1.1 - this.score * 0.006); }
     }
     for (const star of this.stars) star.y += star.vy * dt;
-    for (const gem of this.gems) if (!gem.collected && circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, gem.x, gem.y, 10)) { gem.collected = true; this.score += 50; gem.x = 20 + Math.random() * 760; gem.y = 80 + Math.random() * 180; }
+    for (const gem of this.gems) {
+      gem.y += (gem.vy || 50) * dt;
+      if (gem.y > 580) { gem.x = 20 + Math.random() * 760; gem.y = -20; }
+      if (!gem.collected && circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, gem.x, gem.y, 10)) { gem.collected = false; this.score += 50; gem.x = 20 + Math.random() * 760; gem.y = -20; }
+    }
     for (const star of this.stars) if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, star.x, star.y, star.radius)) { star.dead = true; this.lifeLost = true; }
     this.stars = this.stars.filter((star) => !star.dead && star.y < 560);
   }

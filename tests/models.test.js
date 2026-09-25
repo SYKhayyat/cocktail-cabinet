@@ -15,6 +15,7 @@ import { MissileCommandGame } from "../src/games/missile.js";
 import { ImitationGame } from "../src/games/imitation.js";
 import { ImitationController, CHANNEL_NAME } from "../src/games/imitation/controller.js";
 import { StarfallGame } from "../src/games/starfall.js";
+import { StarfallController } from "../src/games/starfall/controller.js";
 
 const pointer = (values = {}) => ({ x: 0, y: 0, moved: false, clicked: false, down: false, ...values });
 const input = (values = {}) => ({ keys: new Set(), pressed: new Set(), pointer: pointer(), ...values });
@@ -1084,8 +1085,11 @@ test("Starfall: movement, gem collection, star spawning, and collision loss", ()
   const game = new StarfallModel();
   game.reset();
   const startX = game.runner.x;
-  game.update(0.2, { keyDirection: 1, pointerX: 0, spawnStar: undefined });
+  game.update(0.2, { mode: "keyboard", keyDirection: 1, pointerX: 0, spawnStar: undefined });
   assert.ok(game.runner.x > startX);
+  const gemStartY = game.gems[0].y;
+  game.update(0.5, { mode: "keyboard", keyDirection: 0, pointerX: 0, spawnStar: undefined });
+  assert.ok(game.gems[0].y > gemStartY);
   game.gems = [{ x: game.runner.x, y: game.runner.y, collected: false }];
   game.update(0.016, { keyDirection: 0, pointerX: 0, spawnStar: undefined });
   assert.equal(game.score, 50);
@@ -1101,6 +1105,10 @@ test("Starfall: movement, gem collection, star spawning, and collision loss", ()
   assert.equal(computer.stars[0].x, 100);
   for (let index = 0; index < 1000; index += 1) computer.update(0.016, { keyDirection: 0, pointerX: 0, spawnStar: undefined });
   assert.ok(computer.runner.x >= 20 && computer.runner.x <= 780);
+  computer.stars = [];
+  const dragged = new StarfallController(computer);
+  dragged.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, y: 0, released: true, dragDistance: 24 }) }));
+  assert.equal(computer.stars.at(-1).x, 240);
 });
 
 test("all game facades reset, update, and expose public state", () => {
