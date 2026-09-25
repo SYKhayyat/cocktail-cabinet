@@ -1199,10 +1199,10 @@ test("Starfall: movement, gem collection, star spawning, and collision loss", ()
   try {
     Math.random = () => 0;
     weightedComputer.update(0.016, input());
-    assert.equal(weightedComputer.aiTargetGem, weightedComputer.gems[0]);
+    assert.equal(weightedComputer.aiTargetGem, weightedComputer.gems[1]);
     Math.random = () => 0.99;
     for (let index = 0; index < 10; index += 1) weightedComputer.update(0.016, input());
-    assert.equal(weightedComputer.aiTargetGem, weightedComputer.gems[0]);
+    assert.equal(weightedComputer.aiTargetGem, weightedComputer.gems[1]);
   } finally {
     Math.random = originalRandom;
   }
