@@ -24,7 +24,7 @@ function markModelReady() {
   try { localStorage.setItem(MODEL_CACHE_KEY, "ready"); } catch { }
 }
 
-async function fetchJson(url, options = {}, milliseconds = 1500) {
+async function fetchJson(url, options = {}, milliseconds = 10000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), milliseconds);
   try {
@@ -62,6 +62,7 @@ async function loadChromeModel(onProgress) {
 }
 
 async function loadOllamaModel(onProgress) {
+  const failures = [];
   for (const baseUrl of OLLAMA_BASE_URLS) {
     try {
       const tags = await fetchJson(`${baseUrl}/api/tags`);
@@ -79,9 +80,11 @@ async function loadOllamaModel(onProgress) {
           return { choices: [{ message: { content: data.message?.content || "" } }] };
         },
       };
-    } catch { }
+    } catch (error) {
+      failures.push(`${baseUrl}: ${error.message}`);
+    }
   }
-  throw new Error("Ollama is unavailable or CORS is not configured.");
+  throw new Error(`Ollama unavailable (${failures.join("; ")})`);
 }
 
 export function loadLocalModel(onProgress) {
