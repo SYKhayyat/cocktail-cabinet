@@ -86,7 +86,8 @@ export class MissileModel {
       this.launchEnemy(null, { freeFlight: true, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed });
       return;
     }
-    if (pointer.clicked || pointer.released || pointer.down || (pointer.x !== undefined && pointer.y !== undefined)) this.launchEnemy(this.closestTarget(pointer.x));
+    const interactive = "clicked" in pointer || "released" in pointer || "down" in pointer || "dragDistance" in pointer;
+    if (pointer.clicked || pointer.released || pointer.down || (pointer.x !== undefined && pointer.y !== undefined)) this.launchEnemy(interactive ? this.closestTarget(pointer.x) : this.closestBattery(pointer.x));
   }
   launchMachineInterceptor() {
     const base = this.bases.find((candidate) => candidate.alive);
