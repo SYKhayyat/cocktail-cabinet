@@ -20,6 +20,8 @@ export class ImitationModel {
   }
   sideLabel() { return this.side === "ai" ? "Chat with the AI companion" : this.side === "human" ? "Chat with another tab or window" : this.side === "guess" ? "Guess AI or human" : this.side === "provide" ? "Provide a guessing message" : "Write text for AI to classify"; }
   setSide(side) { this.side = side; }
+  setStateListener(listener) { this.stateListener = listener; }
+  notifyState() { this.stateListener?.(); }
   reset(keepScore = false) {
     if (!keepScore) {
       this.score = 0;
@@ -53,7 +55,7 @@ export class ImitationModel {
     if (this.aiReady || this.modelLoading) return;
     this.modelLoading = true;
     try {
-      await loadLocalModel((report) => { this.modelDevice = report.device || this.modelDevice; this.lastModelStatus = report.text || report.status || "Downloading local AI"; });
+      await loadLocalModel((report) => { this.modelDevice = report.device || this.modelDevice; this.lastModelStatus = modelProgressText(report); });
       this.aiReady = true;
       this.aiUnavailable = false;
       if (this.side === "guess" && this.phase === "guess-waiting") this.guessFallbackStarted = false;
@@ -100,6 +102,14 @@ export class ImitationModel {
   }
   receive(message) {
     if (!message || message.from === this.matchId) return;
+    if (message.to && message.to !== this.matchId) return;
+    if (message.type === "bye" && message.from === this.peerId) {
+      this.peerId = null;
+      this.matchmaking = 2.5;
+      this.phase = this.side === "human" ? "searching" : this.side === "guess" ? "guess-waiting" : this.side === "provide" ? "provide-waiting" : this.phase;
+      this.addMessage("System", "The other tab left. Waiting for another player.");
+      return;
+    }
     if (message.type === "hello" || message.type === "hello-ack" || message.type === "guess-ready") {
       const expectedMode = this.side === "guess" ? "provide" : this.side === "provide" ? "guess" : this.side === "human" ? "human" : "";
       if (message.mode && expectedMode && message.mode !== expectedMode) {
@@ -147,6 +157,7 @@ export class ImitationModel {
     this.chatLog.push(message);
     this.chatLog = this.chatLog.slice(-18);
     this.chatRevision += 1;
+    this.notifyState();
     if (sender === "Partner") this.score += 5;
     return message;
   }
@@ -182,7 +193,7 @@ export class ImitationModel {
     this.modelError = "";
     const started = Date.now();
     try {
-      const engine = await loadLocalModel((report) => { this.lastModelStatus = report.text || report.status || "Thinking"; });
+       const engine = await loadLocalModel((report) => { this.lastModelStatus = modelProgressText(report); });
       this.aiReady = true;
       const reply = await withTimeout(engine.chat({
         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: text }],
@@ -270,7 +281,17 @@ export class ImitationModel {
       }
     }
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Loading the local AI model" : this.aiReady ? `AI companion ready${this.modelDevice === "chrome" ? " via Chrome AI" : this.modelDevice === "ollama" ? " via Ollama" : this.modelDevice === "webgpu" ? " via WebGPU" : ""}` : this.modelError ? "The AI model needs attention" : this.modelCached ? "Load the cached AI model" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.modelLoading ? "Downloading the AI model" : this.aiReady ? "Guess AI or human" : "Download the AI model to play" : this.side === "provide" ? this.peerId ? "Guess tab connected" : "Waiting for a Guess tab" : "Submit text for AI classification", chatRevision: this.chatRevision, modelCached: this.modelCached, modelDevice: this.modelDevice, phase: this.phase, guessResult: this.guessResult, guessStats: this.guessStats }; }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Loading the local AI model" : this.aiReady ? `AI companion ready${this.modelDevice === "chrome" ? " via Chrome AI" : this.modelDevice === "ollama" ? " via Ollama" : this.modelDevice === "webgpu" ? " via WebGPU" : ""}` : this.modelError ? "The AI model needs attention" : this.modelCached ? "Load the cached AI model" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.modelLoading ? "Downloading the AI model" : this.aiReady ? "Guess AI or human" : "Download the AI model to play" : this.side === "provide" ? this.peerId ? "Guess tab connected" : "Waiting for a Guess tab" : "Submit text for AI classification", chatRevision: this.chatRevision, modelCached: this.modelCached, modelDevice: this.modelDevice, modelStatus: this.lastModelStatus, phase: this.phase, guessResult: this.guessResult, guessStats: this.guessStats }; }
+}
+
+function modelProgressText(report = {}) {
+  if (Number.isFinite(report.loaded) && Number.isFinite(report.total) && report.total > 0) return `Downloading local AI — ${formatBytes(report.loaded)} of ${formatBytes(report.total)}`;
+  return report.text || report.status || "Loading the local AI";
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function humanDelay(prompt, response) {

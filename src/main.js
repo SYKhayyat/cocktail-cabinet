@@ -59,12 +59,12 @@ let lastChatRevision = -1;
 
 const sideOptions = {
   snake: [["snake", "You vs computer — steer the snake"], ["apples", "Computer vs you — place apples"]],
-  breakout: [["bottom", "You vs computer — bottom paddle"], ["blocks", "Computer vs you — drag the blocks"], ["versus", "You vs computer — central brick duel"]],
-  splat: [["climber", "You vs computer — steer the ball"], ["race", "You vs computer — two-ball race"], ["builder", "You vs computer — place columns"]],
-  asteroids: [["ship", "You vs computer — fly the ship"], ["versus", "You vs computer — both ships"], ["rocks", "Computer vs you — send asteroids"]],
+  breakout: [["bottom", "Solo — keep the ball alive"], ["blocks", "Computer vs you — drag the blocks"], ["versus", "You vs computer — central brick duel"]],
+  splat: [["climber", "Solo — steer the ball"], ["race", "You vs computer — two-ball race"], ["builder", "Computer navigates — place columns"]],
+  asteroids: [["ship", "Solo — fly the ship"], ["versus", "You vs computer — both ships"], ["rocks", "Computer vs you — send asteroids"]],
   missile: [["defender", "You vs computer — defend cities"], ["attacker", "Computer vs you — attack cities"]],
   imitation: [["ai", "Chat with the local AI"], ["human", "Chat with another tab or window"], ["guess", "Guess AI or human"], ["provide", "Provide a guessing message"], ["write", "Write text for AI to classify"]],
-  starfall: [["runner", "You vs computer — guide the runner"], ["stars", "Computer vs you — send stars"]]
+  starfall: [["runner", "Solo — guide the runner"], ["stars", "Computer vs you — send stars"]]
 };
 
 function renderChat(game) {
@@ -204,6 +204,16 @@ function loadGame(id) {
   }
   chatPanel.hidden = id !== "imitation";
   lastChatRevision = -1;
+  game.setStateListener?.(() => {
+    if (activeId !== "imitation") return;
+    const state = game.publicState();
+    status.textContent = state.status;
+    renderGuessControls(state);
+    if (state.chatRevision !== lastChatRevision) {
+      lastChatRevision = state.chatRevision;
+      renderChat(game);
+    }
+  });
   engine.load(game);
   updateSplatTools();
   restartButton.blur();
@@ -218,7 +228,7 @@ const engine = new GameEngine(canvas, {
       renderGuessControls(state);
       downloadModelButton.hidden = state.side === "Provide a guessing message";
       downloadModelButton.disabled = Boolean(engine.game.model?.aiReady || engine.game.model?.modelLoading);
-      downloadModelButton.textContent = engine.game.model?.modelLoading ? "Loading…" : engine.game.model?.aiReady ? "AI model ready" : engine.game.model?.modelCached ? "Load cached model" : "Download AI model";
+      downloadModelButton.textContent = engine.game.model?.modelLoading ? state.modelStatus || "Loading…" : engine.game.model?.aiReady ? "AI model ready" : engine.game.model?.modelCached ? "Load cached model" : "Download AI model";
     }
     if (state.chatRevision !== undefined && state.chatRevision !== lastChatRevision) {
       lastChatRevision = state.chatRevision;

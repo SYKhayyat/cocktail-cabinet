@@ -200,8 +200,34 @@ test("Breakout versus computer targets the most urgent rising ball", () => {
   computerBall.y = 450;
   computerBall.vx = 0;
   computerBall.vy = 200;
+  game.computerVersusTarget = humanBall;
+  game.computerVersusReaction = 0;
+  game.computerVersusError = 0;
   game.update(0.016, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
   assert.equal(game.computer.targetX, 600 - game.computer.width / 2);
+});
+
+test("Breakout versus AI reacts before correcting and difficulty speeds the ball", () => {
+  const game = new BreakoutModel();
+  game.setSide("versus");
+  game.reset();
+  const humanBall = game.balls.find((ball) => ball.owner === "human");
+  const computerBall = game.balls.find((ball) => ball.owner === "computer");
+  humanBall.x = 600;
+  humanBall.y = 180;
+  humanBall.vx = 0;
+  humanBall.vy = -200;
+  computerBall.x = 200;
+  computerBall.y = 450;
+  computerBall.vx = 0;
+  computerBall.vy = 200;
+  game.update(1 / 60, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  assert.equal(game.computer.targetX, 350);
+  const speedBefore = Math.hypot(game.balls[0].vx, game.balls[0].vy);
+  game.scores.human = 10;
+  game.score = 10;
+  game.update(1 / 60, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  assert.ok(Math.hypot(game.balls[0].vx, game.balls[0].vy) > speedBefore);
 });
 
 test("Breakout versus lets either ball collide with either paddle", () => {
@@ -434,6 +460,12 @@ test("Splat settings apply configurable column spacing", () => {
   game.reset();
   assert.equal(game.model.columns[1].x - game.model.columns[0].x, 200);
   assert.equal(game.model.columnSpacing, 200);
+});
+
+test("Splat progressively narrows generated gaps", () => {
+  const game = new SplatModel();
+  game.reset();
+  assert.ok(game.columns.at(-1).gapHeight < game.columns[0].gapHeight);
 });
 
 test("Splat keeps furthest columns through life loss and clears them on new game", () => {
@@ -1007,6 +1039,17 @@ test("Imitation controllers acknowledge each other across two pages", async () =
   } finally {
     globalThis.BroadcastChannel = OriginalBroadcastChannel;
   }
+});
+
+test("Imitation returns to matchmaking when a peer leaves", () => {
+  const game = new ImitationModel();
+  game.setSide("human");
+  game.reset();
+  game.peerId = "peer";
+  game.phase = "connected";
+  game.receive({ type: "bye", from: "peer" });
+  assert.equal(game.peerId, null);
+  assert.equal(game.phase, "searching");
 });
 
 test("Imitation exposes five provider-neutral modes", () => {

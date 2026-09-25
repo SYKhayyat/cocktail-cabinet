@@ -11,6 +11,7 @@ const GRAVITY = 220;
 const DRIFT_SPEED = 260;
 const BOUNCE_DISTANCE = 18;
 const COMPUTER_MISTAKE_CHANCE = 0.002;
+const RACE_COMPUTER_MISTAKE_CHANCE = 0.02;
 
 export class SplatModel {
   constructor() {
@@ -64,7 +65,8 @@ export class SplatModel {
     else {
       for (let index = 0; index < COLUMN_COUNT; index += 1) {
         const gapY = 150 + ((index * 83 + 47) % 230);
-        this.columns.push({ x: 190 + index * this.columnSpacing, y: 0, width: COLUMN_WIDTH, height: 560, gapY, gapHeight: GAP_HEIGHT, passed: false });
+        const gapHeight = Math.max(76, GAP_HEIGHT - Math.floor(index / 10) * 5);
+        this.columns.push({ x: 190 + index * this.columnSpacing, y: 0, width: COLUMN_WIDTH, height: 560, gapY, gapHeight, passed: false });
       }
     }
     this.nextColumn = this.columns[0] || null;
@@ -181,7 +183,7 @@ export class SplatModel {
           this.furthestColumns = Math.max(this.furthestColumns, this.score);
         }
         this.nextColumn = this.columns.find((candidate) => this.side === "race" ? !player.passedColumns.has(candidate) : !candidate.passed) || null;
-        if (!human) this.computerMistake = Math.random() < (this.side === "race" ? 0.08 : COMPUTER_MISTAKE_CHANCE);
+        if (!human) this.computerMistake = Math.random() < (this.side === "race" ? RACE_COMPUTER_MISTAKE_CHANCE : COMPUTER_MISTAKE_CHANCE);
         this.aiClock = 0;
       }
     }

@@ -11,7 +11,13 @@ export class ImitationController {
     this.model.reset(keepScore);
     if (this.model.side === "human" || this.model.side === "guess" || this.model.side === "provide") this.connectChannel();
   }
-  closeChannel() { clearInterval(this.announceTimer); this.announceTimer = null; this.channel?.close(); this.channel = null; }
+  closeChannel() {
+    clearInterval(this.announceTimer);
+    this.announceTimer = null;
+    if (this.channel && this.model.peerId) this.channel.postMessage({ type: "bye", from: this.model.matchId, to: this.model.peerId });
+    this.channel?.close();
+    this.channel = null;
+  }
   connectChannel() {
     if (typeof BroadcastChannel === "undefined") {
       this.model.addMessage("System", "This browser does not support tab or window chat.");
@@ -21,7 +27,7 @@ export class ImitationController {
     this.channel = new BroadcastChannel(CHANNEL_NAME);
     this.channel.onmessage = (event) => {
       this.model.receive(event.data);
-      if (event.data?.type === "hello" && event.data.from !== this.model.matchId) this.channel.postMessage({ type: "hello-ack", from: this.model.matchId, mode: this.model.side });
+      if (event.data?.type === "hello" && event.data.from !== this.model.matchId) this.channel.postMessage({ type: "hello-ack", from: this.model.matchId, to: event.data.from, mode: this.model.side });
       if (this.model.peerId) this.announceTimer && clearInterval(this.announceTimer);
     };
     const announce = () => {

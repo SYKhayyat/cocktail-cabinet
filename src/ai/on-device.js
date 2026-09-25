@@ -13,15 +13,20 @@ export function localModelSupport() {
 let enginePromise = null;
 
 export function hasCachedModel() {
-  try { return localStorage.getItem(MODEL_CACHE_KEY) === "ready"; } catch { return false; }
+  try {
+    const value = localStorage.getItem(MODEL_CACHE_KEY);
+    if (value === "ready") return true;
+    const record = JSON.parse(value || "null");
+    return record?.modelId === WEBGPU_MODEL_ID || record?.modelId === WASM_MODEL_ID;
+  } catch { return false; }
 }
 
 export async function requestPersistentStorage() {
   try { await navigator.storage?.persist?.(); } catch { }
 }
 
-function markModelReady() {
-  try { localStorage.setItem(MODEL_CACHE_KEY, "ready"); } catch { }
+function markModelReady(modelId, device) {
+  try { localStorage.setItem(MODEL_CACHE_KEY, JSON.stringify({ modelId, device, at: Date.now() })); } catch { }
 }
 
 async function fetchJson(url, options = {}, milliseconds = 10000) {
@@ -149,7 +154,7 @@ function loadModelWorker(device, onProgress) {
       }
       if (message.type === "ready") {
         ready = true;
-        markModelReady();
+         markModelReady(message.device === "webgpu" ? WEBGPU_MODEL_ID : WASM_MODEL_ID, device);
         resolve({ device, chat: (requestPayload) => request({ ...requestPayload, type: "generate" }) });
       }
       if (message.type === "response") {

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
+    "test:browser": "node tests/browser-smoke.mjs",
     "check": "node --check src/main.js && node --check src/engine.js"
   }
 }

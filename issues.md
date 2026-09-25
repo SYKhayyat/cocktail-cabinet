@@ -416,3 +416,44 @@ The next likely harmful change is adding cross-device multiplayer directly on to
 **Do not build yet:** a universal game engine, framework, backend, generic physics system, sprite framework, or cross-device transport before the requirements and peer lifecycle are settled.
 
 The prior balance/CDP findings remain valid and actionable. Lamdan adds the larger point: the project’s hardest problems are now boundary and truthfulness problems, not the existence of the cabinet itself.
+
+## Remediation pass after the audit
+
+**Date:** 2026-09-25
+
+### Completed
+
+- Changed the four misleading selectors to honest solo labels:
+  - Breakout bottom is now “Solo — keep the ball alive.”
+  - Splat climber is now “Solo — steer the ball.”
+  - Asteroids ship is now “Solo — fly the ship.”
+  - Starfall runner is now “Solo — guide the runner.”
+- Reduced the Splat race forced-mistake chance from 8% to 2% per passed column. The isolated mirrored-AI simulation now completed 72/200 full routes, with 128 failures and an average of 19.6 columns before failure. This is still difficult, but no longer nearly deterministic.
+- Added progressive Breakout ball speed. Every 10 score points multiplies ball velocity by 1.045, capped at eight difficulty increases. The increase applies to normal, setup, and versus play using the relevant score.
+- Weakened Breakout versus AI. The computer now has a 0.14–0.24 second reaction delay, a 65% chance of bounded target error, and moves at 360 px/s instead of predicting perfectly at 480 px/s.
+- Added progressive Splat gap narrowing. Generated gaps start at 112 pixels and shrink by 5 pixels every ten columns, with a 76-pixel floor.
+- Added Imitation peer-leave handling with a `bye` message and return to matchmaking.
+- Made Imitation state rendering event-driven so a background or throttled tab updates its status and local chat immediately when a peer event or local send occurs.
+- Added model download progress text with loaded/total byte counts when the worker reports it.
+- Stored the resolved model ID and device in the local AI cache record instead of storing only a bare `ready` flag.
+- Deleted the unused `src/ai/worker.js` WebLLM spike.
+- Added `tests/browser-smoke.mjs` and `npm run test:browser`. It checks cabinet boot, all seven cards, all side selectors, two real Imitation targets, connection state, and local/remote message rendering through CDP.
+- Added model tests for Breakout reaction/difficulty, Splat gap narrowing, and Imitation peer departure.
+
+### Verification
+
+- `npm test`: **77 passed, 0 failed**.
+- `npm run check`: passed.
+- Syntax checks passed for the changed model, AI, Imitation, and browser-test modules.
+- `npm run test:browser`: passed against Chromium CDP.
+- Splat race isolated simulation: 72 full-route completions and 128 failures across 200 mirrored-AI runs.
+- Breakout and Splat changes have direct regression tests.
+
+### Remaining blockers
+
+1. **True separate-browser Imitation is still not implemented.** The smallest static-only solution is manual WebRTC offer/answer signaling: one browser creates an invite, the other pastes it and creates an answer, then the first pastes the answer back. This avoids a server but adds a clunky setup step. A normal WebRTC experience requires a signaling service, which conflicts with the strict no-server requirement.
+2. **The four solo modes are now honestly labeled but are still not versus modes.** Implementing actual opponents would satisfy the assignment more fully than changing the labels.
+3. **The literal Claude requirement remains unresolved.** The current browser-local alternatives are Chrome built-in AI, Ollama, and Transformers.js with Llama 3.2. The project should not claim literal Claude support without an approved browser-safe Claude runtime.
+4. **AI generation timeout recovery is not complete.** Progress reporting and cache metadata are fixed, but a timed-out worker can still continue an in-flight generation. Full recovery requires abort/terminate support and a fresh worker.
+5. **The custom domain remains an external deployment task.** It was intentionally not changed in this pass.
+6. **Canvas and Slack submission actions remain external tasks.** They were intentionally not fabricated or claimed as complete.

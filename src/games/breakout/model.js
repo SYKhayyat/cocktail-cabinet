@@ -10,6 +10,13 @@ const COMPUTER_MISTAKE_CHANCE = 0.3;
 const COMPUTER_MISTAKE_DELAY_MIN = 0.3;
 const COMPUTER_MISTAKE_DELAY_MAX = 0.5;
 const COMPUTER_SPEED = 600;
+const COMPUTER_VERSUS_REACTION_MIN = 0.14;
+const COMPUTER_VERSUS_REACTION_MAX = 0.24;
+const COMPUTER_VERSUS_ERROR_CHANCE = 0.65;
+const COMPUTER_VERSUS_ERROR_RANGE = 90;
+const BREAKOUT_DIFFICULTY_STEP = 10;
+const BREAKOUT_DIFFICULTY_FACTOR = 1.045;
+const BREAKOUT_MAX_DIFFICULTY_LEVEL = 8;
 
 export class BreakoutModel {
   constructor() {
@@ -51,6 +58,10 @@ export class BreakoutModel {
     this.computerReaction = 0.08;
     this.computerLastVy = 0;
     this.computerTargetError = 0;
+    this.computerVersusReaction = 0;
+    this.computerVersusTarget = null;
+    this.computerVersusError = 0;
+    this.difficultyLevel = 0;
     this.dragIndex = null;
     this.dragOffset = { x: 0, y: 0 };
     this.pressStart = { x: 0, y: 0 };
@@ -78,6 +89,9 @@ export class BreakoutModel {
     this.computerReaction = 0.08;
     this.computerLastVy = 0;
     this.computerTargetError = 0;
+    this.computerVersusReaction = 0;
+    this.computerVersusTarget = null;
+    this.computerVersusError = 0;
     this.dragIndex = null;
     this.won = false;
   }
@@ -112,11 +126,36 @@ export class BreakoutModel {
       .map((ball) => ({ ball, timeToPaddle: (ball.y - (this.computer.y + this.computer.height)) / -ball.vy }))
       .sort((left, right) => left.timeToPaddle - right.timeToPaddle);
     const incoming = incomingBalls[0];
-    if (incoming) {
-      const targetX = predictBallX(incoming.ball, incoming.timeToPaddle);
-      this.computer.targetX = clamp(targetX - this.computer.width / 2, 8, 792 - this.computer.width);
-      this.computer.x = moveToward(this.computer.x, this.computer.targetX, 480 * dt);
+    if (!incoming) {
+      this.computerVersusTarget = null;
+      this.computerVersusReaction = 0;
+      this.computer.targetX = this.computer.x;
+      this.computer.x = moveToward(this.computer.x, this.computer.targetX, 360 * dt);
+      return;
     }
+    if (this.computerVersusTarget !== incoming.ball) {
+      this.computerVersusTarget = incoming.ball;
+      this.computerVersusReaction = COMPUTER_VERSUS_REACTION_MIN + Math.random() * (COMPUTER_VERSUS_REACTION_MAX - COMPUTER_VERSUS_REACTION_MIN);
+      const error = (Math.random() - 0.5) * COMPUTER_VERSUS_ERROR_RANGE;
+      this.computerVersusError = Math.random() < COMPUTER_VERSUS_ERROR_CHANCE ? error : error * 0.25;
+    }
+    this.computerVersusReaction = Math.max(0, this.computerVersusReaction - dt);
+    if (this.computerVersusReaction <= 0) {
+      const targetX = predictBallX(incoming.ball, incoming.timeToPaddle);
+      this.computer.targetX = clamp(targetX - this.computer.width / 2 + this.computerVersusError, 8, 792 - this.computer.width);
+    }
+    this.computer.x = moveToward(this.computer.x, this.computer.targetX, 360 * dt);
+  }
+  difficultyScore() { return this.side === "versus" ? Math.max(this.scores.human, this.scores.computer) : this.score; }
+  applyDifficulty() {
+    const level = Math.min(BREAKOUT_MAX_DIFFICULTY_LEVEL, Math.floor(this.difficultyScore() / BREAKOUT_DIFFICULTY_STEP));
+    if (level <= this.difficultyLevel) return;
+    const factor = Math.pow(BREAKOUT_DIFFICULTY_FACTOR, level - this.difficultyLevel);
+    for (const ball of this.balls) {
+      ball.vx *= factor;
+      ball.vy *= factor;
+    }
+    this.difficultyLevel = level;
   }
   paddlesForBall() { return this.side === "versus" ? [this.human, this.computer] : [this.activePaddle()]; }
   moveHuman(dt, input) {
@@ -192,6 +231,7 @@ export class BreakoutModel {
     this.saveLayout();
   }
   update(dt, input) {
+    this.applyDifficulty();
     this.updateBlocks(input);
     this.moveHuman(dt, input);
     this.specialClock += dt;
