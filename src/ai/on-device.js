@@ -1,7 +1,7 @@
 const WEBGPU_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-q4f16";
 const WASM_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-ONNX";
 const OLLAMA_MODEL = "llama3.2:1b";
-const OLLAMA_BASE_URL = "http://localhost:11434";
+const OLLAMA_BASE_URLS = ["http://localhost:11435", "http://localhost:11434"];
 const MODEL_CACHE_KEY = "cocktail-cabinet-local-ai-ready-v5";
 
 export function localModelSupport() {
@@ -37,21 +37,26 @@ async function fetchJson(url, options = {}, milliseconds = 1500) {
 }
 
 async function loadOllamaModel(onProgress) {
-  const tags = await fetchJson(`${OLLAMA_BASE_URL}/api/tags`);
-  const installed = (tags.models || []).some((entry) => entry.name === OLLAMA_MODEL || entry.name === `${OLLAMA_MODEL}:latest`);
-  if (!installed) throw new Error(`${OLLAMA_MODEL} is not installed in Ollama.`);
-  onProgress?.({ device: "ollama", progress: 1, text: "Connected to Ollama." });
-  return {
-    device: "ollama",
-    chat: async ({ messages, temperature, max_tokens }) => {
-      const data = await fetchJson(`${OLLAMA_BASE_URL}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: OLLAMA_MODEL, messages, stream: false, options: { temperature, num_predict: max_tokens } }),
-      }, 120000);
-      return { choices: [{ message: { content: data.message?.content || "" } }] };
-    },
-  };
+  for (const baseUrl of OLLAMA_BASE_URLS) {
+    try {
+      const tags = await fetchJson(`${baseUrl}/api/tags`);
+      const installed = (tags.models || []).some((entry) => entry.name === OLLAMA_MODEL || entry.name === `${OLLAMA_MODEL}:latest`);
+      if (!installed) continue;
+      onProgress?.({ device: "ollama", progress: 1, text: "Connected to Ollama." });
+      return {
+        device: "ollama",
+        chat: async ({ messages, temperature, max_tokens }) => {
+          const data = await fetchJson(`${baseUrl}/api/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model: OLLAMA_MODEL, messages, stream: false, options: { temperature, num_predict: max_tokens } }),
+          }, 120000);
+          return { choices: [{ message: { content: data.message?.content || "" } }] };
+        },
+      };
+    } catch { }
+  }
+  throw new Error("Ollama is unavailable or CORS is not configured.");
 }
 
 export function loadLocalModel(onProgress) {
