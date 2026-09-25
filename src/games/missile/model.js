@@ -124,11 +124,6 @@ export class MissileModel {
   }
   updateAttacker(dt, input) {
     if (input.attack) this.launchPlayerEnemy(input.attack);
-    this.launchClock -= dt;
-    if (this.launchClock <= 0) {
-      this.launchEnemy(this.closestBattery(40 + Math.random() * 720));
-      this.launchClock = Math.max(0.7, 0.9 - this.score * 0.004);
-    }
     this.interceptorClock -= dt;
     if (this.interceptorClock <= 0) {
       if (Math.random() < 0.55) this.launchMachineInterceptor();

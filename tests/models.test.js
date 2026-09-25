@@ -742,6 +742,13 @@ test("Asteroids non-versus modes do not expose computer score or lives", () => {
   assert.equal(game.playerLives, null);
 });
 
+test("Asteroids rocks mode starts with only user-supplied rocks", () => {
+  const game = new AsteroidsModel();
+  game.setSide("rocks");
+  game.reset();
+  assert.equal(game.asteroids.length, 0);
+});
+
 test("Asteroids drag trajectory persists and click placement is randomized", () => {
   const game = new AsteroidsModel();
   game.setSide("rocks");
@@ -818,6 +825,14 @@ test("Missile Command misses continue off-screen without a fireball", () => {
   const missedX = game.interceptors[0].x;
   game.update(1, { aim: null, launch: false });
   assert.notEqual(game.interceptors[0].x, missedX);
+});
+
+test("Missile Command attacker only launches user missiles", () => {
+  const game = new MissileModel();
+  game.setSide("attacker");
+  game.reset();
+  game.update(1, { attack: null });
+  assert.equal(game.enemyMissiles.length, 0);
 });
 
 test("Missile Command attacker missiles can destroy a battery", () => {

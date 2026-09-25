@@ -34,7 +34,7 @@ export class AsteroidsModel {
     this.computerMistakeClock = 5 + Math.random() * 4;
     this.shipCollisionCooldown = 0;
     this.lastLifeLossOwner = null;
-    for (let index = 0; index < 3; index += 1) this.spawnAsteroid();
+    if (this.side !== "rocks") for (let index = 0; index < 3; index += 1) this.spawnAsteroid();
   }
   newShip(x, y) { return { x, y, angle: -Math.PI / 2, speed: 0, radius: 13, aiTarget: null, aiReaction: 0, aiError: 0, aiAim: 0 }; }
   spawnAsteroid() {
@@ -145,7 +145,10 @@ export class AsteroidsModel {
       this.fire("computer", computerShip, 0, computerShip.angle);
       this.computerShotClock = this.side === "versus" ? 1.1 + Math.random() * 0.3 : 1.3 + Math.random() * 0.3;
     }
-    if (this.side === "rocks") this.updateRockPlacement({ ...input, dt });
+    if (this.side === "rocks") {
+      if (input.spawnAsteroid && this.asteroids.length < 8) this.spawnAsteroidAt(input.spawnAsteroid.x, input.spawnAsteroid.y, this.ship);
+      this.updateRockPlacement({ ...input, dt });
+    }
     if (this.side === "ship" || this.side === "versus") { this.spawnClock -= dt; if (this.spawnClock <= 0 && this.asteroids.length < 7) { this.spawnAsteroid(); this.spawnClock = Math.max(0.25, 1.3 - this.score * 0.012); } }
     for (const asteroid of this.asteroids) { asteroid.x = (asteroid.x + asteroid.vx * this.asteroidSpeed * dt + 800) % 800; asteroid.y = (asteroid.y + asteroid.vy * this.asteroidSpeed * dt + 560) % 560; asteroid.rotation += asteroid.spin * dt; }
     for (const bullet of this.bullets) { bullet.x += bullet.vx * dt; bullet.y += bullet.vy * dt; bullet.life -= dt; }
