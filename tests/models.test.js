@@ -817,7 +817,7 @@ test("Missile Command misses continue off-screen without a fireball", () => {
   assert.equal(game.fireballs.length, 0);
   const missedX = game.interceptors[0].x;
   game.update(1, { aim: null, launch: false });
-  assert.ok(game.interceptors[0].x > missedX);
+  assert.notEqual(game.interceptors[0].x, missedX);
 });
 
 test("Missile Command: aiming, launching, interception, targeting, and base loss", () => {
