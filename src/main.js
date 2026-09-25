@@ -41,6 +41,7 @@ const splatAddGap = document.querySelector("#splatAddGap");
 const chatPanel = document.querySelector("#chatPanel");
 const chatForm = document.querySelector("#chatForm");
 const chatInput = document.querySelector("#chatInput");
+const chatSendButton = chatForm.querySelector('button[type="submit"]');
 const chatMessages = document.querySelector("#chatMessages");
 const guessControls = document.querySelector("#guessControls");
 const guessButtons = [...document.querySelectorAll("[data-guess]")];
@@ -85,7 +86,10 @@ function renderChat(game) {
 }
 
 function renderGuessControls(state) {
-  guessControls.hidden = state.side !== "Guess AI or human";
+  const isGuess = state.side === "Guess AI or human";
+  guessControls.hidden = !isGuess;
+  chatInput.hidden = isGuess;
+  chatSendButton.hidden = isGuess;
   const stats = state.guessStats || { right: 0, wrong: 0 };
   guessStats.textContent = `Right ${stats.right} · Wrong ${stats.wrong}`;
   for (const button of guessButtons) {
