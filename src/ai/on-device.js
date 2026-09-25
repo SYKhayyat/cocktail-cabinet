@@ -69,7 +69,7 @@ function loadWasmModel(onProgress) {
       }
       if (message.type === "ready") {
         ready = true;
-        resolve({ device: "wasm", chat: request });
+        resolve({ device: "wasm", chat: (requestPayload) => request({ ...requestPayload, type: "generate" }) });
       }
       if (message.type === "response") {
         const entry = pending.get(message.id);
