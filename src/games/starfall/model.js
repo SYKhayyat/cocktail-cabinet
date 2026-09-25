@@ -119,7 +119,7 @@ export class StarfallModel {
     const targetIsSafe = this.aiTargetX === null || this.stars.every((star) => Math.abs(this.aiTargetX - star.x) > 45);
     if (!targetGem || !targetIsSafe) {
       targetGem = rankedGems[0] || null;
-      this.aiTargetLock = 0.9;
+      this.aiTargetLock = 0.45;
     } else if (!this.aiTargetLock) {
       const currentCost = gemCost(targetGem);
       const betterGems = rankedGems.filter((gem) => gem !== targetGem && gemCost(gem) < currentCost - 25);
@@ -127,7 +127,7 @@ export class StarfallModel {
       if (betterGems[0] && roll < 0.5) targetGem = betterGems[0];
       else if (betterGems[1] && roll < 0.8) targetGem = betterGems[1];
       else if (betterGems[2] && roll < 0.9) targetGem = betterGems[2];
-      this.aiTargetLock = 0.9;
+      this.aiTargetLock = 0.45;
     }
     const candidates = [20, 160, 300, 440, 580, 720, 780];
     const safe = candidates.filter((candidate) => this.stars.every((star) => Math.abs(candidate - star.x) > 45));
