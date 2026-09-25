@@ -30,9 +30,14 @@ export class StarfallModel {
     }
     for (const star of this.stars) star.y += star.vy * dt;
     for (const gem of this.gems) {
+      if (gem.collected) {
+        gem.respawn = (gem.respawn || 0) - dt;
+        if (gem.respawn <= 0) { gem.collected = false; gem.x = 20 + Math.random() * 760; gem.y = -20; }
+        continue;
+      }
       gem.y += (gem.vy || 50) * dt;
       if (gem.y > 580) { gem.x = 20 + Math.random() * 760; gem.y = -20; }
-      if (!gem.collected && circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, gem.x, gem.y, 10)) { gem.collected = false; this.score += 50; gem.x = 20 + Math.random() * 760; gem.y = -20; }
+      if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, gem.x, gem.y, 10)) { gem.collected = true; gem.respawn = 0.7; this.score += 50; }
     }
     for (const star of this.stars) if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, star.x, star.y, star.radius)) { star.dead = true; this.lifeLost = true; }
     this.stars = this.stars.filter((star) => !star.dead && star.y < 560);
