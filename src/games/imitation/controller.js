@@ -1,7 +1,11 @@
 export const CHANNEL_NAME = "cocktail-cabinet-imitation-v3";
 
 export class ImitationController {
-  constructor(model) { this.model = model; }
+  constructor(model) {
+    this.model = model;
+    model.onAiChosen = () => this.channel?.postMessage({ type: "ai-writing", from: this.model.matchId });
+    model.onRoundStart = () => this.channel?.postMessage({ type: "round-start", from: this.model.matchId });
+  }
   reset(keepScore = false) {
     this.closeChannel();
     this.model.reset(keepScore);
@@ -30,9 +34,11 @@ export class ImitationController {
   sendMessage(text) {
     const clean = this.model.sendMessage(text);
     if (clean && this.model.side === "human") this.channel?.postMessage({ type: "chat", from: this.model.matchId, text: clean });
-    if (clean && this.model.side === "guess" && this.model.peerId && !["start", "new", "ai", "human"].includes(clean.toLowerCase())) this.channel?.postMessage({ type: "guess-sample", from: this.model.matchId, text: clean });
+    if (clean && this.model.side === "guess" && this.model.peerId) this.channel?.postMessage({ type: "guess-prompt", from: this.model.matchId, text: clean });
     if (clean && this.model.side === "provide") {
-      if (this.model.peerId) this.channel?.postMessage({ type: "guess-sample", from: this.model.matchId, text: clean });
+      if (this.model.aiLocked) this.model.addMessage("System", "AI is writing this round, not you. Wait for the next round.");
+      else if (this.model.peerId && this.model.phase === "provide-ready") this.channel?.postMessage({ type: "guess-response", from: this.model.matchId, text: clean });
+      else if (this.model.peerId) this.model.addMessage("System", "Wait for a prompt before writing a response.");
       else this.model.addMessage("System", "No Guess tab is connected. Open Guess AI or human in another tab first.");
     }
   }

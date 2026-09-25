@@ -21,6 +21,7 @@ export class ImitationGame {
   sendMessage(text) { this.controller.sendMessage(text); }
   downloadModel() { return this.model.downloadModel(); }
   restartGuess() { return this.model.restartGuess(); }
+  chooseGuess(value) { return this.model.chooseGuess(value); }
   update(dt) { this.controller.update(dt); }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }

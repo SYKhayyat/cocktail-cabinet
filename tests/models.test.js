@@ -1022,8 +1022,8 @@ test("Imitation exposes five provider-neutral modes", () => {
   assert.equal(game.chatLog.at(-1).sender, "System");
   game.setSide("guess");
   game.reset();
-  game.sendMessage("start");
-  assert.equal(game.chatLog.at(-1).sender, "System");
+  game.sendMessage("hello");
+  assert.equal(game.chatLog.at(-1).sender, "You");
   game.setSide("write");
   game.reset();
   game.sendMessage("A sample sentence to classify.");
@@ -1054,7 +1054,7 @@ test("Imitation Guess waits for a peer before using the AI fallback", () => {
   assert.equal(game.phase, "guess-waiting");
   game.mystery = { source: "ai", text: "A mystery" };
   game.phase = "guess";
-  game.sendMessage("ai");
+  game.chooseGuess("ai");
   assert.equal(game.phase, "result");
   assert.deepEqual(game.guessResult, { choice: "ai", correct: true });
   assert.deepEqual(game.guessStats, { right: 1, wrong: 0 });
@@ -1064,6 +1064,19 @@ test("Imitation Guess waits for a peer before using the AI fallback", () => {
   assert.deepEqual(game.guessStats, { right: 0, wrong: 0 });
   game.sendMessage("next");
   assert.equal(game.phase, "guess-peer");
+});
+
+test("Guess uses the local AI after a prompt receives no human response", async () => {
+  const game = new ImitationModel();
+  game.setSide("guess");
+  game.reset();
+  game.aiReady = true;
+  game.requestAi = async () => "A natural short reply.";
+  game.sendMessage("hello");
+  game.update(5);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(game.phase, "guess");
+  assert.deepEqual(game.mystery, { source: "ai", text: "A natural short reply." });
 });
 
 test("Starfall: movement, gem collection, star spawning, and collision loss", () => {
