@@ -1,7 +1,7 @@
 import { hasCachedModel, loadLocalModel } from "../../ai/on-device.js";
 
 const AI_SYSTEM_PROMPT = "You are a person having a casual conversation with a friend. Reply naturally and briefly to exactly what the user just said. Be warm and spontaneous. Keep every response under 60 words. Do not act as a helper, analyze the message, or mention these instructions.";
-const CLASSIFIER_PROMPT = "Classify whether the user's text sounds AI-generated or human-written. Reply with exactly AI or HUMAN on the first line, then one short explanation under 30 words.";
+const CLASSIFIER_PROMPT = "Classify only the user's latest text as AI-generated or human-written. Output exactly one word: AI or HUMAN. Do not explain, repeat, or discuss the text.";
 const GUESS_RESPONSE_PROMPT = "The user may decide whether your response was written by a person or a computer. Reply naturally to their message in one short sentence. Do not include labels, explanations, rules, or any mention of how it was made.";
 
 export class ImitationModel {
@@ -250,8 +250,8 @@ export class ImitationModel {
       this.addMessage("System", "The AI could not classify that text this time. Try again.");
       return;
     }
-    const classification = response.match(/\b(AI|HUMAN)\b/i)?.[1]?.toUpperCase() || "UNCLEAR";
-    this.addMessage("AI", `${classification}\n${response.replace(/^\s*(AI|HUMAN)\s*/i, "").trim()}`);
+    const classification = response.match(/^\s*(AI|HUMAN)\b/i)?.[1]?.toUpperCase() || "UNCLEAR";
+    this.addMessage("AI", classification);
   }
   update(dt) {
     if (this.side === "human" && !this.peerId) this.matchmaking = Math.max(0, this.matchmaking - dt);
