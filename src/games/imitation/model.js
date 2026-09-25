@@ -100,7 +100,7 @@ export class ImitationModel {
       this.matchmaking = 0;
       if (this.side === "guess") {
         this.phase = "guess-peer";
-        this.addMessage("System", "Another window joined. They can provide the mystery message.");
+        this.addMessage("System", "A new round is ready.");
       } else if (this.side === "provide") this.addMessage("System", "A Guess tab is connected. Send a message for it to guess.");
       else this.addMessage("System", "Another tab or window found. You can chat now.");
     }
