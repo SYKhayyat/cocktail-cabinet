@@ -1187,6 +1187,24 @@ test("Starfall: movement, gem collection, star spawning, and collision loss", ()
   }
   assert.ok(twoGemComputer.runner.x < 400);
   assert.ok(targetChanges <= 1);
+  const weightedComputer = new StarfallModel();
+  weightedComputer.setSide("stars");
+  weightedComputer.reset();
+  weightedComputer.gems = [{ x: 150, y: 400, vx: 0, vy: 0, collected: false }, { x: 400, y: 400, vx: 0, vy: 0, collected: false }, { x: 700, y: 400, vx: 0, vy: 0, collected: false }];
+  weightedComputer.aiTargetGem = weightedComputer.gems[2];
+  weightedComputer.aiTargetX = 720;
+  weightedComputer.aiTargetLock = 0;
+  const originalRandom = Math.random;
+  try {
+    Math.random = () => 0;
+    weightedComputer.update(0.016, input());
+    assert.equal(weightedComputer.aiTargetGem, weightedComputer.gems[0]);
+    Math.random = () => 0.99;
+    for (let index = 0; index < 10; index += 1) weightedComputer.update(0.016, input());
+    assert.equal(weightedComputer.aiTargetGem, weightedComputer.gems[0]);
+  } finally {
+    Math.random = originalRandom;
+  }
   stableComputer.stars = [{ x: 440, y: 20, vy: 0, radius: 10 }];
   stableComputer.update(0.016, input());
   const stableTarget = stableComputer.aiTargetX;

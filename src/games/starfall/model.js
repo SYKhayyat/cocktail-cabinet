@@ -37,7 +37,7 @@ export class StarfallModel {
     }
   }
   reset(keepScore = false) {
-    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.aiTargetGem = null; this.gemHoldTime = 0; this.gemSpawnClock = 0; this.gemSpawnCooldown = 0;
+    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.aiTargetGem = null; this.aiTargetLock = 0; this.gemHoldTime = 0; this.gemSpawnClock = 0; this.gemSpawnCooldown = 0;
     if (this.side === "runner") for (let index = 0; index < 3; index += 1) this.gems.push(this.newGem(undefined, -20 - index * 80));
   }
   update(dt, input) {
@@ -111,12 +111,24 @@ export class StarfallModel {
   }
   aiRunner(dt) {
     const activeGems = this.gems.filter((gem) => !gem.collected && gem.y <= this.runner.y + 50);
+    this.aiTargetLock = Math.max(0, (this.aiTargetLock || 0) - dt);
     if (!this.stars.length && !activeGems.length) return;
-    const targetGem = activeGems.find((gem) => gem === this.aiTargetGem) || activeGems.reduce((nearest, gem) => {
-      const cost = Math.abs(gem.x - this.runner.x) + Math.abs(this.runner.y - gem.y) * 0.15;
-      const nearestCost = Math.abs(nearest.x - this.runner.x) + Math.abs(this.runner.y - nearest.y) * 0.15;
-      return cost < nearestCost ? gem : nearest;
-    }, activeGems[0]);
+    const gemCost = (gem) => Math.abs(gem.x - this.runner.x) + Math.abs(this.runner.y - gem.y) * 0.15;
+    const rankedGems = [...activeGems].sort((first, second) => gemCost(first) - gemCost(second));
+    let targetGem = rankedGems.find((gem) => gem === this.aiTargetGem);
+    const targetIsSafe = this.aiTargetX === null || this.stars.every((star) => Math.abs(this.aiTargetX - star.x) > 45);
+    if (!targetGem || !targetIsSafe) {
+      targetGem = rankedGems[0] || null;
+      this.aiTargetLock = 0.9;
+    } else if (!this.aiTargetLock) {
+      const currentCost = gemCost(targetGem);
+      const betterGems = rankedGems.filter((gem) => gem !== targetGem && gemCost(gem) < currentCost - 25);
+      const roll = Math.random();
+      if (betterGems[0] && roll < 0.5) targetGem = betterGems[0];
+      else if (betterGems[1] && roll < 0.8) targetGem = betterGems[1];
+      else if (betterGems[2] && roll < 0.9) targetGem = betterGems[2];
+      this.aiTargetLock = 0.9;
+    }
     const candidates = [20, 160, 300, 440, 580, 720, 780];
     const safe = candidates.filter((candidate) => this.stars.every((star) => Math.abs(candidate - star.x) > 45));
     const pool = safe.length ? safe : [this.runner.x < 400 ? 20 : 780];
@@ -124,10 +136,9 @@ export class StarfallModel {
       const distance = targetGem ? Math.abs(candidate - targetGem.x) : Math.abs(candidate - this.runner.x);
       return distance < best.distance ? { x: candidate, distance } : best;
     }, { x: pool[0], distance: Infinity });
-    const targetIsSafe = this.aiTargetX === null || this.stars.every((star) => Math.abs(this.aiTargetX - star.x) > 45);
-    if (!targetIsSafe || this.aiTargetX === null || this.aiTargetGem !== targetGem) {
+    if (this.aiTargetX === null || !targetIsSafe || this.aiTargetGem !== targetGem) {
       this.aiTargetX = target.x;
-      this.aiTargetGem = targetGem || null;
+      this.aiTargetGem = targetGem;
     }
     if (Math.abs(this.aiTargetX - this.runner.x) <= 4) this.runner.x = this.aiTargetX;
     else this.runner.x = clamp(this.runner.x + clamp(this.aiTargetX - this.runner.x, -1, 1) * 300 * dt, 20, 780);
