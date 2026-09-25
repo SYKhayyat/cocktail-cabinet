@@ -54,8 +54,8 @@ async function loadChromeModel(onProgress) {
   });
   return {
     device: "chrome",
-    chat: async ({ messages }) => {
-      const response = await session.prompt(messages);
+    chat: async ({ messages, format }) => {
+      const response = await session.prompt(messages, format ? { responseConstraint: format } : undefined);
       return { choices: [{ message: { content: response } }] };
     },
   };
@@ -71,12 +71,12 @@ async function loadOllamaModel(onProgress) {
       onProgress?.({ device: "ollama", progress: 1, text: "Connected to Ollama." });
       return {
         device: "ollama",
-        chat: async ({ messages, temperature, max_tokens }) => {
-          const data = await fetchJson(`${baseUrl}/api/chat`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ model: OLLAMA_MODEL, messages, stream: false, options: { temperature, num_predict: max_tokens } }),
-          }, 120000);
+    chat: async ({ messages, temperature, max_tokens, format, tools }) => {
+      const data = await fetchJson(`${baseUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: OLLAMA_MODEL, messages, stream: false, format, tools, options: { temperature, num_predict: max_tokens } }),
+      }, 120000);
           return { choices: [{ message: { content: data.message?.content || "" } }] };
         },
       };
