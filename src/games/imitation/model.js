@@ -14,6 +14,7 @@ export class ImitationModel {
     this.score = 0;
     this.chatLog = [];
     this.chatRevision = 0;
+    this.modelError = "";
   }
   sideLabel() { return this.side === "ai" ? "Chat with the AI companion" : this.side === "human" ? "Chat with another tab or window" : this.side === "guess" ? "Guess AI or human" : "Write text for AI to classify"; }
   setSide(side) { this.side = side; }
@@ -26,6 +27,7 @@ export class ImitationModel {
     this.aiClock = 0;
     this.aiReady = this.aiReady || false;
     this.aiUnavailable = false;
+    this.modelError = "";
     this.modelLoading = false;
     this.lastModelStatus = "";
     this.mystery = null;
@@ -40,11 +42,22 @@ export class ImitationModel {
       await loadLocalModel((report) => { this.lastModelStatus = report.text || report.status || "Downloading local AI"; });
       this.aiReady = true;
       this.aiUnavailable = false;
-    } catch {
+    } catch (error) {
       this.aiUnavailable = true;
+      this.modelError = error?.message || "The local AI model failed to load.";
+      console.error("[Imitation] Local AI model preparation failed:", error);
     } finally {
       this.modelLoading = false;
     }
+  }
+  async downloadModel() {
+    if (this.side === "human" || this.aiReady || this.modelLoading) return;
+    this.aiUnavailable = false;
+    this.modelError = "";
+    this.addMessage("System", "Starting the local AI model download…");
+    await this.prepareProvider();
+    if (this.aiReady) this.addMessage("System", "The AI model is ready.");
+    else this.addMessage("System", `The AI model could not be downloaded: ${this.modelError || "unknown error"}`);
   }
   receive(message) {
     if (!message || message.from === this.matchId) return;
@@ -107,8 +120,10 @@ export class ImitationModel {
       const wait = humanDelay(text, response) - (Date.now() - started);
       if (wait > 0) await waitFor(wait);
       return response;
-    } catch {
+    } catch (error) {
       this.aiUnavailable = true;
+      this.modelError = error?.message || "The local AI request failed.";
+      console.error("[Imitation] Local AI request failed:", error);
       return "";
     }
   }
@@ -181,7 +196,7 @@ export class ImitationModel {
       if (this.guessClock === 0) void this.handleGuess("start", true);
     }
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Downloading the AI model" : this.aiReady ? "AI companion ready" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.phase === "guess" ? "Guess AI or human" : this.modelLoading ? "Downloading the AI model" : "Generate a mystery message" : "Submit text for AI classification", chatRevision: this.chatRevision }; }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Downloading the AI model" : this.aiReady ? "AI companion ready" : this.modelError ? "The AI model needs attention" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.phase === "guess" ? "Guess AI or human" : this.modelLoading ? "Downloading the AI model" : "Generate a mystery message" : "Submit text for AI classification", chatRevision: this.chatRevision }; }
 }
 
 function humanDelay(prompt, response) {

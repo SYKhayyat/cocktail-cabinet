@@ -59,8 +59,11 @@ function loadWasmModel(onProgress) {
     worker.onmessage = (event) => {
       const message = event.data;
       if (message.type === "progress") onProgress?.({ ...message, device: "wasm" });
-      if (message.type === "error" && !ready) {
-        reject(new Error(message.error || "The local AI model failed to load."));
+      if (message.type === "error") {
+        const error = new Error(message.error || "The local AI model failed.");
+        for (const entry of pending.values()) entry.reject(error);
+        pending.clear();
+        if (!ready) reject(error);
         worker.terminate();
         return;
       }
@@ -77,7 +80,10 @@ function loadWasmModel(onProgress) {
       }
     };
     worker.onerror = (event) => {
-      if (!ready) reject(new Error(event.message || "The local AI worker failed."));
+      const error = new Error(event.message || "The local AI worker failed.");
+      for (const entry of pending.values()) entry.reject(error);
+      pending.clear();
+      if (!ready) reject(error);
     };
     worker.postMessage({ type: "load", modelId: WASM_MODEL_ID, device: "wasm" });
   });

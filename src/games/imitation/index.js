@@ -19,7 +19,7 @@ export class ImitationGame {
   setSide(side) { this.model.setSide(side); }
   reset(keepScore) { this.controller.reset(keepScore); }
   sendMessage(text) { this.controller.sendMessage(text); }
-  downloadModel() { return this.model.prepareProvider(); }
+  downloadModel() { return this.model.downloadModel(); }
   update(dt) { this.controller.update(dt); }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }
