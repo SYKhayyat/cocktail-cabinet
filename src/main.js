@@ -55,7 +55,7 @@ const sideOptions = {
   splat: [["climber", "You vs computer — steer the ball"], ["race", "You vs computer — two-ball race"], ["builder", "You vs computer — place columns"]],
   asteroids: [["ship", "You vs computer — fly the ship"], ["versus", "You vs computer — both ships"], ["rocks", "Computer vs you — send asteroids"]],
   missile: [["defender", "You vs computer — defend cities"], ["attacker", "Computer vs you — attack cities"]],
-  imitation: [["ai", "Chat with the local AI"], ["human", "Chat with a second tab"], ["guess", "Guess AI or human"], ["write", "Write text for AI to classify"]],
+  imitation: [["ai", "Chat with the local AI"], ["human", "Chat with another tab or window"], ["guess", "Guess AI or human"], ["write", "Write text for AI to classify"]],
   starfall: [["runner", "You vs computer — guide the runner"], ["stars", "Computer vs you — send stars"]]
 };
 

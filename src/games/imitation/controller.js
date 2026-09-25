@@ -1,4 +1,4 @@
-export const CHANNEL_NAME = "cocktail-cabinet-imitation-v2";
+export const CHANNEL_NAME = "cocktail-cabinet-imitation-v3";
 
 export class ImitationController {
   constructor(model) { this.model = model; }
@@ -10,7 +10,7 @@ export class ImitationController {
   closeChannel() { this.channel?.close(); this.channel = null; }
   connectChannel() {
     if (typeof BroadcastChannel === "undefined") {
-      this.model.addMessage("System", "This browser does not support two-tab chat.");
+      this.model.addMessage("System", "This browser does not support tab or window chat.");
       this.model.phase = "result";
       return;
     }

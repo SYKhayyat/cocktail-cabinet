@@ -11,7 +11,7 @@ export class ImitationModel {
     this.chatLog = [];
     this.chatRevision = 0;
   }
-  sideLabel() { return this.side === "ai" ? "Chat with the AI companion" : this.side === "human" ? "Chat with a second tab" : this.side === "guess" ? "Guess AI or human" : "Write text for AI to classify"; }
+  sideLabel() { return this.side === "ai" ? "Chat with the AI companion" : this.side === "human" ? "Chat with another tab or window" : this.side === "guess" ? "Guess AI or human" : "Write text for AI to classify"; }
   setSide(side) { this.side = side; }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;
@@ -23,7 +23,7 @@ export class ImitationModel {
     this.aiReady = false;
     this.aiUnavailable = false;
     this.lastModelStatus = "";
-    this.addMessage("System", this.side === "ai" ? "AI companion ready. Say hello when you are ready." : this.side === "human" ? "Looking for another tab…" : this.side === "guess" ? "Read the message, then decide whether it came from an AI or a human." : "Write a sample message for the AI to classify.");
+    this.addMessage("System", this.side === "ai" ? "AI companion ready. Say hello when you are ready." : this.side === "human" ? "Looking for another tab or window…" : this.side === "guess" ? "Read the message, then decide whether it came from an AI or a human." : "Write a sample message for the AI to classify.");
   }
   receive(message) {
     if (!message || message.from === this.matchId) return;
@@ -74,7 +74,7 @@ export class ImitationModel {
   update(dt) {
     if (this.side === "human" && !this.peerId) this.matchmaking = Math.max(0, this.matchmaking - dt);
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? "Local AI companion · provider-ready" : this.side === "human" ? this.peerId ? "Two tabs are connected" : "Open this page in a second tab to join" : this.side === "guess" ? "Guess whether a message came from AI or human" : "Submit text for AI classification", chatRevision: this.chatRevision }; }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? "Local AI companion · provider-ready" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? "Guess whether a message came from AI or human" : "Submit text for AI classification", chatRevision: this.chatRevision }; }
 }
 
 function wait(milliseconds) {

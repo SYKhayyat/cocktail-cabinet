@@ -959,6 +959,7 @@ test("Missile Command ends when all cities are lost without reserves", () => {
 test("Imitation: messages, peer handshake, score, trimming, and search countdown", () => {
   const game = new ImitationModel();
   game.setSide("human");
+  assert.match(game.sideLabel(), /tab or window/);
   game.reset();
   assert.equal(game.phase, "searching");
   assert.equal(game.chatLog[0].sender, "System");
