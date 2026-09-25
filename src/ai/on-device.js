@@ -1,7 +1,7 @@
 const WEBGPU_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-q4f16";
 const WASM_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-ONNX";
 const OLLAMA_MODEL = "llama3.2:1b";
-const OLLAMA_BASE_URLS = ["http://127.0.0.1:11435", "http://127.0.0.1:11434"];
+const OLLAMA_BASE_URLS = ["http://127.0.0.1:11435", "http://localhost:11435", "http://127.0.0.1:11434", "http://localhost:11434"];
 const MODEL_CACHE_KEY = "cocktail-cabinet-local-ai-ready-v5";
 
 export function localModelSupport() {
@@ -91,21 +91,28 @@ export function loadLocalModel(onProgress) {
       try {
         return await loadChromeModel(onProgress);
       } catch { }
+      let ollamaError = null;
       try {
         return await loadOllamaModel(onProgress);
-      } catch {
+      } catch (error) {
+        ollamaError = error;
         onProgress?.({ device: "browser", progress: 0, text: "Ollama is unavailable; using the browser model…" });
       }
-      const support = localModelSupport();
-      if (!support.ok) throw new Error(support.reason);
-      if (support.device === "webgpu") {
-        try {
-          const adapter = await navigator.gpu.requestAdapter();
-          if (adapter) return await loadModelWorker("webgpu", onProgress);
-        } catch { }
-        onProgress?.({ device: "wasm", progress: 0, text: "WebGPU is unavailable; using the local fallback…" });
+      try {
+        const support = localModelSupport();
+        if (!support.ok) throw new Error(support.reason);
+        if (support.device === "webgpu") {
+          try {
+            const adapter = await navigator.gpu.requestAdapter();
+            if (adapter) return await loadModelWorker("webgpu", onProgress);
+          } catch { }
+          onProgress?.({ device: "wasm", progress: 0, text: "WebGPU is unavailable; using the local fallback…" });
+        }
+        return await loadModelWorker("wasm", onProgress);
+      } catch (error) {
+        if (ollamaError) throw new Error(`Ollama unavailable: ${ollamaError.message}; browser fallback failed: ${error.message}`);
+        throw error;
       }
-      return loadModelWorker("wasm", onProgress);
     })().catch((error) => {
       enginePromise = null;
       throw error;
