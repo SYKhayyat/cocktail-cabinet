@@ -820,6 +820,30 @@ test("Missile Command misses continue off-screen without a fireball", () => {
   assert.notEqual(game.interceptors[0].x, missedX);
 });
 
+test("Missile Command attacker supports direct clicks and drag trajectories", () => {
+  const direct = new MissileModel();
+  direct.setSide("attacker");
+  direct.reset();
+  direct.update(0, { attack: { x: 70, y: 400, clicked: true } });
+  assert.equal(direct.enemyMissiles[0].targetObject, direct.cities[0]);
+  const dragged = new MissileModel();
+  dragged.setSide("attacker");
+  dragged.reset();
+  dragged.update(0, { attack: { x: 160, y: 180, released: true, dragDistance: 40, dragStartX: 120, dragStartY: 140, dragDeltaX: 40, dragDeltaY: 40 } });
+  assert.equal(dragged.enemyMissiles[0].freeFlight, true);
+  assert.ok(dragged.enemyMissiles[0].vx > 0);
+  assert.ok(dragged.enemyMissiles[0].vy > 0);
+});
+
+test("Missile Command computer interceptors expire at their target", () => {
+  const game = new MissileModel();
+  game.setSide("attacker");
+  game.reset();
+  game.interceptors = [{ x: 100, y: 100, targetX: 100, targetY: 100, speed: 245, machine: true }];
+  game.update(0, { attack: null });
+  assert.equal(game.interceptors.length, 0);
+});
+
 test("Missile Command: aiming, launching, interception, targeting, and base loss", () => {
   const game = new MissileModel();
   game.reset();
