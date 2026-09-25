@@ -1145,7 +1145,8 @@ test("Starfall: movement, gem collection, star spawning, and collision loss", ()
   droppedUserGem.setSide("stars");
   droppedUserGem.reset();
   droppedUserGem.update(0.016, { spawnGem: { x: 300 } });
-  for (let index = 0; index < 700; index += 1) droppedUserGem.update(0.016, input());
+  droppedUserGem.gems[0].vy = 100;
+  for (let index = 0; index < 400; index += 1) droppedUserGem.update(0.016, input());
   assert.equal(droppedUserGem.gems.length, 0);
   const angled = new StarfallModel();
   angled.setSide("stars");
