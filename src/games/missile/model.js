@@ -131,8 +131,8 @@ export class MissileModel {
     }
     this.interceptorClock -= dt;
     if (this.interceptorClock <= 0) {
-      this.launchMachineInterceptor();
-      this.interceptorClock = 0.4;
+      if (Math.random() < 0.55) this.launchMachineInterceptor();
+      this.interceptorClock = 0.55 + Math.random() * 0.35;
     }
     for (const missile of this.enemyMissiles) this.moveEnemy(missile, dt);
     for (const missile of this.interceptors) if (this.moveInterceptor(missile, dt)) missile.dead = true;
