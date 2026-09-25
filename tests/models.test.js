@@ -797,6 +797,15 @@ test("Asteroids versus gives both pilots scores and lives", () => {
   assert.equal(game.won, true);
 });
 
+test("Missile Command varies enemy targets across a salvo", () => {
+  const game = new MissileModel();
+  game.reset();
+  for (let index = 0; index < 10; index += 1) game.launchEnemy();
+  const targets = game.enemyMissiles.filter((missile) => !missile.aircraft).map((missile) => missile.targetX);
+  assert.ok(targets.length >= 5);
+  assert.ok(new Set(targets).size > 1);
+});
+
 test("Missile Command: aiming, launching, interception, targeting, and base loss", () => {
   const game = new MissileModel();
   game.reset();

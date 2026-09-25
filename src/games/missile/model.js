@@ -29,6 +29,7 @@ export class MissileModel {
     this.reserveCities = 0;
     this.nextCityBonus = 1000;
     this.enemyMissiles = [];
+    this.lastEnemyTarget = null;
     this.interceptors = [];
     this.fireballs = [];
     this.target = { x: 400, y: 250 };
@@ -60,7 +61,9 @@ export class MissileModel {
       ...this.cities.filter((city) => city.alive).map((city) => ({ target: city, kind: "city" })),
       ...this.bases.filter((base) => base.alive).map((base) => ({ target: base, kind: "battery" })),
     ];
-    const destination = target || targets[Math.floor(Math.random() * targets.length)] || { target: this.cities[0], kind: "city" };
+    const availableTargets = target ? [target] : targets.filter((candidate) => candidate.target !== this.lastEnemyTarget);
+    const destination = availableTargets[Math.floor(Math.random() * (availableTargets.length || targets.length))] || targets[0] || { target: this.cities[0], kind: "city" };
+    this.lastEnemyTarget = destination.target;
     const aircraft = this.side === "defender" && Math.random() < 0.12;
     if (aircraft) {
       this.enemyMissiles.push({ x: Math.random() < 0.5 ? 24 : 776, y: 70 + Math.random() * 80, targetX: Math.random() < 0.5 ? 820 : -20, targetY: 70 + Math.random() * 80, speed: 70 + this.level * 8, color: "#f472b6", kind: Math.random() < 0.5 ? "bomber" : "satellite", aircraft: true, dropClock: 1.4, isSplit: false, dead: false });
