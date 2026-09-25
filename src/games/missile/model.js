@@ -78,13 +78,16 @@ export class MissileModel {
   }
   launchPlayerEnemy(pointer) {
     if (!pointer) return;
-    const dragged = pointer.dragDistance > 0 && (pointer.released || pointer.down);
+    const startX = pointer.dragStartX ?? pointer.x;
+    const startY = pointer.dragStartY ?? pointer.y;
+    const dragLength = Math.hypot(pointer.x - startX, pointer.y - startY);
+    const dragged = dragLength > 4 && pointer.released;
     if (dragged) {
-      const dx = pointer.dragDeltaX || pointer.x - pointer.dragStartX;
-      const dy = pointer.dragDeltaY || pointer.y - pointer.dragStartY;
+      const dx = pointer.dragDeltaX || pointer.x - startX;
+      const dy = pointer.dragDeltaY || pointer.y - startY;
       const angle = Math.atan2(dy, dx);
       const speed = 180;
-      this.launchEnemy(null, { freeFlight: true, startX: pointer.dragStartX, startY: pointer.dragStartY, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed });
+      this.launchEnemy(null, { freeFlight: true, startX, startY, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed });
       return;
     }
     const interactive = "clicked" in pointer || "released" in pointer || "down" in pointer || "dragDistance" in pointer;
@@ -98,7 +101,7 @@ export class MissileModel {
     const dy = target.targetY - target.y;
     const distance = Math.hypot(dx, dy);
     const flightTime = Math.hypot(target.x - base.x, target.y - base.y) / 245;
-    this.interceptors.push({ x: base.x, y: base.y - 20, targetX: target.x + (distance ? dx / distance * target.speed * flightTime : 0) + (Math.random() - 0.5) * 120, targetY: target.y + (distance ? dy / distance * target.speed * flightTime : 0) + (Math.random() - 0.5) * 90, speed: 245, color: "#22d3ee", machine: true });
+    this.interceptors.push({ x: base.x, y: base.y - 20, targetX: target.x + (distance ? dx / distance * target.speed * flightTime : 0) + (Math.random() - 0.5) * 55, targetY: target.y + (distance ? dy / distance * target.speed * flightTime : 0) + (Math.random() - 0.5) * 40, speed: 245, color: "#22d3ee", machine: true });
   }
   update(dt, input) {
     if (this.side === "defender") this.updateDefender(dt, input);
@@ -127,8 +130,8 @@ export class MissileModel {
     if (input.attack) this.launchPlayerEnemy(input.attack);
     this.interceptorClock -= dt;
     if (this.interceptorClock <= 0) {
-      if (Math.random() < 0.55) this.launchMachineInterceptor();
-      this.interceptorClock = 0.55 + Math.random() * 0.35;
+      if (Math.random() < 0.7) this.launchMachineInterceptor();
+      this.interceptorClock = 0.45 + Math.random() * 0.25;
     }
     for (const missile of this.enemyMissiles) this.moveEnemy(missile, dt);
     for (const missile of this.interceptors) if (this.moveInterceptor(missile, dt)) missile.dead = true;

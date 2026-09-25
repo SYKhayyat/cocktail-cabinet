@@ -12,7 +12,7 @@ export function draw(model, context) {
     drawText(context, base.label, base.x, base.y + 5, 14, "#06111f", "center");
     if (model.side === "defender") drawText(context, String(base.missiles), base.x, base.y - 28, 12, base.alive ? "#e0f2fe" : "#64748b", "center");
   });
-  model.enemyMissiles.forEach((missile) => { drawMissile(context, missile); if (!missile.aircraft && !missile.freeFlight) drawTarget(context, missile.targetX, missile.targetY, missile.smart ? "#fbbf24" : "#fb7185"); });
+  model.enemyMissiles.forEach((missile) => { drawMissile(context, missile); if (model.side === "defender" && !missile.aircraft && !missile.freeFlight) drawTarget(context, missile.targetX, missile.targetY, missile.smart ? "#fbbf24" : "#fb7185"); });
   model.interceptors.forEach((missile) => drawMissile(context, missile));
   model.fireballs.forEach((fireball) => { context.globalAlpha = Math.min(1, fireball.life); context.fillStyle = "#fb923c88"; context.strokeStyle = "#fde68a"; context.lineWidth = 2; context.beginPath(); context.arc(fireball.x, fireball.y, fireball.radius * Math.max(0.35, fireball.life / 4), 0, Math.PI * 2); context.fill(); context.stroke(); context.globalAlpha = 1; });
   if (model.side === "defender") { context.strokeStyle = "#fbbf24"; context.lineWidth = 2; context.beginPath(); context.arc(model.target.x, model.target.y, 13, 0, Math.PI * 2); context.stroke(); context.beginPath(); context.moveTo(model.target.x - 18, model.target.y); context.lineTo(model.target.x + 18, model.target.y); context.moveTo(model.target.x, model.target.y - 18); context.lineTo(model.target.x, model.target.y + 18); context.stroke(); }
