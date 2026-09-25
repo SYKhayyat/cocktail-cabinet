@@ -85,7 +85,7 @@ export class MissileModel {
     else this.updateAttacker(dt, input);
   }
   updateDefender(dt, input) {
-    if (input.aim && (input.aim.moved || input.aim.down || input.aim.clicked || input.aim.released)) this.target = { x: input.aim.x, y: clamp(input.aim.y, 28, 500) };
+    if (input.aim) this.target = { x: input.aim.x, y: clamp(input.aim.y, 28, 500) };
     this.selectBattery(input.batteryDirection || 0);
     if (input.launch && this.launchInterceptor()) this.interceptorClock = 0.12;
     this.launchClock -= dt;
@@ -105,6 +105,11 @@ export class MissileModel {
   }
   updateAttacker(dt, input) {
     if (input.attack) this.launchEnemy(this.closestBattery(input.attack.x));
+    this.launchClock -= dt;
+    if (this.launchClock <= 0) {
+      this.launchEnemy(this.closestBattery(40 + Math.random() * 720));
+      this.launchClock = Math.max(0.65, 2.1 - this.score * 0.012);
+    }
     this.interceptorClock -= dt;
     if (this.interceptorClock <= 0) {
       this.launchMachineInterceptor();
