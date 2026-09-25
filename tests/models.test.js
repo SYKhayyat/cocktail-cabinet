@@ -993,7 +993,7 @@ test("Imitation exposes four provider-neutral modes", () => {
   game.setSide("write");
   game.reset();
   game.sendMessage("A sample sentence to classify.");
-  assert.equal(game.chatLog.at(-1).sender, "You");
+  assert.equal(game.chatLog.at(-1).sender, "System");
 });
 
 test("Imitation Guess waits for a peer before using the AI fallback", () => {
