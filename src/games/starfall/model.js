@@ -25,7 +25,7 @@ export class StarfallModel {
       for (let second = first + 1; second < this.gems.length; second += 1) {
         const left = this.gems[first];
         const right = this.gems[second];
-        if (left.collected || right.collected) continue;
+        if (left.remove || right.remove || left.collected || right.collected) continue;
         const dx = right.x - left.x;
         const dy = right.y - left.y;
         if (Math.abs(dx) >= 90 || Math.abs(dy) >= 45) continue;
@@ -84,18 +84,28 @@ export class StarfallModel {
     for (const star of this.stars) { star.x += (star.vx || 0) * dt; star.y += star.vy * dt; star.age = (star.age || 0) + dt; }
     for (const gem of this.gems) {
       if (gem.collected) {
-        gem.respawn = (gem.respawn || 0) - dt;
-        if (gem.respawn <= 0) Object.assign(gem, this.newGem());
+        if (this.side === "runner") {
+          gem.respawn = (gem.respawn || 0) - dt;
+          if (gem.respawn <= 0) Object.assign(gem, this.newGem());
+        } else gem.remove = true;
         continue;
       }
       gem.x += (gem.vx || 0) * dt;
       gem.y += (gem.vy || 50) * dt;
       if (gem.x < 0) gem.x = 800;
       if (gem.x > 800) gem.x = 0;
-      if (gem.y > 580) Object.assign(gem, this.newGem());
-      if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, gem.x, gem.y, 10)) { gem.collected = true; gem.respawn = 0.7; this.score += 50; }
+      if (gem.y > 580) {
+        if (this.side === "runner") Object.assign(gem, this.newGem());
+        else { gem.remove = true; continue; }
+      }
+      if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, gem.x, gem.y, 10)) {
+        this.score += 50;
+        if (this.side === "runner") { gem.collected = true; gem.respawn = 0.7; }
+        else gem.remove = true;
+      }
     }
     this.separateGems();
+    this.gems = this.gems.filter((gem) => !gem.remove);
     for (const star of this.stars) if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, star.x, star.y, star.radius)) { star.dead = true; this.lifeLost = true; }
     this.stars = this.stars.filter((star) => !star.dead && star.y < 560 && star.x > -30 && star.x < 830);
   }
