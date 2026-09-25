@@ -20,7 +20,7 @@ self.onmessage = async (event) => {
     if (message.type === "generate") {
       const prompt = message.messages.map((entry) => `${entry.role}: ${entry.content}`).join("\n");
       const output = await generator(prompt, {
-        max_new_tokens: message.max_tokens || 80,
+        max_new_tokens: message.max_tokens || 48,
         do_sample: true,
         temperature: message.temperature || 0.7,
         top_p: 0.9,

@@ -1,12 +1,8 @@
-const WEBGPU_MODEL_ID = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
 const WASM_MODEL_ID = "onnx-community/Qwen2.5-0.5B-Instruct";
-const WEBLLM_URL = "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.85/+esm";
 const MODEL_CACHE_KEY = "cocktail-cabinet-local-ai-ready-v1";
 
 export function localModelSupport() {
   if (typeof window === "undefined") return { ok: false, device: "none", reason: "Local AI requires a browser." };
-  if (/Firefox/i.test(navigator.userAgent)) return { ok: true, device: "wasm", reason: "" };
-  if (navigator.gpu) return { ok: true, device: "webgpu", reason: "" };
   return { ok: true, device: "wasm", reason: "" };
 }
 
@@ -27,32 +23,7 @@ function markModelReady() {
 export function loadLocalModel(onProgress) {
   if (!enginePromise) {
     void requestPersistentStorage();
-    enginePromise = (async () => {
-      const support = localModelSupport();
-      if (!support.ok) throw new Error(support.reason);
-      if (support.device === "webgpu") {
-        try {
-          const adapter = await withTimeout(navigator.gpu.requestAdapter(), 4000, "WebGPU adapter unavailable");
-          if (!adapter) return loadWasmModel(onProgress);
-          const webllm = await import(WEBLLM_URL);
-          const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
-          const engine = await withTimeout(webllm.CreateWebWorkerMLCEngine(worker, WEBGPU_MODEL_ID, { initProgressCallback: (report) => onProgress?.({ ...report, device: "webgpu" }) }), 90000, "WebGPU model initialization timed out");
-          let fallbackPromise;
-          markModelReady();
-          return { device: "webgpu", chat: async (request) => {
-            try {
-              return await withTimeout(engine.chat.completions.create(request), 20000, "WebGPU inference timed out");
-            } catch {
-              fallbackPromise ||= loadWasmModel(onProgress);
-              return (await fallbackPromise).chat(request);
-            }
-          } };
-        } catch {
-          onProgress?.({ device: "wasm", progress: 0, text: "Switching to the lightweight local model…" });
-        }
-      }
-      return loadWasmModel(onProgress);
-    })().catch((error) => {
+    enginePromise = loadWasmModel(onProgress).catch((error) => {
       enginePromise = null;
       throw error;
     });
@@ -104,8 +75,4 @@ function loadWasmModel(onProgress) {
     };
     worker.postMessage({ type: "load", modelId: WASM_MODEL_ID, device: "wasm" });
   });
-}
-
-function withTimeout(promise, milliseconds, message) {
-  return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(message)), milliseconds))]);
 }
