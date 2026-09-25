@@ -4,9 +4,9 @@ const BATTERY_X = [130, 400, 670];
 const CITY_X = [70, 200, 300, 500, 600, 730];
 const BATTERY_MISSILES = 10;
 const BASE_Y = 510;
-const INTERCEPTOR_RADIUS = 6;
-const ENEMY_RADIUS = 7;
-const FIREBALL_RADIUS = 34;
+const INTERCEPTOR_RADIUS = 8;
+const ENEMY_RADIUS = 11;
+const FIREBALL_RADIUS = 46;
 const FIREBALL_LIFE = 4;
 
 export class MissileModel {

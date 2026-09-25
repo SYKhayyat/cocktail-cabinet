@@ -816,7 +816,7 @@ test("Missile Command: aiming, launching, interception, targeting, and base loss
   assert.equal(game.interceptors.length, 1);
   assert.equal(game.interceptors[0].targetX, 250);
   const interceptor = game.interceptors[0];
-  const enemy = { x: 250, y: 200, targetX: 250, targetY: 510, speed: 90, color: "#fb7185", targetBase: game.bases[0], dead: false };
+  const enemy = { x: 250, y: 230, targetX: 250, targetY: 510, speed: 90, color: "#fb7185", targetBase: game.bases[0], dead: false };
   game.enemyMissiles = [enemy];
   interceptor.x = 250;
   interceptor.y = 200;

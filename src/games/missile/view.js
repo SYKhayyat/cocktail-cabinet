@@ -22,6 +22,6 @@ export function draw(model, context) {
 
 function drawMissile(context, missile) {
   const dx = missile.targetX - missile.x; const dy = missile.targetY - missile.y; const length = Math.max(Math.hypot(dx, dy), 1);
-  context.strokeStyle = missile.color; context.lineWidth = 3; context.beginPath(); context.moveTo(missile.x, missile.y); context.lineTo(missile.x - dx / length * 18, missile.y - dy / length * 18); context.stroke();
+  context.strokeStyle = missile.color; context.lineWidth = 5; context.beginPath(); context.moveTo(missile.x, missile.y); context.lineTo(missile.x - dx / length * 22, missile.y - dy / length * 22); context.stroke();
 }
 function drawTarget(context, x, y, color) { context.strokeStyle = color; context.lineWidth = 2; context.beginPath(); context.moveTo(x - 6, y - 6); context.lineTo(x + 6, y + 6); context.moveTo(x + 6, y - 6); context.lineTo(x - 6, y + 6); context.stroke(); }
