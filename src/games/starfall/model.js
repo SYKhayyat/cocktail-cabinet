@@ -10,14 +10,38 @@ export class StarfallModel {
   }
   sideLabel() { return this.side === "runner" ? "You guide the runner" : "You send the stars"; }
   setSide(side) { this.side = side; }
-  newGem(x = 20 + Math.random() * 760, y = -20) {
-    return { x, y, vx: (Math.random() * 2 - 1) * 32, vy: 35 + Math.random() * 30, collected: false };
+  newGem(x = null, y = -20) {
+    let nextX = x;
+    if (nextX === null || nextX === undefined) {
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        nextX = 20 + Math.random() * 760;
+        if (this.gems.every((gem) => Math.abs(gem.x - nextX) >= 110)) break;
+      }
+    }
+    return { x: nextX, y, vx: (Math.random() * 2 - 1) * 32, vy: 35 + Math.random() * 30, collected: false };
+  }
+  separateGems() {
+    for (let first = 0; first < this.gems.length; first += 1) {
+      for (let second = first + 1; second < this.gems.length; second += 1) {
+        const left = this.gems[first];
+        const right = this.gems[second];
+        if (left.collected || right.collected) continue;
+        const dx = right.x - left.x;
+        const dy = right.y - left.y;
+        if (Math.abs(dx) >= 90 || Math.abs(dy) >= 45) continue;
+        const direction = dx === 0 ? (first % 2 ? 1 : -1) : Math.sign(dx);
+        const push = (90 - Math.abs(dx)) / 2;
+        left.x = clamp(left.x - direction * push, 0, 800);
+        right.x = clamp(right.x + direction * push, 0, 800);
+      }
+    }
   }
   reset(keepScore = false) {
-    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.gemHoldTime = 0; this.gemSpawnClock = 0;
+    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.gemHoldTime = 0; this.gemSpawnClock = 0; this.gemSpawnCooldown = 0;
     if (this.side === "runner") for (let index = 0; index < 3; index += 1) this.gems.push(this.newGem(undefined, -20 - index * 80));
   }
   update(dt, input) {
+    this.gemSpawnCooldown = Math.max(0, (this.gemSpawnCooldown || 0) - dt);
     if (this.side === "runner") {
       const direction = input.keyDirection || 0;
       if (direction || input.mode === "keyboard") this.runner.x += direction * 240 * dt;
@@ -33,17 +57,18 @@ export class StarfallModel {
         const horizontalSpeed = input.spawnStar.dragDistance ? clamp(dragX / Math.max(Math.abs(dragY), 1) * 180, -240, 240) : 0;
         this.stars.push({ x: input.spawnStar.x, y: 20, vx: horizontalSpeed, vy: 130 + this.score * 2, radius: 10, age: 0, userCreated: true });
       }
-      if (input.spawnGem && this.gems.length < 12) {
+      if (input.spawnGem && this.gemSpawnCooldown <= 0 && this.gems.length < 12) {
         for (let index = this.stars.length - 1; index >= 0; index -= 1) {
           if (this.stars[index].userCreated && (this.stars[index].age || 0) < 0.5) { this.stars.splice(index, 1); break; }
         }
         this.gems.push(this.newGem(clamp(input.spawnGem.x, 20, 780), 20));
+        this.gemSpawnCooldown = 0.25;
       }
-      if (input.pointerDown && !input.spawnGem) {
+      if (input.pointerDown && !input.pointerDragDistance && !input.spawnGem) {
         this.gemHoldTime += dt;
         this.gemSpawnClock -= dt;
         if (this.gemHoldTime >= 0.35 && this.gemSpawnClock <= 0 && this.gems.length < 12) {
-          this.gems.push(this.newGem(clamp(input.pointerX, 20, 780), 20));
+          this.gems.push(this.newGem(clamp(input.pointerX + (Math.random() * 2 - 1) * 45, 20, 780), 20));
           this.gemSpawnClock = 0.2;
         }
       } else {
@@ -70,17 +95,23 @@ export class StarfallModel {
       if (gem.y > 580) Object.assign(gem, this.newGem());
       if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, gem.x, gem.y, 10)) { gem.collected = true; gem.respawn = 0.7; this.score += 50; }
     }
+    this.separateGems();
     for (const star of this.stars) if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, star.x, star.y, star.radius)) { star.dead = true; this.lifeLost = true; }
     this.stars = this.stars.filter((star) => !star.dead && star.y < 560 && star.x > -30 && star.x < 830);
   }
   aiRunner(dt) {
-    if (!this.stars.length) return;
+    const activeGems = this.gems.filter((gem) => !gem.collected);
+    if (!this.stars.length && !activeGems.length) return;
     const candidates = [20, 160, 300, 440, 580, 720, 780];
+    const safe = candidates.filter((candidate) => this.stars.every((star) => Math.abs(candidate - star.x) > 45));
+    const pool = safe.length ? safe : [this.runner.x < 400 ? 20 : 780];
+    const target = pool.reduce((best, candidate) => {
+      const gemDistance = activeGems.length ? Math.min(...activeGems.map((gem) => Math.abs(candidate - gem.x) + Math.abs(this.runner.y - gem.y) * 0.12)) : Math.abs(candidate - this.runner.x);
+      return gemDistance < best.distance ? { x: candidate, distance: gemDistance } : best;
+    }, { x: pool[0], distance: Infinity });
     const targetIsSafe = this.aiTargetX !== null && this.stars.every((star) => Math.abs(this.aiTargetX - star.x) > 45);
-    if (!targetIsSafe) {
-      const safe = candidates.filter((candidate) => this.stars.every((star) => Math.abs(candidate - star.x) > 45));
-      this.aiTargetX = safe.length ? safe.reduce((nearest, candidate) => Math.abs(candidate - this.runner.x) < Math.abs(nearest - this.runner.x) ? candidate : nearest, safe[0]) : this.runner.x < 400 ? 20 : 780;
-    }
+    const targetFollowsGem = activeGems.some((gem) => Math.abs(this.aiTargetX - gem.x) < 55);
+    if (this.aiTargetX === null || !targetIsSafe || (activeGems.length && !targetFollowsGem)) this.aiTargetX = target.x;
     this.runner.x = clamp(this.runner.x + clamp(this.aiTargetX - this.runner.x, -1, 1) * 300 * dt, 20, 780);
   }
   publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "The computer changes direction to dodge; it does not phase through stars." }; }

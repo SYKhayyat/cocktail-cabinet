@@ -1091,6 +1091,13 @@ test("Starfall: movement, gem collection, star spawning, and collision loss", ()
    assert.ok(game.gems.every((gem) => Number.isFinite(gem.vx) && Number.isFinite(gem.vy)));
    game.update(0.5, { mode: "keyboard", keyDirection: 0, pointerX: 0, spawnStar: undefined });
   assert.ok(game.gems[0].y > gemStartY);
+  const spreadGems = new StarfallModel();
+  spreadGems.reset();
+  spreadGems.spawnClock = 999;
+  for (let index = 0; index < 180; index += 1) spreadGems.update(0.016, input());
+  for (let first = 0; first < spreadGems.gems.length; first += 1) for (let second = first + 1; second < spreadGems.gems.length; second += 1) {
+    assert.ok(Math.abs(spreadGems.gems[first].x - spreadGems.gems[second].x) >= 90 || Math.abs(spreadGems.gems[first].y - spreadGems.gems[second].y) >= 45);
+  }
   game.gems = [{ x: game.runner.x, y: game.runner.y, collected: false }];
   game.update(0.016, { keyDirection: 0, pointerX: 0, spawnStar: undefined });
   assert.equal(game.score, 50);
@@ -1126,6 +1133,7 @@ test("Starfall: movement, gem collection, star spawning, and collision loss", ()
   doubleClickController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, released: true }) }));
   assert.equal(doubleClick.stars.length, 1);
   doubleClickController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, doubleClicked: true, released: true }) }));
+  doubleClickController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, doubleClicked: true, released: true }) }));
   assert.equal(doubleClick.stars.length, 0);
   assert.equal(doubleClick.gems.length, 1);
   const angled = new StarfallModel();
@@ -1139,13 +1147,21 @@ test("Starfall: movement, gem collection, star spawning, and collision loss", ()
   held.reset();
   const heldController = new StarfallController(held);
   for (let index = 0; index < 30; index += 1) heldController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 300, down: true }) }));
+  heldController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 300, released: true }) }));
   assert.equal(held.gems.length, 1);
+  assert.equal(held.stars.length, 0);
   const stableComputer = new StarfallModel();
   stableComputer.setSide("stars");
   stableComputer.reset();
   const idleX = stableComputer.runner.x;
   stableComputer.update(0.016, input());
   assert.equal(stableComputer.runner.x, idleX);
+  const seekingComputer = new StarfallModel();
+  seekingComputer.setSide("stars");
+  seekingComputer.reset();
+  seekingComputer.gems = [{ x: 700, y: 400, vx: 0, vy: 0, collected: false }];
+  seekingComputer.update(0.016, input());
+  assert.ok(seekingComputer.aiTargetX > 400);
   stableComputer.stars = [{ x: 440, y: 20, vy: 0, radius: 10 }];
   stableComputer.update(0.016, input());
   const stableTarget = stableComputer.aiTargetX;
