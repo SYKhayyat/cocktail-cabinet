@@ -1,7 +1,7 @@
 const WEBGPU_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-q4f16";
 const WASM_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-ONNX";
 const OLLAMA_MODEL = "llama3.2:1b";
-const OLLAMA_BASE_URLS = ["http://localhost:11435", "http://localhost:11434"];
+const OLLAMA_BASE_URLS = ["http://127.0.0.1:11435", "http://127.0.0.1:11434"];
 const MODEL_CACHE_KEY = "cocktail-cabinet-local-ai-ready-v5";
 
 export function localModelSupport() {
