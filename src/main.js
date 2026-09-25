@@ -197,7 +197,7 @@ const engine = new GameEngine(canvas, {
     status.textContent = activeId === "imitation" ? state.status : engine.ready ? "Press New game to start" : engine.countdown > 0 ? "Get ready…" : state.status;
     if (activeId === "imitation") {
       downloadModelButton.disabled = Boolean(engine.game.model?.aiReady || engine.game.model?.modelLoading);
-      downloadModelButton.textContent = engine.game.model?.modelLoading ? "Downloading…" : engine.game.model?.aiReady ? "AI model ready" : "Download AI model";
+      downloadModelButton.textContent = engine.game.model?.modelLoading ? "Loading…" : engine.game.model?.aiReady ? "AI model ready" : engine.game.model?.modelCached ? "Load cached model" : "Download AI model";
     }
     if (state.chatRevision !== undefined && state.chatRevision !== lastChatRevision) {
       lastChatRevision = state.chatRevision;

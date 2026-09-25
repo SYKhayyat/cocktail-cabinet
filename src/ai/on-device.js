@@ -1,6 +1,7 @@
 const WEBGPU_MODEL_ID = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
 const WASM_MODEL_ID = "onnx-community/Qwen2.5-0.5B-Instruct";
 const WEBLLM_URL = "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.85/+esm";
+const MODEL_CACHE_KEY = "cocktail-cabinet-local-ai-ready-v1";
 
 export function localModelSupport() {
   if (typeof window === "undefined") return { ok: false, device: "none", reason: "Local AI requires a browser." };
@@ -10,8 +11,21 @@ export function localModelSupport() {
 
 let enginePromise = null;
 
+export function hasCachedModel() {
+  try { return localStorage.getItem(MODEL_CACHE_KEY) === "ready"; } catch { return false; }
+}
+
+export async function requestPersistentStorage() {
+  try { await navigator.storage?.persist?.(); } catch { }
+}
+
+function markModelReady() {
+  try { localStorage.setItem(MODEL_CACHE_KEY, "ready"); } catch { }
+}
+
 export function loadLocalModel(onProgress) {
   if (!enginePromise) {
+    void requestPersistentStorage();
     enginePromise = (async () => {
       const support = localModelSupport();
       if (!support.ok) throw new Error(support.reason);
@@ -23,9 +37,10 @@ export function loadLocalModel(onProgress) {
           const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
           const engine = await withTimeout(webllm.CreateWebWorkerMLCEngine(worker, WEBGPU_MODEL_ID, { initProgressCallback: (report) => onProgress?.({ ...report, device: "webgpu" }) }), 90000, "WebGPU model initialization timed out");
           let fallbackPromise;
+          markModelReady();
           return { device: "webgpu", chat: async (request) => {
             try {
-              return await engine.chat.completions.create(request);
+              return await withTimeout(engine.chat.completions.create(request), 20000, "WebGPU inference timed out");
             } catch {
               fallbackPromise ||= loadWasmModel(onProgress);
               return (await fallbackPromise).chat(request);
@@ -69,6 +84,7 @@ function loadWasmModel(onProgress) {
       }
       if (message.type === "ready") {
         ready = true;
+        markModelReady();
         resolve({ device: "wasm", chat: (requestPayload) => request({ ...requestPayload, type: "generate" }) });
       }
       if (message.type === "response") {

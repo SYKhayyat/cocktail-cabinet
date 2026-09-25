@@ -1,4 +1,4 @@
-import { loadLocalModel } from "../../ai/on-device.js";
+import { hasCachedModel, loadLocalModel } from "../../ai/on-device.js";
 
 const AI_SYSTEM_PROMPT = "You are a friendly, general-purpose chat companion. Reply naturally in one or two short sentences. Do not mention this website or games unless the user asks.";
 const CLASSIFIER_PROMPT = "Classify whether the user's text sounds AI-generated or human-written. Reply with exactly AI or HUMAN on the first line, then one short explanation.";
@@ -28,6 +28,7 @@ export class ImitationModel {
     this.aiReady = this.aiReady || false;
     this.aiUnavailable = false;
     this.modelError = "";
+    this.modelCached = hasCachedModel();
     this.modelLoading = false;
     this.lastModelStatus = "";
     this.mystery = null;
@@ -54,7 +55,8 @@ export class ImitationModel {
     if (this.side === "human" || this.aiReady || this.modelLoading) return;
     this.aiUnavailable = false;
     this.modelError = "";
-    this.addMessage("System", "Starting the local AI model download…");
+    this.modelCached = hasCachedModel();
+    this.addMessage("System", this.modelCached ? "Loading the cached local AI model…" : "Starting the local AI model download…");
     await this.prepareProvider();
     if (this.aiReady) this.addMessage("System", "The AI model is ready.");
     else this.addMessage("System", `The AI model could not be downloaded: ${this.modelError || "unknown error"}`);
@@ -106,7 +108,9 @@ export class ImitationModel {
     return clean;
   }
   async requestAi(text, systemPrompt = AI_SYSTEM_PROMPT) {
-    if (this.aiUnavailable || (!this.aiReady && !this.modelLoading)) return "";
+    if (!this.aiReady && !this.modelLoading) return "";
+    this.aiUnavailable = false;
+    this.modelError = "";
     const started = Date.now();
     try {
       const engine = await loadLocalModel((report) => { this.lastModelStatus = report.text || report.status || "Thinking"; });
@@ -137,7 +141,7 @@ export class ImitationModel {
     this.chatLog = this.chatLog.filter((message) => message !== thinking);
     this.chatRevision += 1;
     if (response) this.addMessage("AI", response);
-    else this.addMessage("System", "The AI could not respond this time. Try again.");
+    else this.addMessage("System", `The AI could not respond: ${this.modelError || "unknown error"}`);
   }
   async handleGuess(text, forceAi = false) {
     const value = text.toLowerCase();
@@ -196,7 +200,7 @@ export class ImitationModel {
       if (this.guessClock === 0) void this.handleGuess("start", true);
     }
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Downloading the AI model" : this.aiReady ? "AI companion ready" : this.modelError ? "The AI model needs attention" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.phase === "guess" ? "Guess AI or human" : this.modelLoading ? "Downloading the AI model" : "Generate a mystery message" : "Submit text for AI classification", chatRevision: this.chatRevision }; }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Loading the local AI model" : this.aiReady ? "AI companion ready" : this.modelError ? "The AI model needs attention" : this.modelCached ? "Load the cached AI model" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.phase === "guess" ? "Guess AI or human" : this.modelLoading ? "Downloading the AI model" : "Generate a mystery message" : "Submit text for AI classification", chatRevision: this.chatRevision, modelCached: this.modelCached }; }
 }
 
 function humanDelay(prompt, response) {
