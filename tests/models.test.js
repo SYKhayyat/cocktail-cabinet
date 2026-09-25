@@ -1008,9 +1008,9 @@ test("Imitation controllers acknowledge each other across two pages", async () =
   }
 });
 
-test("Imitation exposes four provider-neutral modes", () => {
+test("Imitation exposes five provider-neutral modes", () => {
   const game = new ImitationModel();
-  for (const side of ["ai", "human", "guess", "write"]) {
+  for (const side of ["ai", "human", "guess", "provide", "write"]) {
     game.setSide(side);
     game.reset();
     assert.equal(game.side, side);
@@ -1030,6 +1030,21 @@ test("Imitation exposes four provider-neutral modes", () => {
   assert.equal(game.chatLog.at(-1).sender, "System");
 });
 
+test("Imitation Guess only pairs with a provider tab", () => {
+  const game = new ImitationModel();
+  game.setSide("guess");
+  game.reset();
+  game.receive({ type: "hello", from: "human-tab", mode: "human" });
+  assert.equal(game.peerId, null);
+  game.receive({ type: "hello", from: "provider-tab", mode: "provide" });
+  assert.equal(game.peerId, "provider-tab");
+  const provider = new ImitationModel();
+  provider.setSide("provide");
+  provider.reset();
+  provider.receive({ type: "hello", from: "guess-tab", mode: "guess" });
+  assert.equal(provider.peerId, "guess-tab");
+});
+
 test("Imitation Guess waits for a peer before using the AI fallback", () => {
   const game = new ImitationModel();
   game.setSide("guess");
@@ -1042,10 +1057,11 @@ test("Imitation Guess waits for a peer before using the AI fallback", () => {
   game.sendMessage("ai");
   assert.equal(game.phase, "result");
   assert.deepEqual(game.guessResult, { choice: "ai", correct: true });
-  assert.deepEqual(game.guessStats, { ai: 1, human: 0 });
+  assert.deepEqual(game.guessStats, { right: 1, wrong: 0 });
   game.restartGuess();
   assert.equal(game.phase, "guess-peer");
   assert.equal(game.mystery, null);
+  assert.deepEqual(game.guessStats, { right: 0, wrong: 0 });
   game.sendMessage("next");
   assert.equal(game.phase, "guess-peer");
 });

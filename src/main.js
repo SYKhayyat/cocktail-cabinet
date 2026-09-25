@@ -63,7 +63,7 @@ const sideOptions = {
   splat: [["climber", "You vs computer — steer the ball"], ["race", "You vs computer — two-ball race"], ["builder", "You vs computer — place columns"]],
   asteroids: [["ship", "You vs computer — fly the ship"], ["versus", "You vs computer — both ships"], ["rocks", "Computer vs you — send asteroids"]],
   missile: [["defender", "You vs computer — defend cities"], ["attacker", "Computer vs you — attack cities"]],
-  imitation: [["ai", "Chat with the local AI"], ["human", "Chat with another tab or window"], ["guess", "Guess AI or human"], ["write", "Write text for AI to classify"]],
+  imitation: [["ai", "Chat with the local AI"], ["human", "Chat with another tab or window"], ["guess", "Guess AI or human"], ["provide", "Provide a guessing message"], ["write", "Write text for AI to classify"]],
   starfall: [["runner", "You vs computer — guide the runner"], ["stars", "Computer vs you — send stars"]]
 };
 
@@ -86,8 +86,8 @@ function renderChat(game) {
 
 function renderGuessControls(state) {
   guessControls.hidden = state.side !== "Guess AI or human";
-  const stats = state.guessStats || { ai: 0, human: 0 };
-  guessStats.textContent = `AI ${stats.ai} · Human ${stats.human}`;
+  const stats = state.guessStats || { right: 0, wrong: 0 };
+  guessStats.textContent = `Right ${stats.right} · Wrong ${stats.wrong}`;
   for (const button of guessButtons) {
     const choice = button.dataset.guess;
     const result = state.guessResult;
@@ -215,6 +215,7 @@ const engine = new GameEngine(canvas, {
     status.textContent = activeId === "imitation" ? state.status : engine.ready ? "Press New game to start" : engine.countdown > 0 ? "Get ready…" : state.status;
     if (activeId === "imitation") {
       renderGuessControls(state);
+      downloadModelButton.hidden = state.side === "Provide a guessing message";
       downloadModelButton.disabled = Boolean(engine.game.model?.aiReady || engine.game.model?.modelLoading);
       downloadModelButton.textContent = engine.game.model?.modelLoading ? "Loading…" : engine.game.model?.aiReady ? "AI model ready" : engine.game.model?.modelCached ? "Load cached model" : "Download AI model";
     }

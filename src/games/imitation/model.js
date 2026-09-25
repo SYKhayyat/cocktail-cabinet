@@ -12,20 +12,20 @@ export class ImitationModel {
     this.side = "ai";
     this.matchId = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
     this.score = 0;
-    this.guessStats = { ai: 0, human: 0 };
+    this.guessStats = { right: 0, wrong: 0 };
     this.chatLog = [];
     this.chatRevision = 0;
     this.modelError = "";
   }
-  sideLabel() { return this.side === "ai" ? "Chat with the AI companion" : this.side === "human" ? "Chat with another tab or window" : this.side === "guess" ? "Guess AI or human" : "Write text for AI to classify"; }
+  sideLabel() { return this.side === "ai" ? "Chat with the AI companion" : this.side === "human" ? "Chat with another tab or window" : this.side === "guess" ? "Guess AI or human" : this.side === "provide" ? "Provide a guessing message" : "Write text for AI to classify"; }
   setSide(side) { this.side = side; }
   reset(keepScore = false) {
     if (!keepScore) {
       this.score = 0;
-      this.guessStats = { ai: 0, human: 0 };
+      this.guessStats = { right: 0, wrong: 0 };
     }
     this.chatLog = [];
-    this.phase = this.side === "ai" ? "ai" : this.side === "human" ? "searching" : this.side === "guess" ? "guess-waiting" : this.side;
+    this.phase = this.side === "ai" ? "ai" : this.side === "human" ? "searching" : this.side === "guess" ? "guess-waiting" : this.side === "provide" ? "provide-waiting" : this.side;
     this.matchmaking = 2.5;
     this.peerId = null;
     this.aiClock = 0;
@@ -40,7 +40,7 @@ export class ImitationModel {
     this.guessResult = null;
     this.guessClock = 4;
     this.guessToken = 0;
-    this.addMessage("System", this.side === "ai" ? "AI companion ready. Download the model, then say hello." : this.side === "human" ? "Looking for another tab or window…" : this.side === "guess" ? "Waiting a few seconds for another window. The AI will provide a mystery message if none joins." : "Write a sample message for the AI to classify.");
+    this.addMessage("System", this.side === "ai" ? "AI companion ready. Download the model, then say hello." : this.side === "human" ? "Looking for another tab or window…" : this.side === "guess" ? "Waiting for a message from a provider tab. The AI will provide one if none joins." : this.side === "provide" ? "Open a Guess AI or human tab, then send a message here for it to guess." : "Write a sample message for the AI to classify.");
   }
   async prepareProvider() {
     if (this.aiReady || this.modelLoading) return;
@@ -72,6 +72,7 @@ export class ImitationModel {
     this.guessToken += 1;
     this.mystery = null;
     this.guessResult = null;
+    this.guessStats = { right: 0, wrong: 0 };
     this.phase = this.peerId ? "guess-peer" : "guess-waiting";
     this.guessClock = 4;
     this.addMessage("System", "Starting a new mystery round.");
@@ -79,12 +80,18 @@ export class ImitationModel {
   receive(message) {
     if (!message || message.from === this.matchId) return;
     if (message.type === "hello" || message.type === "hello-ack" || message.type === "guess-ready") {
+      const expectedMode = this.side === "guess" ? "provide" : this.side === "provide" ? "guess" : this.side === "human" ? "human" : "";
+      if (message.mode && expectedMode && message.mode !== expectedMode) {
+        this.addMessage("System", this.side === "guess" ? "That tab is not in Provide guessing message mode." : this.side === "provide" ? "That tab is not in Guess AI or human mode." : "That tab is not in human chat mode.");
+        return;
+      }
       this.peerId = message.from;
       this.matchmaking = 0;
       if (this.side === "guess") {
         this.phase = "guess-peer";
         this.addMessage("System", "Another window joined. They can provide the mystery message.");
-      } else this.addMessage("System", "Another tab or window found. You can chat now.");
+      } else if (this.side === "provide") this.addMessage("System", "A Guess tab is connected. Send a message for it to guess.");
+      else this.addMessage("System", "Another tab or window found. You can chat now.");
     }
     if (message.type === "chat") this.addMessage("Partner", message.text);
     if (message.type === "guess-sample" && this.side === "guess") {
@@ -192,7 +199,7 @@ export class ImitationModel {
     }
     if (this.phase !== "guess" || !this.mystery || (value !== "ai" && value !== "human")) return;
     const correct = value === this.mystery.source;
-    this.guessStats[this.mystery.source] += 1;
+    this.guessStats[correct ? "right" : "wrong"] += 1;
     this.guessResult = { choice: value, correct };
     this.score += correct ? 10 : 0;
     this.addMessage("System", `${correct ? "Correct" : "Not quite"} — the message was ${this.mystery.source.toUpperCase()}.`);
@@ -223,7 +230,7 @@ export class ImitationModel {
       if (this.guessClock === 0) void this.handleGuess("start", true);
     }
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Loading the local AI model" : this.aiReady ? `AI companion ready${this.modelDevice === "chrome" ? " via Chrome AI" : this.modelDevice === "ollama" ? " via Ollama" : this.modelDevice === "webgpu" ? " via WebGPU" : ""}` : this.modelError ? "The AI model needs attention" : this.modelCached ? "Load the cached AI model" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.phase === "guess" ? "Guess AI or human" : this.modelLoading ? "Downloading the AI model" : "Generate a mystery message" : "Submit text for AI classification", chatRevision: this.chatRevision, modelCached: this.modelCached, modelDevice: this.modelDevice, phase: this.phase, guessResult: this.guessResult, guessStats: this.guessStats }; }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Loading the local AI model" : this.aiReady ? `AI companion ready${this.modelDevice === "chrome" ? " via Chrome AI" : this.modelDevice === "ollama" ? " via Ollama" : this.modelDevice === "webgpu" ? " via WebGPU" : ""}` : this.modelError ? "The AI model needs attention" : this.modelCached ? "Load the cached AI model" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two tabs or windows are connected" : "Open another tab or window to join" : this.side === "guess" ? this.phase === "guess" ? "Guess AI or human" : this.modelLoading ? "Downloading the AI model" : "Generate a mystery message" : this.side === "provide" ? this.peerId ? "Guess tab connected" : "Waiting for a Guess tab" : "Submit text for AI classification", chatRevision: this.chatRevision, modelCached: this.modelCached, modelDevice: this.modelDevice, phase: this.phase, guessResult: this.guessResult, guessStats: this.guessStats }; }
 }
 
 function humanDelay(prompt, response) {
