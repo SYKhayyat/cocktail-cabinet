@@ -6,7 +6,7 @@ export class AsteroidsController {
       thrust: input.keys.has("ArrowUp") || input.keys.has("w") ? 1 : 0,
       pointer: input.pointer.moved || input.pointer.down || input.pointer.clicked || input.pointer.released ? input.pointer : null,
       fire: input.pressed.has(" ") || input.pointer.clicked || input.pointer.down,
-      spawnAsteroid: input.pointer.clicked ? input.pointer : null,
+      spawnAsteroid: null,
     });
   }
 }

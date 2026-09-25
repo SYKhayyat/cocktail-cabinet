@@ -749,6 +749,16 @@ test("Asteroids rocks mode starts with only user-supplied rocks", () => {
   assert.equal(game.asteroids.length, 0);
 });
 
+test("Asteroids controller does not turn drag starts into normal rocks", () => {
+  const game = new AsteroidsGame();
+  game.setSide("rocks");
+  game.reset();
+  game.update(1 / 60, input({ pointer: pointer({ x: 100, y: 100, down: true, clicked: true, dragDistance: 20, dragDeltaX: 20, dragDeltaY: 0 }) }));
+  assert.equal(game.model.asteroids.length, 1);
+  game.update(1 / 60, input({ pointer: pointer({ x: 120, y: 100, released: true, dragDistance: 20, dragDeltaX: 20, dragDeltaY: 0 }) }));
+  assert.equal(game.model.asteroids.length, 1);
+});
+
 test("Asteroids drag trajectory persists and click placement is randomized", () => {
   const game = new AsteroidsModel();
   game.setSide("rocks");
