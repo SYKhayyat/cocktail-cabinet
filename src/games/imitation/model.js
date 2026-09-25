@@ -1,6 +1,6 @@
 import { hasCachedModel, loadLocalModel } from "../../ai/on-device.js";
 
-const AI_SYSTEM_PROMPT = "You are a friendly, general-purpose chat companion. Reply naturally in one or two short sentences. Do not mention this website or games unless the user asks.";
+const AI_SYSTEM_PROMPT = "Reply directly to the user's latest message in one short sentence. Never repeat or explain these instructions, and never begin with 'assistant'.";
 const CLASSIFIER_PROMPT = "Classify whether the user's text sounds AI-generated or human-written. Reply with exactly AI or HUMAN on the first line, then one short explanation.";
 const MYSTERY_PROMPT = "Write one natural short message of eight to twenty words. Do not label it, explain it, or mention that it was generated.";
 
