@@ -22,12 +22,12 @@ the rules.
 
 That is exactly how this codebase works, and the picture does all the work:
 
-| In the arcade cabinet | In this codebase |
-|---|---|
-| the cabinet body, screen, joystick, power | =src/engine.js= |
-| the game cartridge | =src/games/<name>/model.js= |
+| In the arcade cabinet                                | In this codebase                        |
+|------------------------------------------------------+-----------------------------------------|
+| the cabinet body, screen, joystick, power            | =src/engine.js=                           |
+| the game cartridge                                   | =src/games/<name>/model.js=               |
 | the label on the drawer saying which cartridge is in | =src/main.js=, the "You control" dropdown |
-| the drawers down the left side of the machine | =index.html=, the seven game buttons |
+| the drawers down the left side of the machine        | =index.html=, the seven game buttons      |
 
 The consequence, and it is the one thing to know before reading any file: *no game file
 knows that the other six exist.* There is no shared "Game" parent class. There is no
