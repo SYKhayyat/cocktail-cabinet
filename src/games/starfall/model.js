@@ -8,8 +8,9 @@ export class StarfallModel {
     this.side = "runner";
     this.score = 0;
   }
+  get sides() { return ["runner", "stars"]; }
   sideLabel() { return this.side === "runner" ? "You guide the runner" : "You send the stars"; }
-  setSide(side) { this.side = side; }
+  setSide(side) { if (this.sides.includes(side)) this.side = side; }
   newGem(x = null, y = -20) {
     let nextX = x;
     if (nextX === null || nextX === undefined) {

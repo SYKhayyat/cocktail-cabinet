@@ -13,6 +13,7 @@ export class MissileCommandGame {
   set gameOver(value) { this.model.gameOver = value; }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
+  get sides() { return this.model.sides; }
   setSide(side) { this.model.setSide(side); }
   reset(keepScore) { this.model.reset(keepScore); }
   controlHint() { return this.controller.controlHint(); }

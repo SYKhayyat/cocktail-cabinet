@@ -16,6 +16,7 @@ export class ImitationGame {
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
   sideLabel() { return this.model.sideLabel(); }
+  get sides() { return this.model.sides; }
   setSide(side) { this.model.setSide(side); }
   setStateListener(listener) { this.model.setStateListener(listener); }
   createManualInvite() { return this.controller.createManualInvite(); }

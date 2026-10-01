@@ -26,13 +26,14 @@ export class SplatModel {
     this.driftActive = 0;
     this.tool = "column";
   }
+  get sides() { return ["climber", "race", "builder", "layout"]; }
   sideLabel() {
     if (this.side === "builder") return "You place columns while the computer navigates";
     if (this.side === "race") return "You and the computer race two balls";
     if (this.side === "layout") return "Computer navigates while you place columns";
     return "You steer the falling object";
   }
-  setSide(side) { this.side = side; this.tool = "column"; }
+  setSide(side) { if (this.sides.includes(side)) this.side = side; this.tool = "column"; }
   setTool(tool) { if (tool === "column" || tool === "gap") this.tool = tool; }
   setSettings(settings = {}) {
     if (Number.isInteger(settings.columnSpacing)) this.pendingSettings.columnSpacing = clamp(settings.columnSpacing, MIN_COLUMN_SPACING, MAX_COLUMN_SPACING);

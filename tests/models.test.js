@@ -1361,3 +1361,36 @@ test("disposing Imitation cancels a pending guess round timer", async () => {
   assert.equal(game.restartTimer, null, "destroy cancels the pending round timer");
   assert.equal(game.disposed, true);
 });
+
+test("every game registers the side values it accepts", () => {
+  const games = {
+    snake: new SnakeGame(),
+    breakout: new BreakoutGame(),
+    splat: new SplatGame(),
+    asteroids: new AsteroidsGame(),
+    missile: new MissileCommandGame(),
+    imitation: new ImitationGame(),
+    starfall: new StarfallGame()
+  };
+  for (const [id, game] of Object.entries(games)) {
+    assert.ok(game.sides.length > 1, `${id} registers more than one side`);
+    for (const side of game.sides) assert.equal(typeof side, "string");
+  }
+  assert.deepEqual(games.missile.sides, ["defender", "attacker"]);
+});
+
+test("setSide rejects unregistered values instead of silently accepting them", () => {
+  const missile = new MissileCommandGame();
+  missile.reset();
+  missile.setSide("attacker");
+  assert.equal(missile.side, "attacker");
+  missile.setSide("attack");
+  assert.equal(missile.side, "attacker", "the misspelled side from the old fixture is refused");
+
+  const splat = new SplatGame();
+  splat.reset();
+  splat.setSide("not-a-mode");
+  assert.equal(splat.side, "climber", "an unknown side leaves the default in place");
+  splat.setSide("race");
+  assert.equal(splat.side, "race");
+});

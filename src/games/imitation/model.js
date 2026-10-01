@@ -18,8 +18,9 @@ export class ImitationModel {
     this.chatRevision = 0;
     this.modelError = "";
   }
+  get sides() { return ["ai", "human", "guess", "provide", "write"]; }
   sideLabel() { return this.side === "ai" ? "Chat with the AI companion" : this.side === "human" ? "Chat with another player" : this.side === "guess" ? "Guess AI or human" : this.side === "provide" ? "Provide a guessing message" : "Write text for AI to classify"; }
-  setSide(side) { this.side = side; }
+  setSide(side) { if (this.sides.includes(side)) this.side = side; }
   setStateListener(listener) { this.stateListener = listener; }
   notifyState() { if (!this.disposed) this.stateListener?.(); }
   destroy() {

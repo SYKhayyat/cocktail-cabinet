@@ -19,7 +19,7 @@ function blankPointer() {
   return { x: 0, y: 0, moved: false, clicked: false, down: false };
 }
 
-function runScenario(runs, steps, setup, advance, isFailure = (game) => game.lifeLost || game.gameOver) {
+function runScenario(runs, steps, setup, advance, expectedSide = null, isFailure = (game) => game.lifeLost || game.gameOver) {
   const originalRandom = Math.random;
   let successes = 0;
   let failures = 0;
@@ -27,6 +27,8 @@ function runScenario(runs, steps, setup, advance, isFailure = (game) => game.lif
     for (let run = 0; run < runs; run += 1) {
       Math.random = seeded(1000 + run * 7919);
       const game = setup();
+      if (expectedSide && game.side !== expectedSide) throw new Error(`fixture selected "${game.side}" but registered sides are ${JSON.stringify(game.sides)}`);
+      
       let failed = false;
       for (let step = 0; step < steps; step += 1) {
         advance(game, step);
@@ -80,7 +82,7 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
         game.setSide("apples");
         game.reset();
         return game;
-      }, (game) => game.update(0.05, { direction: null, steer: null, placeApple: null })),
+      }, (game) => game.update(0.05, { direction: null, steer: null, placeApple: null }), "apples"),
     },
     breakout: {
       minimum: 4,
@@ -100,7 +102,7 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
         game.setSide("layout");
         game.reset();
         return game;
-      }, (game) => game.update(1 / 60, { placeColumnX: undefined })),
+      }, (game) => game.update(1 / 60, { placeColumnX: undefined }), "layout"),
     },
     asteroids: {
       minimum: 2,
@@ -113,20 +115,20 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
         return game;
       }, (game) => {
         game.update(1 / 60, { attack: null, fire: false, spawnAsteroid: null });
-      }),
+      }, "rocks"),
     },
     missile: {
       minimum: 1,
       maximum: 5,
       result: runScenario(runs, 600, () => {
         const game = new MissileModel();
-        game.setSide("attack");
+        game.setSide("attacker");
         game.reset();
         return game;
       }, (game, step) => {
         const attack = step % 60 === 0 ? { x: 40 + Math.random() * 720 } : null;
         game.update(1 / 60, { aim: blankPointer(), launch: false, attack });
-      }),
+      }, "attacker"),
     },
     starfall: {
       minimum: 2,
@@ -139,7 +141,7 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
       }, (game, step) => {
         const spawnStar = step % 30 === 0 ? { x: 20 + Math.random() * 760, y: 20 } : null;
         game.update(1 / 60, { keyDirection: 0, pointerX: 0, spawnStar });
-      }),
+      }, "stars"),
     },
   };
   for (const [name, scenario] of Object.entries(scenarios)) assertHumanLikeRatio(name, scenario.result, scenario.minimum, scenario.maximum);

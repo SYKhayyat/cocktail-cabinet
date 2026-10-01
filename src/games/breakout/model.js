@@ -27,8 +27,9 @@ export class BreakoutModel {
     this.score = 0;
     this.layout = null;
   }
+  get sides() { return ["bottom", "blocks", "versus"]; }
   sideLabel() { return this.side === "bottom" ? "You control the bottom paddle" : this.side === "versus" ? "Central brick duel" : "You move the blocks"; }
-  setSide(side) { this.side = side; }
+  setSide(side) { if (this.sides.includes(side)) this.side = side; }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;
     this.scores = keepScore && this.scores ? { ...this.scores } : { human: 0, computer: 0 };

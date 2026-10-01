@@ -13,6 +13,7 @@ export class StarfallGame {
   get stars() { return this.model.stars; }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
+  get sides() { return this.model.sides; }
   setSide(side) { this.model.setSide(side); }
   reset(keepScore) { this.model.reset(keepScore); }
   update(dt, input) { this.controller.update(dt, input); }

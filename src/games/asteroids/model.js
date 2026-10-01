@@ -8,8 +8,9 @@ export class AsteroidsModel {
     this.side = "ship";
     this.score = 0;
   }
+  get sides() { return ["ship", "versus", "rocks"]; }
   sideLabel() { return this.side === "ship" ? "You fly the ship" : this.side === "versus" ? "You and the computer fly" : "You send the asteroids"; }
-  setSide(side) { this.side = side; }
+  setSide(side) { if (this.sides.includes(side)) this.side = side; }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;
     this.scores = { human: 0, computer: 0 };

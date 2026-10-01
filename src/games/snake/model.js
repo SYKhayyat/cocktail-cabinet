@@ -24,8 +24,9 @@ export class SnakeModel {
     this.roundSettings = { ...this.pendingSettings };
     this.gameOver = false;
   }
+  get sides() { return ["snake", "apples"]; }
   sideLabel() { return this.side === "apples" ? "You place apples" : "You steer the snake"; }
-  setSide(side) { this.side = side; }
+  setSide(side) { if (this.sides.includes(side)) this.side = side; }
   setSettings(settings) {
     this.pendingSettings = {
       cols: Number(settings.cols) || this.pendingSettings.cols,

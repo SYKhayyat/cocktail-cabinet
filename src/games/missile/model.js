@@ -17,8 +17,9 @@ export class MissileModel {
     this.side = "defender";
     this.score = 0;
   }
+  get sides() { return ["defender", "attacker"]; }
   sideLabel() { return this.side === "defender" ? "You defend the cities" : "You attack the batteries"; }
-  setSide(side) { this.side = side; }
+  setSide(side) { if (this.sides.includes(side)) this.side = side; }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;
     this.level = 1;
