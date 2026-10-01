@@ -8,9 +8,15 @@ export class ImitationController {
     this.manualPeer = null;
     this.manualChannel = null;
     this.manualRemoteId = null;
-    this.manualActive = false;
+this.manualActive = false;
     model.onAiChosen = () => this.sendPayload({ type: "ai-writing", from: this.model.matchId });
     model.onRoundStart = () => this.sendPayload({ type: "round-start", from: this.model.matchId });
+  }
+  controlHint() {
+    return [
+      { keys: ["Enter"], label: "send a message" },
+      { keys: ["Click"], label: "choose a guess" }
+    ];
   }
   reset(keepScore = false) {
     this.closeChannel();

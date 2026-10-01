@@ -27,6 +27,7 @@ export class ImitationGame {
   downloadModel() { return this.model.downloadModel(); }
   restartGuess() { return this.model.restartGuess(); }
   chooseGuess(value) { return this.model.chooseGuess(value); }
+  controlHint() { return this.controller.controlHint(); }
   update(dt) { this.controller.update(dt); }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }

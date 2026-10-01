@@ -19,6 +19,7 @@ export class AsteroidsGame {
   reset(keepScore) { this.model.reset(keepScore); }
   handleLifeLoss() { return this.model.handleLifeLoss(); }
   resetAfterLife() { this.model.resetAfterLife(); }
+  controlHint() { return this.controller.controlHint(); }
   get playerLives() { return this.model.side === "versus" ? this.model.playerLives : null; }
   update(dt, input) { this.controller.update(dt, input); }
   draw(context) { draw(this.model, context); }

@@ -18,6 +18,7 @@ export class StarfallGame {
   update(dt, input) { this.controller.update(dt, input); }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }
+  controlHint() { return this.controller.controlHint(); }
   sideLabel() { return this.model.sideLabel(); }
 }
 

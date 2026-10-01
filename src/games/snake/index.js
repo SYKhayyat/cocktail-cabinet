@@ -27,6 +27,7 @@ export class SnakeGame {
   setSettings(settings) { this.model.setSettings(settings); }
   applyPendingSettings() { this.model.applyPendingSettings(); }
   reset(keepScore, length) { this.model.reset(keepScore, length); }
+  controlHint() { return this.controller.controlHint(); }
   cellWidth() { return this.model.cellWidth(); }
   cellHeight() { return this.model.cellHeight(); }
   cellFromPointer(pointer) { return this.model.cellFromPointer(pointer); }

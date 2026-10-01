@@ -2,6 +2,13 @@ export class BreakoutController {
   constructor(model) {
     this.model = model;
   }
+  controlHint() {
+    return [
+      { keys: ["ArrowLeft", "ArrowRight"], label: "move the paddle" },
+      { keys: ["A", "D"], label: "move the paddle" },
+      { keys: ["Mouse"], label: "move the paddle" }
+    ];
+  }
   update(dt, input) {
     this.model.update(dt, {
       mode: input.mode,

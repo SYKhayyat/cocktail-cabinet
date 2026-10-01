@@ -47,6 +47,8 @@ h2 { font-size: 1.25rem; }
 .how-to-play h2 { color: var(--ink); font-size: 0.9rem; margin-bottom: 8px; }
 .how-to-play p + p { margin-top: 9px; }
 .shortcut { color: #cbd5e1; }
+.shortcut-group { display: inline; }
+.shortcut-group + .shortcut-group::before { content: " · "; color: var(--muted); }
 kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px; font-size: 0.75rem; }
 
 .machine { padding: clamp(16px, 3vw, 30px); min-width: 0; }

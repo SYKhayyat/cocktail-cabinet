@@ -969,7 +969,7 @@ test("Missile Command: aiming, launching, interception, targeting, and base loss
   assert.equal(dead.lifeLost, false);
 });
 
-test("Missile Command uses arrow-selected batteries and click-to-launch", () => {
+test("Missile Command uses arrow-selected batteries and launches on click or Space", () => {
   const game = new MissileCommandGame();
   game.reset();
   game.update(0, input({ pressed: new Set(["ArrowRight"]), pointer: pointer({ x: 250, y: 180, clicked: true }) }));
@@ -977,9 +977,45 @@ test("Missile Command uses arrow-selected batteries and click-to-launch", () => 
   assert.deepEqual(game.model.target, { x: 250, y: 180 });
   assert.equal(game.model.interceptors.length, 1);
   assert.equal(game.model.bases[2].missiles, 9);
-  const before = game.model.interceptors.length;
+
+  const afterClick = game.model.interceptors.length;
   game.update(0, input({ pressed: new Set([" "]) }));
-  assert.equal(game.model.interceptors.length, before);
+  assert.equal(game.model.interceptors.length, afterClick + 1, "Space launches at the current target");
+  assert.equal(game.model.bases[2].missiles, 8);
+
+  game.model.interceptors.length = 0;
+  const battery = game.model.selectedBattery;
+  game.model.bases[battery].alive = false;
+  const launchedFromDeadBattery = game.model.launchInterceptor();
+  assert.equal(launchedFromDeadBattery, false, "Space cannot launch from a destroyed battery");
+});
+
+test("every game advertises the controls its controller actually binds", () => {
+  const games = {
+    snake: new SnakeGame(),
+    breakout: new BreakoutGame(),
+    splat: new SplatGame(),
+    asteroids: new AsteroidsGame(),
+    missile: new MissileCommandGame(),
+    imitation: new ImitationGame(),
+    starfall: new StarfallGame()
+  };
+  const advertised = {};
+  for (const [id, game] of Object.entries(games)) {
+    const hint = game.controlHint();
+    assert.ok(Array.isArray(hint) && hint.length > 0, `${id} exposes a control hint`);
+    for (const entry of hint) {
+      assert.ok(Array.isArray(entry.keys) && entry.keys.length > 0, `${id} lists keys for "${entry.label}"`);
+      assert.equal(typeof entry.label, "string");
+      advertised[id] = (advertised[id] || new Set()).add(entry.keys.join("|"));
+    }
+  }
+  assert.ok(advertised.missile.has("Space"), "Missile advertises Space, which its controller now binds");
+  assert.ok(advertised.asteroids.has("Space"), "Asteroids advertises Space");
+  assert.ok(advertised.snake.has("Click"), "Snake advertises clicking to place an apple");
+  assert.ok(advertised.imitation.has("Enter"), "Imitation advertises Enter to send");
+  assert.ok(!advertised.breakout.has("Space"), "Breakout does not advertise a key it does not bind");
+  assert.ok(!advertised.starfall.has("Space"), "Starfall does not advertise a key it does not bind");
 });
 
 test("Missile Command ends when all cities are lost without reserves", () => {

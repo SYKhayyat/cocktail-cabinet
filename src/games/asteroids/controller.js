@@ -1,5 +1,13 @@
 export class AsteroidsController {
   constructor(model) { this.model = model; }
+  controlHint() {
+    return [
+      { keys: ["ArrowLeft", "ArrowRight"], label: "turn" },
+      { keys: ["ArrowUp"], label: "thrust" },
+      { keys: ["Space"], label: "fire" },
+      { keys: ["Click"], label: "aim and fire" }
+    ];
+  }
   update(dt, input) {
     this.model.update(dt, {
       turn: (input.keys.has("ArrowRight") || input.keys.has("d") ? 1 : 0) - (input.keys.has("ArrowLeft") || input.keys.has("a") ? 1 : 0),

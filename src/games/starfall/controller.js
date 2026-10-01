@@ -1,5 +1,13 @@
 export class StarfallController {
   constructor(model) { this.model = model; this.holdTime = 0; this.suppressNextStar = false; }
+  controlHint() {
+    return [
+      { keys: ["ArrowLeft", "ArrowRight"], label: "guide the runner" },
+      { keys: ["A", "D"], label: "guide the runner" },
+      { keys: ["Click"], label: "send a star" },
+      { keys: ["Double-click"], label: "send a gem" }
+    ];
+  }
   update(dt, input) {
     const pointer = input.pointer;
     if (pointer.down) this.holdTime += dt;

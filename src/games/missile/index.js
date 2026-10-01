@@ -15,6 +15,7 @@ export class MissileCommandGame {
   set lifeLost(value) { this.model.lifeLost = value; }
   setSide(side) { this.model.setSide(side); }
   reset(keepScore) { this.model.reset(keepScore); }
+  controlHint() { return this.controller.controlHint(); }
   handleLifeLoss() { return this.model.handleLifeLoss(); }
   update(dt, input) { this.controller.update(dt, input); }
   draw(context) { draw(this.model, context); }

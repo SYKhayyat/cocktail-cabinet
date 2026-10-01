@@ -43,6 +43,7 @@ const chatForm = document.querySelector("#chatForm");
 const chatInput = document.querySelector("#chatInput");
 const chatMessages = document.querySelector("#chatMessages");
 const guessControls = document.querySelector("#guessControls");
+const controlHint = document.querySelector("#controlHint");
 const guessButtons = [...document.querySelectorAll("[data-guess]")];
 const guessStats = document.querySelector("#guessStats");
 const guessRestart = document.querySelector("#guessRestart");
@@ -187,6 +188,21 @@ function updateImitationTools() {
   manualConnect.hidden = activeId !== "imitation" || !["human", "guess", "provide"].includes(game.side);
 }
 
+function renderControlHint(game) {
+  controlHint.replaceChildren();
+  for (const { keys, label } of game.controlHint?.() || []) {
+    const group = document.createElement("span");
+    group.className = "shortcut-group";
+    for (const key of keys) {
+      const element = document.createElement("kbd");
+      element.textContent = key;
+      group.append(element);
+    }
+    group.append(document.createTextNode(` ${label} `));
+    controlHint.append(group);
+  }
+}
+
 function loadGame(id) {
   activeId = id;
   const game = games.get(id);
@@ -224,6 +240,7 @@ function loadGame(id) {
       renderChat(game);
     }
   });
+  renderControlHint(game);
   engine.load(game);
   updateSplatTools();
   updateImitationTools();

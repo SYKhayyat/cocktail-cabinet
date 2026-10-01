@@ -30,6 +30,7 @@ export class BreakoutGame {
   sideLabel() { return this.model.sideLabel(); }
   setSide(side) { this.model.setSide(side); }
   reset(keepScore) { this.model.reset(keepScore); }
+  controlHint() { return this.controller.controlHint(); }
   resetAfterLife() { this.model.resetAfterLife(); }
   handleLifeLoss() { return this.model.handleLifeLoss(); }
   winMessage() { return this.model.winner === "computer" ? "Computer wins the duel!" : "You win the duel!"; }
