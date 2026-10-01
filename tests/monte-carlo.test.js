@@ -102,7 +102,7 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
         game.setSide("layout");
         game.reset();
         return game;
-      }, (game) => game.update(1 / 60, { placeColumnX: undefined }), "layout"),
+      }, (game) => game.update(1 / 60, {}), "layout"),
     },
     asteroids: {
       minimum: 2,

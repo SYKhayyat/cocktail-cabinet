@@ -681,8 +681,29 @@ test("Splat computer can steer through a generated route", () => {
   const game = new SplatModel();
   game.setSide("layout");
   game.reset();
-  for (let step = 0; step < 1200 && !game.lifeLost && !game.won; step += 1) game.update(1 / 60, { placeColumnX: undefined });
+  for (let step = 0; step < 1200 && !game.lifeLost && !game.won; step += 1) game.update(1 / 60, {});
   assert.ok(game.score > 0 || game.lifeLost);
+});
+
+test("Splat builder places columns from the pointer, not a separate placement channel", () => {
+  const game = new SplatGame();
+  game.setSide("builder");
+  game.reset();
+  const columnsBefore = game.model.columns.length;
+  const clickX = 400;
+  game.update(0, input({ pointer: pointer({ x: clickX, y: 280, clicked: true, released: true, down: false, dragDistance: 0 }) }));
+  assert.equal(game.model.columns.length, columnsBefore + 1, "a plain click adds a column at the clicked x");
+  const added = game.model.columns.find((column) => column.x === game.model.builderCameraX + clickX);
+  assert.ok(added, "the new column sits at the clicked screen position");
+
+  const countAfterAdd = game.model.columns.length;
+  const dragTarget = game.model.columns[0];
+  const startX = dragTarget.x;
+  game.update(0.016, input({ pointer: pointer({ x: dragTarget.x, y: 280, clicked: false, down: true, dragStartX: dragTarget.x, dragStartY: 280 }) }));
+  game.update(0.016, input({ pointer: pointer({ x: startX + 60, y: 280, clicked: false, down: true, dragStartX: dragTarget.x, dragStartY: 280, dragDistance: 60 }) }));
+  game.update(0.016, input({ pointer: pointer({ x: startX + 60, y: 280, clicked: false, down: false, released: true, dragStartX: dragTarget.x, dragStartY: 280, dragDistance: 60 }) }));
+  assert.equal(game.model.columns.length, countAfterAdd, "dragging rearranges rather than adding");
+  assert.notEqual(dragTarget.x, startX, "the dragged column moved");
 });
 
 test("Asteroids: ship movement, firing, spawning, destruction, and ship loss", () => {
