@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node --test",
     "test:browser": "node tests/browser-smoke.mjs",
-    "check": "node --check src/main.js && node --check src/engine.js && python3 scripts/dead-code-check.py",
+    "check": "node --check src/main.js && node --check src/engine.js && python3 scripts/dead-code-check.py && node scripts/check-readme-controls.mjs",
+    "check:readme": "node scripts/check-readme-controls.mjs",
     "serve": "python3 -m http.server 4173"
   }
 }

@@ -1,5 +1,11 @@
 # Cocktail Cabinet issues log
 
+> **Point-in-time audit, not a status list.** Everything below describes the
+> project as it stood on 2026-09-25, before the tracked fixes landed. Findings
+> are written in the present tense as of that date and are **not** claims about
+> the current code — several are now fixed. Current state lives in
+> [README.md](README.md); the open and closed work is tracked as GitHub issues.
+
 **Test date:** 2026-09-25
 **Scope:** All seven games, all exposed side modes where practical, MVC layers, progressive difficulty, fun/balance, and computer strength.
 **Repository:** `cocktail-cabinet`

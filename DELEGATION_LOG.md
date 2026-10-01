@@ -1,5 +1,10 @@
 # Delegation log
 
+> **Append-only history.** Each entry records one task and how it was verified
+> at the time, so earlier entries describe earlier states of the code. For the
+> current architecture, controls, testing, and deployment, see
+> [README.md](README.md).
+
 ## First draft
 
 - **Requested:** Build the first readable Cocktail Cabinet draft.

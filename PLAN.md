@@ -1,5 +1,12 @@
 # Cocktail Cabinet — first draft plan
 
+> **Superseded.** This is the original design brief, kept for provenance. It
+> describes a one-file-per-game layout, a `netlify.toml` deploy, and a planned
+> `AiController` interface — none of which match the current code. The current
+> architecture, controls, testing, and deployment are documented in
+> [README.md](README.md). Where this document and the code disagree, the code
+> wins.
+
 ## Goal
 
 Build one static, framework-free cabinet with seven readable games. Each game gets a human side and a machine side, starts gently, and gets more active as the score rises. No server code or API keys are required.

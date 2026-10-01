@@ -2,6 +2,9 @@
 
 Research date: 2026-09-24. These are reference points, not copied assets or code.
 
+For current controls, architecture, and deployment see
+[README.md](README.md); this file is research background only.
+
 ## Comparison
 
 | Game | Reference behavior | Our current target |
@@ -13,6 +16,15 @@ Research date: 2026-09-24. These are reference points, not copied assets or code
 | Missile Command | Red enemy missiles fall from the sky toward ground targets. A crosshair selects an explosion point; blue interceptors fly from batteries and can miss. The game is about surviving increasingly dense waves. | Red missiles visibly fall from the top toward labeled cities, blue interceptors are aimed with the mouse and launched with Space, and the computer attacks or intercepts in the flipped mode. |
 | Imitation | The reference is a conversational human-vs-machine test, not a canned arcade exchange. The interesting mechanic is live dialogue and the inability to reliably identify the machine. | A single visible chat transcript, real local Llama responses, delayed replies, same-browser tabs, and manual WebRTC connections between separate browsers. The model is loaded only when the AI side is used. |
 | Starfall | Falling-object games use clear object silhouettes, direct pointer movement, visible hazards, score, and speed increases over time. | Red X hazards, blue collectibles, a mouse/keyboard runner, visible score, faster falling objects, and a flipped mode where the human sends hazards. |
+
+## Current controls
+
+The "Our current target" column above is the 2026-09-24 intent. The controls the
+cabinet actually binds are now defined per controller in
+`src/games/<id>/controller.js` (`controlHint()`) and rendered into the in-page
+"How to play" panel. Missile Command does accept Space to launch, alongside
+clicking; Left/Right choose which battery fires. The full table is in
+[README.md](README.md).
 
 ## Sources
 
