@@ -1,3 +1,7 @@
+const DEFAULT_LIVES = 3;
+const MIN_LIVES = 1;
+const MAX_LIVES = 9;
+
 export class GameEngine {
   constructor(canvas, { onState, onScore, onMessage, onLives } = {}) {
     this.canvas = canvas;
@@ -12,8 +16,9 @@ export class GameEngine {
     this.paused = false;
     this.ready = false;
     this.countdown = 0;
-    this.lives = 3;
-    this.maxLives = 3;
+    this.lives = DEFAULT_LIVES;
+    this.maxLives = DEFAULT_LIVES;
+    this.pendingLives = DEFAULT_LIVES;
     this.lastTime = 0;
     this.animationFrame = 0;
     this.input = {
@@ -146,7 +151,7 @@ export class GameEngine {
     this.paused = false;
     this.ready = !interactive;
     this.countdown = 0;
-    this.lives = this.maxLives;
+    this.applyLives();
     game.applyPendingSettings?.();
     game.reset();
     this.onState?.(game.publicState());
@@ -182,14 +187,36 @@ export class GameEngine {
   }
 
   setLives(value) {
-    this.maxLives = Math.max(1, Math.min(9, Number(value) || 3));
-    if (!this.game) this.lives = this.maxLives;
+    const parsed = Math.trunc(Number(value));
+    const next = Number.isFinite(parsed) ? Math.max(MIN_LIVES, Math.min(MAX_LIVES, parsed)) : DEFAULT_LIVES;
+    if (next === this.pendingLives) return;
+    this.pendingLives = next;
+    if (!this.game) {
+      this.maxLives = next;
+      this.lives = next;
+      this.onLives?.(this.lives, this.maxLives);
+      return;
+    }
+    if (next < this.lives) {
+      this.maxLives = next;
+      this.lives = next;
+      this.onLives?.(this.lives, this.maxLives);
+      this.onMessage?.(`Lives set to ${next} — lowered straight away.`);
+    } else {
+      this.onMessage?.(`Lives set to ${next} — applies from the next game.`);
+    }
+  }
+
+  applyLives() {
+    this.maxLives = this.pendingLives;
+    this.lives = this.maxLives;
     this.onLives?.(this.lives, this.maxLives);
   }
 
   addLife() {
-    this.maxLives = Math.min(9, this.maxLives + 1);
+    this.maxLives = Math.min(MAX_LIVES, this.maxLives + 1);
     this.lives = Math.min(this.maxLives, this.lives + 1);
+    this.pendingLives = this.maxLives;
     this.onLives?.(this.lives, this.maxLives);
   }
 
@@ -267,12 +294,11 @@ export class GameEngine {
     this.paused = false;
     this.ready = false;
     this.countdown = 3;
-    this.lives = this.maxLives;
+    this.applyLives();
     this.game.applyPendingSettings?.();
     this.game.gameOver = false;
     this.game.lifeLost = false;
     this.game.reset(false, true);
-    this.onLives?.(this.lives, this.maxLives);
     this.onMessage?.("New game — starting in 3…");
   }
 
@@ -284,11 +310,10 @@ export class GameEngine {
     this.paused = false;
     this.ready = false;
     this.countdown = 0;
-    this.lives = this.maxLives;
+    this.applyLives();
     this.game.gameOver = false;
     this.game.lifeLost = false;
     this.game?.reset();
-    this.onLives?.(this.lives, this.maxLives);
     this.onMessage?.(`${this.game.title}: ${this.game.sideLabel()}`);
   }
 

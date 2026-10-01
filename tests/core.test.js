@@ -159,6 +159,93 @@ function withFakeDom(run) {
   }
 }
 
+function fakeGame(overrides = {}) {
+  return {
+    id: "snake",
+    score: 0,
+    gameOver: false,
+    lifeLost: false,
+    won: false,
+    reset() {},
+    setSide() {},
+    sideLabel() { return "Test side"; },
+    update() {},
+    draw() {},
+    publicState() { return { title: "Test", description: "", side: "", status: "" }; },
+    ...overrides
+  };
+}
+
+function withEngine(run) {
+  return withFakeDom(({ engine }) => run(engine, fakeGame()));
+}
+
+test("raising the lives setting mid-round queues it for the next game", () => {
+  withEngine((engine, game) => {
+    engine.load(game);
+    assert.deepEqual([engine.lives, engine.maxLives], [3, 3]);
+    engine.lives = 2;
+    engine.setLives(9);
+    assert.deepEqual([engine.lives, engine.maxLives], [2, 3], "a raise never grants a free life now");
+    assert.equal(engine.pendingLives, 9);
+    engine.restart();
+    assert.deepEqual([engine.lives, engine.maxLives], [9, 9], "the queued value lands on the next game");
+  });
+});
+
+test("lowering the lives setting mid-round clamps immediately and stays coherent", () => {
+  withEngine((engine, game) => {
+    engine.load(game);
+    engine.lives = 2;
+    engine.setLives(1);
+    assert.deepEqual([engine.lives, engine.maxLives], [1, 1], "lives can never exceed the new maximum");
+    engine.setLives(5);
+    assert.deepEqual([engine.lives, engine.maxLives], [1, 1], "raising again does not resurrect lives");
+    engine.restart();
+    assert.deepEqual([engine.lives, engine.maxLives], [5, 5]);
+  });
+});
+
+test("lives settings apply across game loads and side changes", () => {
+  withEngine((engine, game) => {
+    engine.load(game);
+    engine.setLives(6);
+    engine.load(fakeGame({ id: "breakout" }));
+    assert.deepEqual([engine.lives, engine.maxLives], [6, 6], "loading a game adopts the queued setting");
+    engine.setLives(2);
+    engine.lives = 2;
+    engine.setSide("other");
+    assert.deepEqual([engine.lives, engine.maxLives], [2, 2]);
+  });
+});
+
+test("an extra life earned in play survives the next game", () => {
+  withEngine((engine, game) => {
+    engine.load(game);
+    engine.setLives(4);
+    engine.restart();
+    assert.deepEqual([engine.lives, engine.maxLives], [4, 4]);
+    engine.addLife();
+    assert.deepEqual([engine.lives, engine.maxLives], [5, 5]);
+    engine.restart();
+    assert.deepEqual([engine.lives, engine.maxLives], [5, 5], "the reward is not lost by restarting");
+  });
+});
+
+test("lives settings are clamped to the documented 1-9 range", () => {
+  withEngine((engine, game) => {
+    engine.load(game);
+    engine.setLives(0);
+    assert.equal(engine.pendingLives, 1);
+    engine.setLives(50);
+    assert.equal(engine.pendingLives, 9);
+    engine.setLives("not a number");
+    assert.equal(engine.pendingLives, 3, "unparseable input falls back to the default");
+    engine.setLives(2.7);
+    assert.equal(engine.pendingLives, 2, "a fractional input is not a whole number of lives");
+  });
+});
+
 test("a cancelled pointer gesture leaves no click, drag, or release behind", () => {
   withFakeDom(({ engine, dispatch, dispatchWindow }) => {
     const pointerEvent = { pointerId: 7, clientX: 100, clientY: 120 };
