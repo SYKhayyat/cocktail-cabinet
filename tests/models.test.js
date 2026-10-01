@@ -1268,3 +1268,60 @@ test("all game facades reset, update, and expose public state", () => {
     assert.equal(typeof state.status, "string");
   }
 });
+
+test("a disposed Imitation controller drops its channel and stops mutating the model", async () => {
+  const OriginalBroadcastChannel = globalThis.BroadcastChannel;
+  const channels = new Set();
+  class TestBroadcastChannel {
+    constructor(name) { this.name = name; this.closed = false; channels.add(this); }
+    postMessage(data) {
+      for (const channel of channels) {
+        if (channel !== this && !channel.closed && channel.name === this.name) queueMicrotask(() => channel.onmessage?.({ data }));
+      }
+    }
+    close() { this.closed = true; channels.delete(this); }
+  }
+  globalThis.BroadcastChannel = TestBroadcastChannel;
+  try {
+    const leaving = new ImitationController(new ImitationModel());
+    const staying = new ImitationController(new ImitationModel());
+    leaving.model.setSide("human");
+    staying.model.setSide("human");
+    leaving.reset();
+    staying.reset();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(leaving.model.peerId, staying.model.matchId);
+
+    leaving.destroy();
+    assert.equal(leaving.channel, null, "the departing controller releases its channel");
+    assert.equal(leaving.model.disposed, true);
+    assert.equal(leaving.announceTimer, null, "the matchmaking heartbeat is cleared");
+
+    staying.model.sendMessage("still here?");
+    await new Promise((resolve) => setImmediate(resolve));
+    const afterDeparture = leaving.model.chatLog.length;
+    assert.equal(leaving.model.chatLog.length, afterDeparture, "a disposed model records nothing further");
+    assert.equal(leaving.model.peerId, null);
+
+    leaving.model.receive({ type: "chat", from: staying.model.matchId, text: "too late" });
+    assert.equal(leaving.model.chatLog.length, afterDeparture, "a disposed model ignores inbound messages");
+    assert.equal(leaving.model.sendMessage("hi"), null, "a disposed model refuses to send");
+    assert.equal(leaving.model.chooseGuess("ai"), false);
+  } finally {
+    globalThis.BroadcastChannel = OriginalBroadcastChannel;
+  }
+});
+
+test("disposing Imitation cancels a pending guess round timer", async () => {
+  const game = new ImitationModel();
+  game.setSide("guess");
+  game.reset();
+  game.peerId = "peer";
+  game.mystery = { source: "ai", text: "A mystery" };
+  game.phase = "guess";
+  assert.equal(game.chooseGuess("ai"), true);
+  assert.ok(game.restartTimer, "a pending next-round timer exists while playing");
+  game.destroy();
+  assert.equal(game.restartTimer, null, "destroy cancels the pending round timer");
+  assert.equal(game.disposed, true);
+});

@@ -136,6 +136,7 @@ export class GameEngine {
 
   load(game) {
     this.stop();
+    this.game?.destroy?.();
     this.game = game;
     game.engine = this;
     game.gameOver = false;
@@ -293,6 +294,8 @@ export class GameEngine {
 
   destroy() {
     this.stop();
+    this.game?.destroy?.();
+    this.game = null;
     window.removeEventListener("keydown", this.handleKeyDown);
     window.removeEventListener("keyup", this.handleKeyUp);
     this.canvas.removeEventListener("pointermove", this.handlePointerMove);

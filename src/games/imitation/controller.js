@@ -17,6 +17,10 @@ export class ImitationController {
     this.model.reset(keepScore);
     if (this.model.side === "human" || this.model.side === "guess" || this.model.side === "provide") this.connectChannel();
   }
+  destroy() {
+    this.closeChannel();
+    this.model.destroy();
+  }
   closeChannel() {
     clearInterval(this.announceTimer);
     this.announceTimer = null;

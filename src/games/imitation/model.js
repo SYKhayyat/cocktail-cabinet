@@ -21,8 +21,18 @@ export class ImitationModel {
   sideLabel() { return this.side === "ai" ? "Chat with the AI companion" : this.side === "human" ? "Chat with another player" : this.side === "guess" ? "Guess AI or human" : this.side === "provide" ? "Provide a guessing message" : "Write text for AI to classify"; }
   setSide(side) { this.side = side; }
   setStateListener(listener) { this.stateListener = listener; }
-  notifyState() { this.stateListener?.(); }
+  notifyState() { if (!this.disposed) this.stateListener?.(); }
+  destroy() {
+    this.disposed = true;
+    clearTimeout(this.restartTimer);
+    this.restartTimer = null;
+    this.guessToken += 1;
+    this.peerId = null;
+    this.onAiChosen = null;
+    this.onRoundStart = null;
+  }
   reset(keepScore = false) {
+    this.disposed = false;
     if (!keepScore) {
       this.score = 0;
       this.guessStats = { right: 0, wrong: 0 };
@@ -101,7 +111,7 @@ export class ImitationModel {
     this.startNextRound(false);
   }
   receive(message) {
-    if (!message || message.from === this.matchId) return;
+    if (this.disposed || !message || message.from === this.matchId) return;
     if (message.to && message.to !== this.matchId) return;
     if (message.type === "bye" && message.from === this.peerId) {
       this.peerId = null;
@@ -153,6 +163,7 @@ export class ImitationModel {
     }
   }
   addMessage(sender, text) {
+    if (this.disposed) return null;
     const message = { sender, text, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) };
     this.chatLog.push(message);
     this.chatLog = this.chatLog.slice(-18);
@@ -162,6 +173,7 @@ export class ImitationModel {
     return message;
   }
   sendMessage(text) {
+    if (this.disposed) return null;
     const clean = text.trim().slice(0, 2000);
     if (!clean || this.phase === "result") return null;
     this.addMessage("You", clean);
@@ -177,7 +189,7 @@ export class ImitationModel {
     return clean;
   }
   chooseGuess(value) {
-    if (this.side !== "guess" || this.phase !== "guess" || !this.mystery || !["ai", "human"].includes(value)) return false;
+    if (this.disposed || this.side !== "guess" || this.phase !== "guess" || !this.mystery || !["ai", "human"].includes(value)) return false;
     const correct = value === this.mystery.source;
     this.guessStats[correct ? "right" : "wrong"] += 1;
     this.guessResult = { choice: value, correct };
@@ -222,6 +234,7 @@ export class ImitationModel {
     thinking.waiting = true;
     this.chatRevision += 1;
     const response = await this.requestAi(text);
+    if (this.disposed) return;
     this.chatLog = this.chatLog.filter((message) => message !== thinking);
     this.chatRevision += 1;
     if (response) this.addMessage("AI", response);
@@ -237,6 +250,7 @@ export class ImitationModel {
     waiting.waiting = true;
     this.chatRevision += 1;
     const response = await this.requestAi(this.prompt, GUESS_RESPONSE_PROMPT);
+    if (this.disposed) return;
     this.chatLog = this.chatLog.filter((message) => message !== waiting);
     this.chatRevision += 1;
     if (token !== this.guessToken || this.roundSource !== "ai" || this.mystery) return;
@@ -258,6 +272,7 @@ export class ImitationModel {
     thinking.waiting = true;
     this.chatRevision += 1;
     const response = await this.requestAi(text, CLASSIFIER_PROMPT, { maxTokens: 96, format: CLASSIFIER_FORMAT });
+    if (this.disposed) return;
     this.chatLog = this.chatLog.filter((message) => message !== thinking);
     this.chatRevision += 1;
     if (!response) {
@@ -272,6 +287,7 @@ export class ImitationModel {
     this.addMessage("AI", explanation ? `${classification}\n${explanation}` : classification);
   }
   update(dt) {
+    if (this.disposed) return;
     if (this.side === "human" && !this.peerId) this.matchmaking = Math.max(0, this.matchmaking - dt);
     if (this.side === "guess" && this.prompt && !this.mystery && !this.roundSource && this.phase !== "guess-loading" && this.phase !== "result") {
       this.guessClock = Math.max(0, this.guessClock - dt);

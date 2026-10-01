@@ -22,6 +22,7 @@ export class ImitationGame {
   acceptManualInvite(text) { return this.controller.acceptManualInvite(text); }
   acceptManualAnswer(text) { return this.controller.acceptManualAnswer(text); }
   reset(keepScore) { this.controller.reset(keepScore); }
+  destroy() { this.controller.destroy(); }
   sendMessage(text) { this.controller.sendMessage(text); }
   downloadModel() { return this.model.downloadModel(); }
   restartGuess() { return this.model.restartGuess(); }
