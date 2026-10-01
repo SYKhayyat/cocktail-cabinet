@@ -1837,3 +1837,65 @@ test("a solo Breakout extra-life brick leaves no stale per-pilot count", () => {
   assert.deepEqual(calls, ["addLife"], "the solo extra life is delegated to the engine");
   assert.equal(facade.playerLives, null, "solo mode still reports no per-pilot lives afterwards");
 });
+
+test("Snake may follow its tail into the cell it is vacating", () => {
+  const game = new SnakeModel();
+  game.setSettings({ cols: 8, rows: 8, startingLength: 4, wrap: false });
+  game.applyPendingSettings();
+  game.reset();
+  // The issue's body: a closed loop whose last segment is the one the head
+  // is about to enter.
+  game.snake = [{ x: 2, y: 2 }, { x: 2, y: 3 }, { x: 1, y: 3 }, { x: 1, y: 2 }];
+  game.direction = { x: -1, y: 0 };
+  game.nextDirection = { x: -1, y: 0 };
+  game.apple = { x: 6, y: 6 };
+  const tail = { ...game.snake.at(-1) };
+  game.aiClock = 0;
+  game.update(0.2, { direction: null, steer: null, placeApple: null });
+
+  assert.equal(game.gameOver, false, "moving into the departing tail cell is legal");
+  assert.equal(game.lossReason, "");
+  assert.deepEqual(game.snake[0], tail, "the head took the tail's old cell");
+  assert.equal(game.snake.length, 4, "the snake neither grew nor shrank");
+  assert.equal(game.snake.filter((part) => part.x === tail.x && part.y === tail.y).length, 1, "the vacated cell belongs to the head alone now");
+});
+
+test("Snake still collides with its tail when the move makes it grow", () => {
+  const game = new SnakeModel();
+  game.setSettings({ cols: 8, rows: 8, startingLength: 4, wrap: false });
+  game.applyPendingSettings();
+  game.reset();
+  game.snake = [{ x: 2, y: 2 }, { x: 2, y: 3 }, { x: 1, y: 3 }, { x: 1, y: 2 }];
+  game.direction = { x: -1, y: 0 };
+  game.nextDirection = { x: -1, y: 0 };
+  // The apple sits on the tail cell: the snake grows, so the tail stays solid.
+  game.apple = { x: 1, y: 2 };
+  game.aiClock = 0;
+  game.update(0.2, { direction: null, steer: null, placeApple: null });
+  assert.equal(game.gameOver, true, "the tail is still an obstacle on a growing move");
+  assert.equal(game.lossReason, "self");
+});
+
+test("Snake still collides with every non-tail segment", () => {
+  const game = new SnakeModel();
+  game.setSettings({ cols: 8, rows: 8, startingLength: 5, wrap: false });
+  game.applyPendingSettings();
+  game.reset();
+  // A straight run with the head reversing into the second segment.
+  game.snake = [{ x: 4, y: 4 }, { x: 3, y: 4 }, { x: 2, y: 4 }, { x: 1, y: 4 }, { x: 0, y: 4 }];
+  game.direction = { x: 1, y: 0 };
+  game.nextDirection = { x: 1, y: 0 };
+  game.apple = { x: 7, y: 7 };
+  game.aiClock = 0;
+  game.update(0.2, { direction: null, steer: null, placeApple: null });
+  assert.equal(game.gameOver, false);
+  assert.deepEqual(game.snake[0], { x: 5, y: 4 }, "moving along the body is fine");
+
+  game.snake = [{ x: 4, y: 4 }, { x: 4, y: 5 }, { x: 4, y: 6 }, { x: 5, y: 6 }, { x: 6, y: 6 }];
+  game.direction = { x: 0, y: 1 };
+  game.nextDirection = { x: 0, y: 1 };
+  game.aiClock = 0;
+  game.update(0.2, { direction: null, steer: null, placeApple: null });
+  assert.equal(game.gameOver, true, "the head cannot enter a mid-body segment");
+  assert.equal(game.lossReason, "self");
+});

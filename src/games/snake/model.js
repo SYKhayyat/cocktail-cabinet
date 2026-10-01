@@ -121,8 +121,17 @@ export class SnakeModel {
     let next = { x: head.x + this.direction.x, y: head.y + this.direction.y };
     if (this.wrap) next = { x: (next.x + this.cols) % this.cols, y: (next.y + this.rows) % this.rows };
     else if (next.x < 0 || next.x >= this.cols || next.y < 0 || next.y >= this.rows) { this.gameOver = true; this.lossReason = "wall"; return; }
-    if (this.snake.some((part) => part.x === next.x && part.y === next.y)) { this.gameOver = true; this.lossReason = "self"; return; }
-    if (next.x === this.apple?.x && next.y === this.apple?.y) {
+    const eating = next.x === this.apple?.x && next.y === this.apple?.y;
+    // On a non-eating move the tail cell is vacated by the pop() at the end of
+    // this tick, so the head may legitimately move into it. Checking the tail
+    // as a collision would forbid a legal move. When the snake grows the tail
+    // stays put, so the same cell must still count as solid.
+    const collides = this.snake.some((part, index) => {
+      if (!eating && index === this.snake.length - 1) return false;
+      return part.x === next.x && part.y === next.y;
+    });
+    if (collides) { this.gameOver = true; this.lossReason = "self"; return; }
+    if (eating) {
       this.score += 1;
       this.snake.unshift(next);
       this.apple = this.freeApple();
