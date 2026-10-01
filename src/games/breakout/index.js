@@ -17,7 +17,10 @@ export class BreakoutGame {
   get computer() { return this.model.computer; }
   get balls() { return this.model.balls; }
   get bricks() { return this.model.bricks; }
-  get playerLives() { return this.model.playerLives; }
+  // Only versus has two owners to report. Solo modes expose null so the engine
+  // falls back to its own Lives: current/max line instead of drawing a
+  // "You / Computer" overlay for a game with a single paddle.
+  get playerLives() { return this.model.side === "versus" ? this.model.playerLives : null; }
   get winner() { return this.model.winner; }
   get versusTie() { return this.model.versusTie; }
   get gameOver() { return this.model.gameOver; }

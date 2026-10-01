@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { clamp, circleHitsCircle, distance, GameEngine } from "../src/engine.js";
+
+function assertMatch(actual, pattern, message) {
+  if (!pattern.test(String(actual ?? ""))) throw new Error(`${message} (got ${JSON.stringify(actual)})`);
+}
 import { SnakeModel } from "../src/games/snake/model.js";
 import { BreakoutModel } from "../src/games/breakout/model.js";
 import { StarfallGame } from "../src/games/starfall.js";
@@ -327,5 +331,28 @@ test("the engine stops and announces a winner when a duel reaches zero lives", a
     assert.equal(game.model.winner, "human", "the human is declared the winner");
     assert.equal(engine.stopped, true, "the engine halts the round");
     assert.ok(messages.some((text) => /You win/.test(text)), `the winner is announced (got ${JSON.stringify(messages)})`);
+  });
+});
+
+test("the ready overlay shows a versus life line only for two-owner games", async () => {
+  const { BreakoutGame } = await import("../src/games/breakout/index.js");
+  const lifeLine = (game) => (game.playerLives
+    ? `You: ${game.playerLives.human}    Computer: ${game.playerLives.computer}`
+    : `Lives: 3/3`);
+
+  await withEngine((engine) => {
+    for (const side of ["bottom", "blocks"]) {
+      const game = new BreakoutGame();
+      engine.load(game);
+      game.setSide(side);
+      game.reset();
+      assert.equal(game.playerLives, null, `${side} has no second owner to report`);
+      assertMatch(lifeLine(game), /^Lives: /, `${side} uses the single-paddle life line`);
+    }
+    const duel = new BreakoutGame();
+    engine.load(duel);
+    duel.setSide("versus");
+    duel.reset();
+    assertMatch(lifeLine(duel), /^You: .*Computer: /, "versus uses the two-owner life line");
   });
 });

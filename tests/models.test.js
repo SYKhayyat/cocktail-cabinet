@@ -1798,3 +1798,42 @@ test("Asteroids ships separate across the seam too", async () => {
   assert.ok(game.computerShip.x >= 0 && game.computerShip.x < 800, "separation keeps the computer on the board");
   assert.ok(wrapDistance(game.ship.x, game.ship.y, game.computerShip.x, game.computerShip.y) >= game.ship.radius + game.computerShip.radius - 0.001);
 });
+
+test("Breakout reports per-pilot lives only in versus mode", () => {
+  for (const side of ["bottom", "blocks"]) {
+    const game = new BreakoutGame();
+    game.setSide(side);
+    game.reset();
+    assert.equal(game.playerLives, null, `${side} exposes no per-pilot lives for a one-paddle game`);
+  }
+  const duel = new BreakoutGame();
+  duel.setSide("versus");
+  duel.reset();
+  assert.ok(duel.playerLives, "versus exposes per-pilot lives");
+  assert.equal(typeof duel.playerLives.human, "number");
+  assert.equal(typeof duel.playerLives.computer, "number");
+});
+
+test("a solo Breakout extra-life brick leaves no stale per-pilot count", () => {
+  const facade = new BreakoutGame();
+  facade.setSide("bottom");
+  facade.reset();
+  const calls = [];
+  facade.engine = { maxLives: 3, addLife: () => calls.push("addLife") };
+  const game = facade.model;
+  const brick = game.bricks.find((candidate) => candidate.type === "extraLife");
+  // Special bricks pulse, so pin the phase to make the brick active on hit.
+  // `hits` is the brick's remaining durability, so it must stay at 1.
+  brick.phaseOffset = 0;
+  brick.period = 1.6;
+  brick.active = true;
+  const ball = game.balls[0];
+  ball.x = brick.x + brick.width / 2;
+  ball.y = brick.y + brick.height / 2;
+  ball.vx = 0;
+  ball.vy = 0;
+  game.balls = [ball];
+  game.update(0.016, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  assert.deepEqual(calls, ["addLife"], "the solo extra life is delegated to the engine");
+  assert.equal(facade.playerLives, null, "solo mode still reports no per-pilot lives afterwards");
+});
