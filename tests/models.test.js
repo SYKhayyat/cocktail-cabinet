@@ -862,17 +862,18 @@ test("Asteroids versus gives both pilots scores and lives", () => {
   game.update(0, { pointer: null, fire: false });
   assert.equal(game.playerLives.computer, 2);
   assert.equal(game.scores.human, 0);
+  // A computer bullet that connects spends a human life and raises the shared
+  // lifeLost flag, so both sides resolve through the same engine path.
   game.bullets = [{ x: game.ship.x, y: game.ship.y, vx: 0, vy: 0, life: 1, owner: "computer" }];
   game.update(0, { pointer: null, fire: false });
-  assert.equal(game.playerLives.human, 3);
-  assert.equal(game.scores.computer, 0);
-  assert.equal(game.lifeLost, false);
+  assert.equal(game.playerLives.human, 2, "a computer hit costs the human a life");
+  assert.equal(game.scores.computer, 0, "a hit on a ship is not a rock score");
+  assert.equal(game.lifeLost, true, "a computer hit raises the shared life-loss flag");
+
   game.ship.x = game.computerShip.x;
   game.ship.y = game.computerShip.y;
+  game.bullets = [];
   game.update(0, { pointer: null, fire: false });
-  assert.equal(game.playerLives.human, 3);
-  assert.equal(game.scores.computer, 0);
-  assert.equal(game.lifeLost, false);
   assert.ok(game.shipCollisionCooldown > 0);
   assert.ok(Math.hypot(game.computerShip.x - game.ship.x, game.computerShip.y - game.ship.y) >= game.ship.radius + game.computerShip.radius);
   game.lifeLost = false;
@@ -1593,4 +1594,69 @@ test("every concurrent loadLocalModel caller receives progress and a terminal re
     globalThis.localStorage = saved.storage;
     globalThis.LanguageModel = saved.LanguageModel;
   }
+});
+
+test("Asteroids versus applies the same ship-hit rule to both pilots", () => {
+  const duel = () => {
+    const game = new AsteroidsModel();
+    game.setSide("versus");
+    game.reset();
+    game.asteroids = [];
+    game.computerShotClock = 99;
+    return game;
+  };
+
+  const humanHit = duel();
+  humanHit.playerLives.human = 3;
+  humanHit.bullets = [{ x: humanHit.computerShip.x, y: humanHit.computerShip.y, vx: 0, vy: 0, life: 1, owner: "human" }];
+  humanHit.update(0, { pointer: null, fire: false });
+  assert.equal(humanHit.playerLives.computer, 2, "a human hit costs the computer a life");
+
+  const computerHit = duel();
+  computerHit.playerLives.human = 3;
+  computerHit.bullets = [{ x: computerHit.ship.x, y: computerHit.ship.y, vx: 0, vy: 0, life: 1, owner: "computer" }];
+  computerHit.update(0, { pointer: null, fire: false });
+  assert.equal(computerHit.playerLives.human, 2, "a computer hit costs the human a life");
+  assert.equal(computerHit.lifeLost, true, "the human side resolves through the shared life-loss path");
+
+  // A spent bullet is removed, and lives never go negative.
+  assert.equal(computerHit.bullets.length, 0, "the bullet is consumed by the hit");
+  for (let hit = 0; hit < 5; hit += 1) {
+    const game = duel();
+    game.playerLives.human = 1;
+    game.bullets = [{ x: game.ship.x, y: game.ship.y, vx: 0, vy: 0, life: 1, owner: "computer" }];
+    game.update(0, { pointer: null, fire: false });
+    assert.ok(game.playerLives.human >= 0, "lives never go negative");
+  }
+});
+
+test("Asteroids versus ends immediately when either side runs out of lives", () => {
+  const finish = (owner) => {
+    const game = new AsteroidsModel();
+    game.setSide("versus");
+    game.reset();
+    game.asteroids = [];
+    game.computerShotClock = 99;
+    const target = owner === "human" ? game.ship : game.computerShip;
+    game.playerLives[owner] = 1;
+    game.bullets = [{ x: target.x, y: target.y, vx: 0, vy: 0, life: 1, owner: owner === "human" ? "computer" : "human" }];
+    game.update(0, { pointer: null, fire: false });
+    return game;
+  };
+
+  const humanOut = finish("human");
+  assert.equal(humanOut.playerLives.human, 0);
+  assert.equal(humanOut.lifeLost, true, "reaching zero raises the terminal flag");
+  const humanResult = humanOut.handleLifeLoss();
+  assert.equal(humanResult.gameOver, true);
+  assert.equal(humanOut.winner, "computer");
+  assert.match(humanResult.message, /Computer wins/);
+
+  const computerOut = finish("computer");
+  assert.equal(computerOut.playerLives.computer, 0);
+  assert.equal(computerOut.lifeLost, true);
+  const computerResult = computerOut.handleLifeLoss();
+  assert.equal(computerResult.gameOver, true);
+  assert.equal(computerOut.winner, "human");
+  assert.match(computerResult.message, /You win/);
 });

@@ -200,12 +200,7 @@ export class AsteroidsModel {
         break;
       }
     }
-    if (this.side === "versus") {
-      for (const bullet of this.bullets) {
-        if (bullet.owner === "human" && this.computerShip && circleHitsCircle(bullet.x, bullet.y, 3, this.computerShip.x, this.computerShip.y, this.computerShip.radius)) { bullet.life = 0; this.playerLives.computer = Math.max(0, this.playerLives.computer - 1); }
-        if (bullet.owner === "computer" && circleHitsCircle(bullet.x, bullet.y, 3, this.ship.x, this.ship.y, this.ship.radius)) bullet.life = 0;
-      }
-    }
+    if (this.side === "versus") this.resolveDuelBullets();
     this.asteroids = this.asteroids.filter((asteroid) => asteroid.radius);
     this.bullets = this.bullets.filter((bullet) => bullet.life > 0);
     if (this.asteroids.length === 0 && (this.side === "ship" || this.side === "versus")) this.spawnAsteroid();
@@ -217,6 +212,28 @@ export class AsteroidsModel {
     const asteroid = { x: clamp(x, 10, 790), y: clamp(y, 10, 550), vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, radius: 20 + Math.random() * 10, rotation: 0, spin: (Math.random() - 0.5) * 1.8, shape: Array.from({ length: 9 }, () => 0.72 + Math.random() * 0.35), tone: Math.random(), generation: 0 };
     this.asteroids.push(asteroid);
     return asteroid;
+  }
+  // A bullet is spent by either ship regardless of who fired it. A hit on the
+  // computer spends one of its lives; a hit on the human spends a life and
+  // raises the shared lifeLost flag, so both sides resolve through the same
+  // engine path instead of the duel silently being one-sided.
+  resolveDuelBullets() {
+    for (const bullet of this.bullets) {
+      if (bullet.life <= 0) continue;
+      if (bullet.owner === "human" && this.computerShip && circleHitsCircle(bullet.x, bullet.y, 3, this.computerShip.x, this.computerShip.y, this.computerShip.radius)) {
+        bullet.life = 0;
+        this.playerLives.computer = Math.max(0, this.playerLives.computer - 1);
+        continue;
+      }
+      if (bullet.owner === "computer" && circleHitsCircle(bullet.x, bullet.y, 3, this.ship.x, this.ship.y, this.ship.radius)) {
+        bullet.life = 0;
+        this.playerLives.human = Math.max(0, this.playerLives.human - 1);
+        this.lifeLost = true;
+      }
+    }
+    // Either side reaching zero ends the duel immediately rather than waiting
+    // for an unrelated rock to land on the human ship.
+    if (this.playerLives.human <= 0 || this.playerLives.computer <= 0) this.lifeLost = true;
   }
   handleLifeLoss() {
     if (this.side !== "versus") return null;
