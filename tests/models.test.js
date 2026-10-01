@@ -2281,3 +2281,98 @@ test("Guess does not accept a message while a mystery is unresolved in the UI", 
   // chooseGuess must now refuse, since there is no mystery to guess about.
   assert.equal(game.chooseGuess("ai"), false, "guessing is refused with no mystery on screen");
 });
+
+test("a stale AI reply is dropped after a reset or a mode switch", async () => {
+  // The issue's reproduction: a delayed request resolves into a model that
+  // has since been reset or moved to another mode.
+  const deferred = () => {
+    let resolve;
+    const promise = new Promise((r) => { resolve = r; });
+    return { promise, resolve };
+  };
+
+  // --- reset ---
+  const resetGame = new ImitationModel();
+  resetGame.setSide("ai");
+  resetGame.reset();
+  resetGame.aiReady = true;
+  const resetReply = deferred();
+  resetGame.requestAi = () => resetReply.promise;
+  const chatPromise = resetGame.askAi("hello there");
+  const afterResetLength = resetGame.chatLog.length;
+  resetGame.reset();
+  assert.equal(resetGame.chatLog.length, 1, "the reset cleared the transcript");
+  resetReply.resolve("A reply for the previous transcript.");
+  await chatPromise;
+  const texts = resetGame.chatLog.map((message) => message.text);
+  assert.ok(!texts.includes("A reply for the previous transcript."), `the stale reply is not appended (got ${JSON.stringify(texts)})`);
+  assert.ok(!texts.includes("AI is thinking"), "the thinking placeholder does not survive a reset");
+  assert.equal(resetGame.chatLog.length, afterResetLength <= 1 ? 1 : resetGame.chatLog.length, "no extra messages were added");
+
+  // --- mode switch ---
+  const switchGame = new ImitationModel();
+  switchGame.setSide("ai");
+  switchGame.reset();
+  switchGame.aiReady = true;
+  const switchReply = deferred();
+  switchGame.requestAi = () => switchReply.promise;
+  const chatPromise2 = switchGame.askAi("hello again");
+  switchGame.setSide("human");
+  switchGame.reset();
+  switchReply.resolve("A reply belonging to the AI mode.");
+  await chatPromise2;
+  const texts2 = switchGame.chatLog.map((message) => message.text);
+  assert.ok(!texts2.includes("A reply belonging to the AI mode."), `the reply does not follow the mode switch (got ${JSON.stringify(texts2)})`);
+
+  // --- current replies still land ---
+  const fresh = new ImitationModel();
+  fresh.setSide("ai");
+  fresh.reset();
+  fresh.aiReady = true;
+  fresh.requestAi = async () => "A current reply.";
+  await fresh.askAi("hello");
+  assert.ok(fresh.chatLog.some((message) => message.text === "A current reply."), "a current reply is still delivered");
+  assert.ok(!fresh.chatLog.some((message) => message.text === "AI is thinking"), "the thinking placeholder is removed");
+});
+
+test("a stale classification is dropped after a reset", async () => {
+  const deferred = () => {
+    let resolve;
+    const promise = new Promise((r) => { resolve = r; });
+    return { promise, resolve };
+  };
+  const game = new ImitationModel();
+  game.setSide("write");
+  game.reset();
+  game.aiReady = true;
+  const reply = deferred();
+  game.requestAi = () => reply.promise;
+  const pending = game.classifyText("Some text to classify.");
+  game.reset();
+  reply.resolve('{"label":"AI","reason":"formulaic"}');
+  await pending;
+  const texts = game.chatLog.map((message) => message.text);
+  assert.ok(!texts.includes("AI\nformulaic"), `the stale classification is dropped (got ${JSON.stringify(texts)})`);
+  assert.ok(!texts.includes("AI is thinking"), "the thinking placeholder does not survive the reset");
+});
+
+test("concurrent AI requests cannot resolve out of order", async () => {
+  const game = new ImitationModel();
+  game.setSide("ai");
+  game.reset();
+  game.aiReady = true;
+  const releases = [];
+  game.requestAi = (text) => new Promise((resolve) => releases.push({ text, resolve }));
+  const first = game.askAi("first");
+  const second = game.askAi("second");
+  // Resolve out of order.
+  releases[1].resolve("reply to second");
+  await second;
+  releases[0].resolve("reply to first");
+  await first;
+  const texts = game.chatLog.map((message) => message.text);
+  assert.ok(texts.includes("reply to first") && texts.includes("reply to second"), "both replies arrive");
+  assert.equal(game.chatLog.filter((message) => message.text === "AI is thinking").length, 0, "no placeholder is left behind");
+  // Replies appear in the order they were requested, not the order resolved.
+  assert.ok(texts.indexOf("reply to second") < texts.indexOf("reply to first"), "the newer request's reply is inserted at its own position");
+});

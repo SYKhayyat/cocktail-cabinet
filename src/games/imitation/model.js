@@ -15,6 +15,9 @@ export const IMITATION_MODES = [
 
 export class ImitationModel {
   constructor() {
+    // Monotonic across resets, never zeroed: a token that restarts from 0
+    // could collide with a token a pending request is still holding.
+    this.requestToken = 0;
     this.id = "imitation";
     this.title = "Imitation";
     this.description = "Explore AI and human conversation: chat, guess the source, or submit text for classification.";
@@ -29,7 +32,12 @@ export class ImitationModel {
   get modes() { return IMITATION_MODES; }
   get sides() { return IMITATION_MODES.map((mode) => mode.value); }
   sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || IMITATION_MODES[0].label; }
-  setSide(side) { if (this.sides.includes(side)) this.side = side; }
+  setSide(side) {
+    if (!this.sides.includes(side) || side === this.side) return;
+    // Any reply still in flight belongs to the mode being left.
+    this.invalidatePendingRequests();
+    this.side = side;
+  }
   setStateListener(listener) { this.stateListener = listener; }
   notifyState() { if (!this.disposed) this.stateListener?.(); }
   destroy() {
@@ -41,8 +49,19 @@ export class ImitationModel {
     this.onAiChosen = null;
     this.onRoundStart = null;
   }
+  // Every asynchronous AI path takes a token before it starts and re-checks it
+  // after awaiting. A reset, a mode change, or a new round advances the token,
+  // so a reply for a request that is no longer current is dropped instead of
+  // being appended to whatever the model has become in the meantime.
+  invalidatePendingRequests() {
+    this.requestToken += 1;
+    clearTimeout(this.restartTimer);
+    this.restartTimer = null;
+  }
+  pendingRequestIsCurrent(token) { return !this.disposed && token === this.requestToken; }
   reset(keepScore = false) {
     this.disposed = false;
+    this.invalidatePendingRequests();
     if (!keepScore) {
       this.score = 0;
       this.guessStats = { right: 0, wrong: 0 };
@@ -102,6 +121,7 @@ export class ImitationModel {
     clearTimeout(this.restartTimer);
     this.restartTimer = null;
     this.guessToken += 1;
+    this.invalidatePendingRequests();
     this.mystery = null;
     this.guessResult = null;
     this.prompt = null;
@@ -197,6 +217,7 @@ export class ImitationModel {
       // guessToken is advanced so a reply already on its way for the previous
       // prompt cannot resolve into this one (see generateAiResponse).
       this.guessToken += 1;
+      this.invalidatePendingRequests();
       this.prompt = clean;
       this.mystery = null;
       this.guessResult = null;
@@ -251,11 +272,16 @@ export class ImitationModel {
       this.addMessage("System", "Download the AI model before chatting.");
       return;
     }
+    const token = this.requestToken;
+    const side = this.side;
     const thinking = this.addMessage("System", "AI is thinking");
     thinking.waiting = true;
     this.chatRevision += 1;
     const response = await this.requestAi(text);
-    if (this.disposed) return;
+    // Dropped if the round was reset, the mode changed, or a newer request
+    // started while this one was in flight. Appending regardless is what let a
+    // reply for a previous transcript or mode land in the current one.
+    if (!this.pendingRequestIsCurrent(token) || this.side !== side) return;
     this.chatLog = this.chatLog.filter((message) => message !== thinking);
     this.chatRevision += 1;
     if (response) this.addMessage("AI", response);
@@ -267,14 +293,17 @@ export class ImitationModel {
     this.onAiChosen?.();
     this.phase = "guess-loading";
     const token = ++this.guessToken;
+    const requestToken = this.requestToken;
     const waiting = this.addMessage("System", "");
     waiting.waiting = true;
     this.chatRevision += 1;
     const response = await this.requestAi(this.prompt, GUESS_RESPONSE_PROMPT);
-    if (this.disposed) return;
     this.chatLog = this.chatLog.filter((message) => message !== waiting);
     this.chatRevision += 1;
-    if (token !== this.guessToken || this.roundSource !== "ai" || this.mystery) return;
+    // guessToken guards the round; requestToken guards the model, so a reset or
+    // mode switch also drops this reply even though the round token is intact.
+    if (token !== this.guessToken || !this.pendingRequestIsCurrent(requestToken)) return;
+    if (this.roundSource !== "ai" || this.mystery) return;
     if (!response) {
       this.phase = "guess-waiting";
       this.addMessage("System", "The AI could not respond this time. Try again.");
@@ -289,11 +318,13 @@ export class ImitationModel {
       this.addMessage("System", "Download the AI model before classifying text.");
       return;
     }
+    const token = this.requestToken;
+    const side = this.side;
     const thinking = this.addMessage("System", "AI is thinking");
     thinking.waiting = true;
     this.chatRevision += 1;
     const response = await this.requestAi(text, CLASSIFIER_PROMPT, { maxTokens: 96, format: CLASSIFIER_FORMAT });
-    if (this.disposed) return;
+    if (!this.pendingRequestIsCurrent(token) || this.side !== side) return;
     this.chatLog = this.chatLog.filter((message) => message !== thinking);
     this.chatRevision += 1;
     if (!response) {
