@@ -1,5 +1,5 @@
 export class StarfallController {
-  constructor(model) { this.model = model; this.holdTime = 0; this.suppressNextStar = false; }
+  constructor(model) { this.model = model; this.holdTime = 0; }
   controlHint() {
     return [
       { keys: ["ArrowLeft", "ArrowRight"], label: "guide the runner" },
@@ -10,13 +10,21 @@ export class StarfallController {
   }
   update(dt, input) {
     const pointer = input.pointer;
-    if (pointer.down) this.holdTime += dt;
-    else {
-      if (this.holdTime > 0.35 && (pointer.dragDistance || 0) < 4) this.suppressNextStar = true;
+    // A long stationary hold spawns gems instead of a star. That suppression
+    // belongs to the release which ends the hold, and only to that release.
+    //
+    // It used to be stored in a flag cleared only when a star actually spawned
+    // -- but the flag itself is what prevents that, so the flag was never
+    // cleared and every later click was suppressed for the rest of the round.
+    let suppressRelease = false;
+    if (pointer.down) {
+      this.holdTime += dt;
+    } else {
+      suppressRelease = this.holdTime > 0.35 && (pointer.dragDistance || 0) < 4;
       this.holdTime = 0;
     }
-    const spawnStar = !pointer.doubleClicked && !this.suppressNextStar && (pointer.released || (pointer.clicked && !pointer.down)) ? pointer : null;
-    if (spawnStar) this.suppressNextStar = false;
+    const isRelease = Boolean(pointer.released || (pointer.clicked && !pointer.down));
+    const spawnStar = isRelease && !pointer.doubleClicked && !suppressRelease ? pointer : null;
     this.model.update(dt, {
       keyDirection: (input.keys.has("ArrowRight") || input.keys.has("d") ? 1 : 0) - (input.keys.has("ArrowLeft") || input.keys.has("a") ? 1 : 0),
       pointerX: pointer.x,

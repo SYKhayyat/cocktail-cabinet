@@ -2078,9 +2078,10 @@ test("Snake places apples predictably as the board fills", () => {
       for (let x = 0; x < game.cols; x += 1) path.push({ x, y });
     }
     game.snake = path.slice(0, Math.min(length, game.cols * game.rows - 1));
+    game.rebuildOccupied();
     const apple = game.freeApple();
     if (!apple) break;
-    assert.ok(!game.snake.some((part) => part.x === apple.x && part.y === apple.y), `length ${length}: apple is on a free cell`);
+    assert.ok(!game.isOccupiedCell(apple.x, apple.y), `length ${length}: apple is on a free cell`);
     seen.add(`${apple.x},${apple.y}`);
   }
   assert.ok(seen.size > 10, `apples vary across the board as it fills (saw ${seen.size} distinct cells)`);
@@ -2136,4 +2137,81 @@ test("Snake never builds a body with negative coordinates", () => {
       }
     }
   }
+});
+
+// A real click is one frame carrying both clicked and released, exactly as the
+// engine delivers it; the following frame carries neither.
+// Exercises StarfallController directly and records the intent it passes to
+// the model. The bug lived entirely in the controller, and asserting on
+// spawnStar is both precise and free of the model's unrelated housekeeping
+// (stars collide with the runner and gems expire).
+function starfallControllerFixture() {
+  const game = new StarfallGame();
+  game.setSide("stars");
+  game.reset();
+  const seen = [];
+  const model = game.model;
+  const realUpdate = model.update.bind(model);
+  model.update = (dt, input) => {
+    seen.push({ spawnStar: input.spawnStar, spawnGem: input.spawnGem, pointerDown: input.pointerDown });
+    return realUpdate(dt, input);
+  };
+  const pointer = (values = {}) => ({ x: 300, y: 60, moved: false, clicked: false, down: false, released: false, doubleClicked: false, dragDistance: 0, ...values });
+  const frame = (pointerState, dt = 1 / 60) => { game.update(dt, input({ pointer: pointer(pointerState) })); return seen.at(-1); };
+  // A click is a single frame carrying both clicked and released, as the engine
+  // delivers it.
+  const click = () => { frame({ clicked: true, released: true }); return seen.at(-1); };
+  const settle = () => frame({});
+  // The model needs 0.35s of holding before it spawns anything.
+  const holdStill = () => { for (let step = 0; step < 60; step += 1) frame({ down: true }); return seen.at(-1); };
+  const holdAndDrag = () => {
+    for (let step = 0; step < 60; step += 1) frame({ down: true, dragDistance: 120 });
+    return frame({ released: true, dragDistance: 120 });
+  };
+  return { game, frame, click, settle, holdStill, holdAndDrag };
+}
+
+test("Starfall sends a star on the first click after a gem hold", () => {
+  const { holdStill, frame, click, settle } = starfallControllerFixture();
+
+  const held = holdStill();
+  assert.equal(held.pointerDown, true, "the pointer was held down throughout");
+  assert.equal(held.spawnStar, null, "a hold sends no star");
+
+  const release = frame({ released: true });
+  assert.equal(release.spawnStar, null, "the release which ends a hold sends no star");
+
+  // This is the reported bug: the suppression flag was only cleared when a star
+  // spawned, but the flag was what prevented it, so it was never cleared and
+  // every later click was ignored for the rest of the round.
+  assert.ok(click().spawnStar, "the next click sends a star");
+
+  settle();
+  assert.ok(click().spawnStar, "later clicks keep sending stars");
+});
+
+test("Starfall suppression is per-gesture, not per-round", () => {
+  const { holdStill, frame, click, settle } = starfallControllerFixture();
+  for (let round = 0; round < 4; round += 1) {
+    holdStill();
+    assert.equal(frame({ released: true }).spawnStar, null, `hold ${round + 1} releases without a star`);
+    assert.ok(click().spawnStar, `after hold ${round + 1}, the next click still sends a star`);
+    settle();
+  }
+});
+
+test("Starfall still sends a star for a short click and for a real drag", () => {
+  const { frame, click, settle, holdAndDrag } = starfallControllerFixture();
+
+  frame({ down: true });
+  settle();
+  assert.ok(click().spawnStar, "a short click under the hold threshold sends a star");
+
+  // A drag is never a stationary hold, however long it lasts: it aims the star.
+  assert.ok(holdAndDrag().spawnStar, "a long drag still sends a star");
+  settle();
+
+  const doubleClick = frame({ clicked: true, released: true, doubleClicked: true });
+  assert.equal(doubleClick.spawnStar, null, "a double-click sends no star");
+  assert.ok(doubleClick.spawnGem, "a double-click spawns a gem instead");
 });
