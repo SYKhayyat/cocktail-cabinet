@@ -56,13 +56,15 @@ export class SnakeModel {
     if (startingLength >= Math.min(cols, rows)) return null;
     return { cols, rows, startingLength, wrap: Boolean(values.wrap) };
   }
-  setSettings(settings) {
-    this.pendingSettings = {
-      cols: Number(settings.cols) || this.pendingSettings.cols,
-      rows: Number(settings.rows) || this.pendingSettings.rows,
-      startingLength: Number(settings.startingLength) || this.pendingSettings.startingLength,
-      wrap: Boolean(settings.wrap),
-    };
+  // setSettings is the model's public API and may be called directly, not only
+  // through the DOM. It validates exactly as validateSettings does, and keeps
+  // the previous value for anything invalid, so a caller cannot install a board
+  // that produces a body with negative coordinates.
+  setSettings(settings = {}) {
+    const validated = this.validateSettings({ ...this.pendingSettings, ...settings });
+    if (!validated) return false;
+    this.pendingSettings = validated;
+    return true;
   }
   applyPendingSettings() {
     this.roundSettings = { ...this.pendingSettings };
@@ -85,15 +87,23 @@ export class SnakeModel {
     if (!keepScore) this.score = 0;
     this.gameOver = false;
     this.lossReason = "";
-    const startX = Math.floor(this.cols / 2);
-    const startY = Math.floor(this.rows / 2);
-    this.snake = Array.from({ length: Math.max(this.startingLength, length) }, (_, index) => ({ x: startX - index, y: startY }));
+    // The body trails to the left of the head along the middle row, so the body is
+  // laid out from the head at x = headX back to x = headX - length + 1. The
+  // head is pushed right far enough for the whole body to fit: valid settings
+  // alone do not guarantee that, since a start length only has to be smaller
+  // than the smaller board dimension, and at 10 columns a length of 7 would
+  // run off the left edge from the centre. Clamping each segment instead would
+  // stack several of them on one cell, which is a different corruption.
+  const bodyLength = clamp(Math.max(this.startingLength, length), 1, this.cols);
+  const startY = Math.floor(this.rows / 2);
+  const headX = clamp(Math.floor(this.cols / 2), bodyLength - 1, this.cols - 1);
+  this.snake = Array.from({ length: bodyLength }, (_, index) => ({ x: headX - index, y: startY }));
     this.direction = { x: 1, y: 0 };
     this.nextDirection = { x: 1, y: 0 };
     this.aiClock = 0;
     this.won = false;
     this.rebuildOccupied();
-    const placed = this.side === "apples" ? { x: Math.min(this.cols - 3, startX + 6), y: Math.max(2, startY - 6) } : this.freeApple();
+    const placed = this.side === "apples" ? { x: Math.min(this.cols - 3, headX + 6), y: Math.max(2, startY - 6) } : this.freeApple();
     this.apple = placed || this.freeApple();
   }
   moveInterval() { return Math.max(0.08, 0.18 - this.score * 0.004); }

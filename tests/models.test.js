@@ -20,6 +20,24 @@ import { StarfallController } from "../src/games/starfall/controller.js";
 const pointer = (values = {}) => ({ x: 0, y: 0, moved: false, clicked: false, down: false, ...values });
 const input = (values = {}) => ({ keys: new Set(), pressed: new Set(), pointer: pointer(), ...values });
 
+// Builds a board directly for tests that need a hand-laid-out body. Going
+// through setSettings enforces the UI descriptor's minimums (10x8), which is
+// larger than these fixtures need.
+function handLaidSnake(cols, rows, startingLength, body) {
+  const game = new SnakeModel();
+  game.cols = cols;
+  game.rows = rows;
+  game.startingLength = startingLength;
+  game.roundSettings = { cols, rows, startingLength, wrap: false };
+  game.pendingSettings = { ...game.roundSettings };
+  game.reset();
+  if (body) {
+    game.snake = body;
+    game.rebuildOccupied();
+  }
+  return game;
+}
+
 test("Snake: settings, movement, growth, and board collisions are deterministic", () => {
   const game = new SnakeModel();
   game.setSettings({ cols: 20, rows: 15, startingLength: 4, wrap: false });
@@ -37,20 +55,22 @@ test("Snake: settings, movement, growth, and board collisions are deterministic"
   assert.equal(game.snake.length, 5);
   assert.equal(game.score, 1);
   const wallGame = new SnakeModel();
-  wallGame.setSettings({ cols: 5, rows: 5, startingLength: 3, wrap: false });
+  wallGame.setSettings({ cols: 10, rows: 8, startingLength: 3, wrap: false });
   wallGame.applyPendingSettings();
   wallGame.reset();
-  wallGame.snake = [{ x: 4, y: 2 }, { x: 3, y: 2 }, { x: 2, y: 2 }];
+  wallGame.snake = [{ x: 9, y: 2 }, { x: 8, y: 2 }, { x: 7, y: 2 }];
+  wallGame.rebuildOccupied();
   wallGame.direction = { x: 1, y: 0 };
   wallGame.nextDirection = { x: 1, y: 0 };
   wallGame.update(0.2, { direction: null, steer: null, placeApple: null });
   assert.equal(wallGame.gameOver, true);
   assert.equal(wallGame.lossReason, "wall");
   const wrapped = new SnakeModel();
-  wrapped.setSettings({ cols: 5, rows: 5, startingLength: 3, wrap: true });
+  wrapped.setSettings({ cols: 10, rows: 8, startingLength: 3, wrap: true });
   wrapped.applyPendingSettings();
   wrapped.reset();
-  wrapped.snake = [{ x: 4, y: 2 }, { x: 3, y: 2 }, { x: 2, y: 2 }];
+  wrapped.snake = [{ x: 9, y: 2 }, { x: 8, y: 2 }, { x: 7, y: 2 }];
+  wrapped.rebuildOccupied();
   wrapped.direction = { x: 1, y: 0 };
   wrapped.nextDirection = { x: 1, y: 0 };
   wrapped.update(0.2, { direction: null, steer: null, placeApple: null });
@@ -1839,10 +1859,7 @@ test("a solo Breakout extra-life brick leaves no stale per-pilot count", () => {
 });
 
 test("Snake may follow its tail into the cell it is vacating", () => {
-  const game = new SnakeModel();
-  game.setSettings({ cols: 8, rows: 8, startingLength: 4, wrap: false });
-  game.applyPendingSettings();
-  game.reset();
+  const game = handLaidSnake(8, 8, 4);
   // The issue's body: a closed loop whose last segment is the one the head
   // is about to enter.
   game.snake = [{ x: 2, y: 2 }, { x: 2, y: 3 }, { x: 1, y: 3 }, { x: 1, y: 2 }];
@@ -1861,11 +1878,8 @@ test("Snake may follow its tail into the cell it is vacating", () => {
 });
 
 test("Snake still collides with its tail when the move makes it grow", () => {
-  const game = new SnakeModel();
-  game.setSettings({ cols: 8, rows: 8, startingLength: 4, wrap: false });
-  game.applyPendingSettings();
-  game.reset();
-  game.snake = [{ x: 2, y: 2 }, { x: 2, y: 3 }, { x: 1, y: 3 }, { x: 1, y: 2 }];
+  const tailCell = { x: 1, y: 2 };
+  const game = handLaidSnake(8, 8, 4, [{ x: 2, y: 2 }, { x: 2, y: 3 }, { x: 1, y: 3 }, tailCell]);
   game.direction = { x: -1, y: 0 };
   game.nextDirection = { x: -1, y: 0 };
   // The apple sits on the tail cell: the snake grows, so the tail stays solid.
@@ -1877,10 +1891,7 @@ test("Snake still collides with its tail when the move makes it grow", () => {
 });
 
 test("Snake still collides with every non-tail segment", () => {
-  const game = new SnakeModel();
-  game.setSettings({ cols: 8, rows: 8, startingLength: 5, wrap: false });
-  game.applyPendingSettings();
-  game.reset();
+  const game = handLaidSnake(8, 8, 5);
   // A straight run with the head reversing into the second segment.
   game.snake = [{ x: 4, y: 4 }, { x: 3, y: 4 }, { x: 2, y: 4 }, { x: 1, y: 4 }, { x: 0, y: 4 }];
   game.direction = { x: 1, y: 0 };
@@ -1901,10 +1912,7 @@ test("Snake still collides with every non-tail segment", () => {
 });
 
 test("Snake wins when eating the last free cell instead of looping forever", () => {
-  const game = new SnakeModel();
-  game.setSettings({ cols: 4, rows: 3, startingLength: 3, wrap: false });
-  game.applyPendingSettings();
-  game.reset();
+  const game = handLaidSnake(4, 3, 3);
   assert.equal(game.won, false);
 
   // Boustrophedon travel order over a 4x3 board: row 0 rightwards, row 1
@@ -1948,10 +1956,7 @@ test("Snake wins when eating the last free cell instead of looping forever", () 
 });
 
 test("freeApple reports a full board instead of returning an occupied cell", () => {
-  const game = new SnakeModel();
-  game.setSettings({ cols: 3, rows: 3, startingLength: 3, wrap: false });
-  game.applyPendingSettings();
-  game.reset();
+  const game = handLaidSnake(3, 3, 3);
   assert.ok(game.freeApple(), "a fresh board has a free cell");
 
   game.snake = [];
@@ -2049,11 +2054,7 @@ test("Snake places apples predictably as the board fills", () => {
 });
 
 test("Snake occupancy stays coherent as the snake moves and grows", () => {
-  const game = new SnakeModel();
-  game.setSettings({ cols: 12, rows: 12, startingLength: 4, wrap: false });
-  game.applyPendingSettings();
-  game.reset();
-  const head = () => game.snake[0];
+  const game = handLaidSnake(12, 12, 4);
 
   for (let step = 0; step < 60; step += 1) {
     game.update(0.2, { direction: null, steer: null, placeApple: null });
@@ -2083,4 +2084,56 @@ test("Snake places apples predictably as the board fills", () => {
     seen.add(`${apple.x},${apple.y}`);
   }
   assert.ok(seen.size > 10, `apples vary across the board as it fills (saw ${seen.size} distinct cells)`);
+});
+
+test("Snake validates settings at the model boundary, not just in the DOM", () => {
+  const game = new SnakeModel();
+  game.setSettings({ cols: 30, rows: 20, startingLength: 5, wrap: true });
+  game.applyPendingSettings();
+
+  // The issue's reproduction: a board too small for the requested body.
+  const rejected = game.setSettings({ cols: 2, rows: 2, startingLength: 12 });
+  assert.equal(rejected, false, "an impossible board is refused");
+  assert.deepEqual(game.pendingSettings, { cols: 30, rows: 20, startingLength: 5, wrap: true }, "the previous valid settings are kept");
+
+  for (const bad of [
+    { cols: 9, rows: 20 },
+    { cols: 30, rows: 7 },
+    { cols: 61, rows: 20 },
+    { cols: 30, rows: 45 },
+    { cols: 30, rows: 20, startingLength: 2 },
+    { cols: 30, rows: 20, startingLength: 13 },
+    { cols: 10.5, rows: 20 },
+    { cols: "many", rows: 20 },
+    { cols: 0, rows: 0 }
+  ]) {
+    assert.equal(game.setSettings(bad), false, `${JSON.stringify(bad)} is refused`);
+    assert.deepEqual(game.pendingSettings, { cols: 30, rows: 20, startingLength: 5, wrap: true }, "settings are unchanged after a refusal");
+  }
+
+  // A start length that fits one dimension but not the other is still refused.
+  assert.equal(game.setSettings({ cols: 12, rows: 12, startingLength: 12 }), false, "start length must be smaller than both dimensions");
+  assert.equal(game.setSettings({ cols: 13, rows: 13, startingLength: 12 }), true, "one less than the bound is accepted");
+  assert.equal(game.pendingSettings.startingLength, 12);
+});
+
+test("Snake never builds a body with negative coordinates", () => {
+  const game = new SnakeModel();
+  // Every combination the descriptor allows, driven through the model API.
+  const descriptors = game.settings;
+  for (let cols = descriptors.cols.min; cols <= descriptors.cols.max; cols += 7) {
+    for (let rows = descriptors.rows.min; rows <= descriptors.rows.max; rows += 6) {
+      for (let startingLength = descriptors.startingLength.min; startingLength <= descriptors.startingLength.max && startingLength < Math.min(cols, rows); startingLength += 1) {
+        assert.equal(game.setSettings({ cols, rows, startingLength }), true, `${cols}x${rows} len ${startingLength} is accepted`);
+        game.applyPendingSettings();
+        game.reset();
+        assert.ok(game.snake.length >= startingLength, `${cols}x${rows}: body is at least the starting length`);
+        for (const part of game.snake) {
+          assert.ok(part.x >= 0 && part.x < cols, `${cols}x${rows}: x within the board`);
+          assert.ok(part.y >= 0 && part.y < rows, `${cols}x${rows}: y within the board`);
+        }
+        assert.ok(game.apple === null || (game.apple.x >= 0 && game.apple.x < cols && game.apple.y >= 0 && game.apple.y < rows), `${cols}x${rows}: apple within the board`);
+      }
+    }
+  }
 });
