@@ -1735,3 +1735,66 @@ test("Asteroids versus ends when rocks alone exhaust the computer's lives", () =
   assert.equal(result.gameOver, true);
   assert.equal(game.winner, "human");
 });
+
+test("Asteroids measures every distance across the wrap, not through the middle", async () => {
+  const { wrapDeltaX, wrapDeltaY, wrapDistance, wrapHitsCircle, BOARD_WIDTH, BOARD_HEIGHT } = await import("../src/games/asteroids/model.js");
+
+  // The issue's reproduction: one pixel apart through the seam.
+  assert.equal(wrapDeltaX(1, 799), 2, "a one-pixel gap on the left edge is two from the right edge");
+  assert.equal(wrapDeltaX(799, 1), -2);
+  assert.equal(wrapDeltaY(1, 559), 2);
+  assert.equal(wrapDistance(1, 280, 799, 280), 2);
+  assert.equal(wrapDistance(0, 0, 400, 280), Math.hypot(400, 280), "mid-board distances are unchanged");
+  assert.equal(wrapHitsCircle(1, 280, 13, 799, 280, 20), true, "a rock across the seam still hits");
+  assert.equal(wrapHitsCircle(1, 280, 13, 400, 280, 20), false, "a distant rock does not");
+
+  // Symmetry and the wrap midpoint.
+  assert.equal(wrapDeltaX(100, 700), 200, "the short way round is chosen, not the long way");
+  assert.equal(wrapDeltaX(700, 100), -200);
+  assert.equal(Math.abs(wrapDeltaX(0, BOARD_WIDTH / 2)), BOARD_WIDTH / 2, "the antipode is unambiguous");
+
+  // A rock beside the human ship across the seam costs a life.
+  const game = new AsteroidsModel();
+  game.reset();
+  game.invulnerable = 0;
+  game.ship.x = 1;
+  game.ship.y = 280;
+  game.asteroids = [{ x: 799, y: 280, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [], tone: 0, generation: 0 }];
+  game.computerShotClock = 99;
+  game.update(0, { pointer: null, fire: false });
+  assert.equal(game.lifeLost, true, "a rock 2px away through the wrap registers a hit");
+
+  // And a bullet fired across the seam still breaks a rock.
+  const shoot = new AsteroidsModel();
+  shoot.reset();
+  shoot.invulnerable = 0;
+  shoot.ship.x = 5;
+  shoot.ship.y = 280;
+  // The bullet and the rock sit on opposite edges: 793 apart in plain
+  // coordinates, 7 apart through the wrap.
+  shoot.asteroids = [{ x: 795, y: 280, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [1], tone: 0, generation: 0 }];
+  shoot.bullets = [{ x: 2, y: 280, vx: 0, vy: 0, life: 1, owner: "human" }];
+  shoot.update(0, { pointer: null, fire: false });
+  assert.equal(shoot.scores.human, 10, "a bullet crossing the seam scores");
+});
+
+test("Asteroids ships separate across the seam too", async () => {
+  const { wrapDistance } = await import("../src/games/asteroids/model.js");
+  const game = new AsteroidsModel();
+  game.setSide("versus");
+  game.reset();
+  game.asteroids = [];
+  game.computerShotClock = 99;
+  game.invulnerable = 5;
+  game.ship.x = 1;
+  game.ship.y = 280;
+  game.computerShip.x = 799;
+  game.computerShip.y = 280;
+  game.shipCollisionCooldown = 0;
+  game.update(0.016, { pointer: null, fire: false });
+  game.update(0.016, { pointer: null, fire: false });
+  assert.ok(game.shipCollisionCooldown > 0, "ships meeting at the seam are recognised as colliding");
+  assert.ok(game.ship.x >= 0 && game.ship.x < 800, "separation keeps the human on the board");
+  assert.ok(game.computerShip.x >= 0 && game.computerShip.x < 800, "separation keeps the computer on the board");
+  assert.ok(wrapDistance(game.ship.x, game.ship.y, game.computerShip.x, game.computerShip.y) >= game.ship.radius + game.computerShip.radius - 0.001);
+});

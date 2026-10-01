@@ -1,4 +1,35 @@
-import { clamp, circleHitsCircle } from "../../engine.js";
+import { clamp } from "../../engine.js";
+
+export const BOARD_WIDTH = 800;
+export const BOARD_HEIGHT = 560;
+
+// The board wraps, so an entity just past the left edge is one pixel from one
+// just before the right edge. Plain differences report those as ~800 apart,
+// which makes collisions vanish at the seam and aims and dodges take the long
+// way round. Every distance in this model therefore goes through wrapDeltaX/Y.
+export function wrapDeltaX(a, b) {
+  let delta = a - b;
+  if (delta > BOARD_WIDTH / 2) delta -= BOARD_WIDTH;
+  if (delta < -BOARD_WIDTH / 2) delta += BOARD_WIDTH;
+  return delta;
+}
+
+export function wrapDeltaY(a, b) {
+  let delta = a - b;
+  if (delta > BOARD_HEIGHT / 2) delta -= BOARD_HEIGHT;
+  if (delta < -BOARD_HEIGHT / 2) delta += BOARD_HEIGHT;
+  return delta;
+}
+
+export function wrapDistance(ax, ay, bx, by) {
+  return Math.hypot(wrapDeltaX(ax, bx), wrapDeltaY(ay, by));
+}
+
+// Wrapped equivalent of circleHitsCircle: the closest approach between two
+// wrapped circles may be across the seam rather than between their own centres.
+export function wrapHitsCircle(ax, ay, ar, bx, by, br) {
+  return wrapDistance(ax, ay, bx, by) < ar + br;
+}
 
 export const ASTEROIDS_MODES = [
   { value: "ship", label: "Solo — fly the ship" },
@@ -60,8 +91,8 @@ export class AsteroidsModel {
     const turn = input.turn || 0;
     const thrust = input.thrust || 0;
     if (input.pointer) {
-      const dx = input.pointer.x - ship.x;
-      const dy = input.pointer.y - ship.y;
+      const dx = wrapDeltaX(input.pointer.x, ship.x);
+      const dy = wrapDeltaY(input.pointer.y, ship.y);
       if (Math.hypot(dx, dy) > 24) ship.angle = Math.atan2(dy, dx);
       const pointerThrust = input.pointer.down ? 1 : 0;
       ship.speed = thrust || pointerThrust ? Math.min(ship.speed + 190 * dt, 220) : 0;
@@ -70,13 +101,13 @@ export class AsteroidsModel {
       ship.speed += thrust * 190 * dt;
       ship.speed *= Math.pow(0.98, dt * 60);
     }
-    ship.x = (ship.x + Math.cos(ship.angle) * ship.speed * dt + 800) % 800;
-    ship.y = (ship.y + Math.sin(ship.angle) * ship.speed * dt + 560) % 560;
+    ship.x = (ship.x + Math.cos(ship.angle) * ship.speed * dt + BOARD_WIDTH) % BOARD_WIDTH;
+    ship.y = (ship.y + Math.sin(ship.angle) * ship.speed * dt + BOARD_HEIGHT) % BOARD_HEIGHT;
   }
   aiShip(dt, ship = this.ship, target = null) {
     if (!target) target = this.asteroids.reduce((nearest, asteroid) => {
       if (!nearest) return asteroid;
-      return Math.hypot(asteroid.x - ship.x, asteroid.y - ship.y) < Math.hypot(nearest.x - ship.x, nearest.y - ship.y) ? asteroid : nearest;
+      return wrapDistance(asteroid.x, asteroid.y, ship.x, ship.y) < wrapDistance(nearest.x, nearest.y, ship.x, ship.y) ? asteroid : nearest;
     }, null);
     if (!target) {
       ship.aiTarget = null;
@@ -87,15 +118,15 @@ export class AsteroidsModel {
       ship.aiTarget = target;
       ship.aiReaction = 0.2 + Math.random() * 0.24;
       ship.aiError = (Math.random() - 0.5) * 0.9;
-      ship.aiAim = Math.atan2(target.y - ship.y, target.x - ship.x);
+      ship.aiAim = Math.atan2(wrapDeltaY(target.y, ship.y), wrapDeltaX(target.x, ship.x));
     }
     ship.aiReaction = Math.max(0, ship.aiReaction - dt);
-    const targetAngle = Math.atan2(target.y - ship.y, target.x - ship.x);
-    const targetDistance = Math.hypot(target.x - ship.x, target.y - ship.y);
+    const targetAngle = Math.atan2(wrapDeltaY(target.y, ship.y), wrapDeltaX(target.x, ship.x));
+    const targetDistance = wrapDistance(target.x, target.y, ship.x, ship.y);
     const hazards = this.side === "versus" ? [this.ship, ...this.asteroids] : [target];
-    const hazard = hazards.reduce((nearest, candidate) => !nearest || Math.hypot(candidate.x - ship.x, candidate.y - ship.y) < Math.hypot(nearest.x - ship.x, nearest.y - ship.y) ? candidate : nearest, null);
-    const hazardDistance = hazard ? Math.hypot(hazard.x - ship.x, hazard.y - ship.y) : Infinity;
-    const hazardAngle = hazard ? Math.atan2(hazard.y - ship.y, hazard.x - ship.x) : targetAngle;
+    const hazard = hazards.reduce((nearest, candidate) => !nearest || wrapDistance(candidate.x, candidate.y, ship.x, ship.y) < wrapDistance(nearest.x, nearest.y, ship.x, ship.y) ? candidate : nearest, null);
+    const hazardDistance = hazard ? wrapDistance(hazard.x, hazard.y, ship.x, ship.y) : Infinity;
+    const hazardAngle = hazard ? Math.atan2(wrapDeltaY(hazard.y, ship.y), wrapDeltaX(hazard.x, ship.x)) : targetAngle;
     const dodging = this.side === "versus" ? hazardDistance < 120 : targetDistance < 105;
     const desiredAngle = dodging ? hazardAngle + Math.PI : ship.aiReaction > 0 ? ship.aiAim + ship.aiError : targetAngle;
     let difference = desiredAngle - ship.angle;
@@ -103,8 +134,8 @@ export class AsteroidsModel {
     while (difference < -Math.PI) difference += Math.PI * 2;
     ship.angle += clamp(difference, -3.6 * dt, 3.6 * dt);
     ship.speed = this.side === "versus" ? 105 : 165;
-    ship.x = (ship.x + Math.cos(ship.angle) * ship.speed * dt + 800) % 800;
-    ship.y = (ship.y + Math.sin(ship.angle) * ship.speed * dt + 560) % 560;
+    ship.x = (ship.x + Math.cos(ship.angle) * ship.speed * dt + BOARD_WIDTH) % BOARD_WIDTH;
+    ship.y = (ship.y + Math.sin(ship.angle) * ship.speed * dt + BOARD_HEIGHT) % BOARD_HEIGHT;
   }
   fire(owner = "human", ship = this.ship, aimError = 0, aimAngle = ship.angle) {
     if (owner === "human") this.asteroidSpeed = Math.min(1.8, this.asteroidSpeed + 0.012);
@@ -141,7 +172,7 @@ export class AsteroidsModel {
     if (this.side === "rocks") {
       this.computerMistakeClock -= dt;
       if (this.computerMistakeClock <= 0) { this.computerMistake = Math.random() < 0.2; this.computerMistakeClock = 8 + Math.random() * 6; }
-      if (this.computerMistake && this.invulnerable === 0 && this.asteroids.some((asteroid) => Math.hypot(asteroid.x - this.ship.x, asteroid.y - this.ship.y) < 72)) { this.computerMistake = false; this.lifeLost = true; }
+      if (this.computerMistake && this.invulnerable === 0 && this.asteroids.some((asteroid) => wrapDistance(asteroid.x, asteroid.y, this.ship.x, this.ship.y) < 72)) { this.computerMistake = false; this.lifeLost = true; }
     }
     if (this.side === "ship") this.steer(dt, input);
     else if (this.side === "rocks") this.aiShip(dt);
@@ -154,7 +185,7 @@ export class AsteroidsModel {
     if ((this.side === "ship" || this.side === "versus") && input.fire && this.shotClock <= 0) { this.fire("human", this.ship); this.shotClock = 0.18; }
     if ((this.side === "rocks" || this.side === "versus") && this.computerShotClock <= 0) {
       const computerShip = this.side === "versus" ? this.computerShip : this.ship;
-      const computerTarget = this.side === "versus" ? this.computerShip.aiTarget : this.asteroids.reduce((nearest, asteroid) => !nearest || Math.hypot(asteroid.x - this.ship.x, asteroid.y - this.ship.y) < Math.hypot(nearest.x - this.ship.x, nearest.y - this.ship.y) ? asteroid : nearest, null);
+      const computerTarget = this.side === "versus" ? this.computerShip.aiTarget : this.asteroids.reduce((nearest, asteroid) => !nearest || wrapDistance(asteroid.x, asteroid.y, this.ship.x, this.ship.y) < wrapDistance(nearest.x, nearest.y, this.ship.x, this.ship.y) ? asteroid : nearest, null);
       if (computerTarget) {
         this.fire("computer", computerShip, 0, computerShip.angle);
         this.computerShotClock = this.side === "versus" ? 1.1 + Math.random() * 0.3 : 1.3 + Math.random() * 0.3;
@@ -165,11 +196,13 @@ export class AsteroidsModel {
       this.updateRockPlacement({ ...input, dt });
     }
     if (this.side === "ship" || this.side === "versus") { this.spawnClock -= dt; if (this.spawnClock <= 0 && this.asteroids.length < 7) { this.spawnAsteroid(); this.spawnClock = Math.max(0.25, 1.3 - this.score * 0.012); } }
-    for (const asteroid of this.asteroids) { asteroid.x = (asteroid.x + asteroid.vx * this.asteroidSpeed * dt + 800) % 800; asteroid.y = (asteroid.y + asteroid.vy * this.asteroidSpeed * dt + 560) % 560; asteroid.rotation += asteroid.spin * dt; }
+    for (const asteroid of this.asteroids) { asteroid.x = (asteroid.x + asteroid.vx * this.asteroidSpeed * dt + BOARD_WIDTH) % BOARD_WIDTH; asteroid.y = (asteroid.y + asteroid.vy * this.asteroidSpeed * dt + BOARD_HEIGHT) % BOARD_HEIGHT; asteroid.rotation += asteroid.spin * dt; }
     for (const bullet of this.bullets) { bullet.x += bullet.vx * dt; bullet.y += bullet.vy * dt; bullet.life -= dt; }
     if (this.side === "versus") {
-      const dx = this.computerShip.x - this.ship.x;
-      const dy = this.computerShip.y - this.ship.y;
+      // Separation is measured across the seam too: two ships meeting at the
+      // wrap boundary are close, not half a board apart.
+      const dx = wrapDeltaX(this.computerShip.x, this.ship.x);
+      const dy = wrapDeltaY(this.computerShip.y, this.ship.y);
       const distance = Math.hypot(dx, dy);
       const minimumDistance = this.ship.radius + this.computerShip.radius;
       if (distance < minimumDistance) {
@@ -177,10 +210,10 @@ export class AsteroidsModel {
         const separation = minimumDistance - distance;
         const humanSpeed = this.ship.speed;
         const computerSpeed = this.computerShip.speed;
-        this.ship.x -= Math.cos(angle) * separation / 2;
-        this.ship.y -= Math.sin(angle) * separation / 2;
-        this.computerShip.x += Math.cos(angle) * separation / 2;
-        this.computerShip.y += Math.sin(angle) * separation / 2;
+        this.ship.x = (this.ship.x - Math.cos(angle) * separation / 2 + BOARD_WIDTH) % BOARD_WIDTH;
+        this.ship.y = (this.ship.y - Math.sin(angle) * separation / 2 + BOARD_HEIGHT) % BOARD_HEIGHT;
+        this.computerShip.x = (this.computerShip.x + Math.cos(angle) * separation / 2 + BOARD_WIDTH) % BOARD_WIDTH;
+        this.computerShip.y = (this.computerShip.y + Math.sin(angle) * separation / 2 + BOARD_HEIGHT) % BOARD_HEIGHT;
         this.ship.angle = angle + Math.PI;
         this.computerShip.angle = angle;
         this.ship.speed = Math.max(80, humanSpeed);
@@ -191,7 +224,7 @@ export class AsteroidsModel {
     for (const bullet of this.bullets) {
       if (bullet.life <= 0) continue;
       for (const asteroid of this.asteroids) {
-        if (!asteroid.radius || !circleHitsCircle(bullet.x, bullet.y, 3, asteroid.x, asteroid.y, asteroid.radius)) continue;
+        if (!asteroid.radius || !wrapHitsCircle(bullet.x, bullet.y, 3, asteroid.x, asteroid.y, asteroid.radius)) continue;
         bullet.life = 0;
         this.scores[bullet.owner || "human"] += 10;
         if (this.side !== "versus" || bullet.owner === "human") this.score = this.scores.human;
@@ -215,12 +248,12 @@ export class AsteroidsModel {
   // cannot immediately cost a second life while the ship is still blinking.
   resolveShipHazards() {
     if (this.side !== "versus") {
-      if (this.invulnerable === 0 && this.asteroids.some((asteroid) => circleHitsCircle(this.ship.x, this.ship.y, this.ship.radius, asteroid.x, asteroid.y, asteroid.radius))) this.lifeLost = true;
+      if (this.invulnerable === 0 && this.asteroids.some((asteroid) => wrapHitsCircle(this.ship.x, this.ship.y, this.ship.radius, asteroid.x, asteroid.y, asteroid.radius))) this.lifeLost = true;
       return;
     }
     for (const [owner, ship] of [["human", this.ship], ["computer", this.computerShip]]) {
       if (!ship) continue;
-      const hit = this.asteroids.some((asteroid) => circleHitsCircle(ship.x, ship.y, ship.radius, asteroid.x, asteroid.y, asteroid.radius));
+      const hit = this.asteroids.some((asteroid) => wrapHitsCircle(ship.x, ship.y, ship.radius, asteroid.x, asteroid.y, asteroid.radius));
       if (!hit) continue;
       if (owner === "human") {
         if (this.invulnerable === 0) this.lifeLost = true;
@@ -235,7 +268,7 @@ export class AsteroidsModel {
     }
   }
   spawnAsteroidAt(x, y, target = this.ship, velocity = null) {
-    const angle = velocity ? Math.atan2(velocity.vy, velocity.vx) : Math.atan2(target.y - y, target.x - x) + (Math.random() - 0.5) * 0.8;
+    const angle = velocity ? Math.atan2(velocity.vy, velocity.vx) : Math.atan2(wrapDeltaY(target.y, y), wrapDeltaX(target.x, x)) + (Math.random() - 0.5) * 0.8;
     const speed = velocity ? Math.hypot(velocity.vx, velocity.vy) : 48 + this.score * 0.4;
     const asteroid = { x: clamp(x, 10, 790), y: clamp(y, 10, 550), vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, radius: 20 + Math.random() * 10, rotation: 0, spin: (Math.random() - 0.5) * 1.8, shape: Array.from({ length: 9 }, () => 0.72 + Math.random() * 0.35), tone: Math.random(), generation: 0 };
     this.asteroids.push(asteroid);
@@ -248,12 +281,12 @@ export class AsteroidsModel {
   resolveDuelBullets() {
     for (const bullet of this.bullets) {
       if (bullet.life <= 0) continue;
-      if (bullet.owner === "human" && this.computerShip && circleHitsCircle(bullet.x, bullet.y, 3, this.computerShip.x, this.computerShip.y, this.computerShip.radius)) {
+      if (bullet.owner === "human" && this.computerShip && wrapHitsCircle(bullet.x, bullet.y, 3, this.computerShip.x, this.computerShip.y, this.computerShip.radius)) {
         bullet.life = 0;
         this.playerLives.computer = Math.max(0, this.playerLives.computer - 1);
         continue;
       }
-      if (bullet.owner === "computer" && circleHitsCircle(bullet.x, bullet.y, 3, this.ship.x, this.ship.y, this.ship.radius)) {
+      if (bullet.owner === "computer" && wrapHitsCircle(bullet.x, bullet.y, 3, this.ship.x, this.ship.y, this.ship.radius)) {
         bullet.life = 0;
         this.playerLives.human = Math.max(0, this.playerLives.human - 1);
         this.lifeLost = true;
