@@ -298,3 +298,34 @@ test("pointercancel discards a pending double-click so it cannot re-fire", () =>
     assert.equal(engine.input.pointer.doubleClicked, false, "the cancelled click must not pair with the next press");
   });
 });
+
+test("the engine stops and announces a winner when a duel reaches zero lives", async () => {
+  const { AsteroidsGame } = await import("../src/games/asteroids/index.js");
+  const messages = [];
+  await withEngine((engine) => {
+    const game = new AsteroidsGame();
+    game.setSide("versus");
+    game.reset();
+    engine.onMessage = (value) => messages.push(value);
+    engine.load(game);
+    engine.ready = false;
+    engine.stopped = false;
+    engine.paused = false;
+    engine.countdown = 0;
+    game.model.asteroids = [];
+    game.model.computerShotClock = 99;
+    game.model.ship.x = 60;
+    game.model.ship.y = 500;
+    game.model.playerLives.computer = 1;
+    game.model.bullets = [{ x: game.model.computerShip.x, y: game.model.computerShip.y, vx: 0, vy: 0, life: 1, owner: "human" }];
+
+    let time = performance.now() + 1000;
+    engine.frame((time += 1000 / 60));
+
+    assert.equal(game.model.playerLives.computer, 0, "the computer is out of lives");
+    assert.equal(game.model.gameOver, true, "the model reports the round as over");
+    assert.equal(game.model.winner, "human", "the human is declared the winner");
+    assert.equal(engine.stopped, true, "the engine halts the round");
+    assert.ok(messages.some((text) => /You win/.test(text)), `the winner is announced (got ${JSON.stringify(messages)})`);
+  });
+});

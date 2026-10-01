@@ -205,6 +205,10 @@ export class AsteroidsModel {
     this.bullets = this.bullets.filter((bullet) => bullet.life > 0);
     if (this.asteroids.length === 0 && (this.side === "ship" || this.side === "versus")) this.spawnAsteroid();
     this.resolveShipHazards();
+    // One terminal check per update, covering every way a life can be spent.
+    // Lives can reach zero through a bullet, through a rock, or through both
+    // in the same frame, so the check lives here rather than in each path.
+    if (this.side === "versus" && (this.playerLives.human <= 0 || this.playerLives.computer <= 0)) this.lifeLost = true;
   }
   // Rocks threaten both pilots in the duel, as the view states. The respawn
   // grace period covers whichever ship respawned, so a life lost to a rock
@@ -229,7 +233,6 @@ export class AsteroidsModel {
       ship.y = clamp(ship.y, 40, 520);
       ship.aiTarget = null;
     }
-    if (this.playerLives.computer <= 0) this.lifeLost = true;
   }
   spawnAsteroidAt(x, y, target = this.ship, velocity = null) {
     const angle = velocity ? Math.atan2(velocity.vy, velocity.vx) : Math.atan2(target.y - y, target.x - x) + (Math.random() - 0.5) * 0.8;
@@ -256,9 +259,6 @@ export class AsteroidsModel {
         this.lifeLost = true;
       }
     }
-    // Either side reaching zero ends the duel immediately rather than waiting
-    // for an unrelated rock to land on the human ship.
-    if (this.playerLives.human <= 0 || this.playerLives.computer <= 0) this.lifeLost = true;
   }
   handleLifeLoss() {
     if (this.side !== "versus") return null;
