@@ -328,3 +328,14 @@ chatForm.addEventListener("submit", (event) => {
 });
 applySettingDescriptors();
 loadGame(activeId);
+
+// Exposed for the CDP smoke suite in tests/browser-smoke.mjs. It drives the
+// real page rather than a stand-in, but needs a handle on the live engine and
+// models to assert on state that never reaches the DOM. Read-only in spirit:
+// the suite sets these to install deterministic time and randomness.
+globalThis.__cocktailCabinet = {
+  engine,
+  games,
+  loadGame,
+  get activeId() { return activeId; }
+};

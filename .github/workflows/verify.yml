@@ -16,3 +16,28 @@ jobs:
       - run: npm install
       - run: npm test
       - run: npm run check
+      # Browser smoke suite: Chromium with CDP enabled, plus a static server.
+      - name: Start the static server
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 &
+          for _ in $(seq 1 50); do
+            curl -sf http://127.0.0.1:8765/index.html >/dev/null && break
+            sleep 0.2
+          done
+      # Chrome for Testing, rather than the distro chromium package, which on
+      # Ubuntu is a snap stub and does not expose a usable binary to CI.
+      - uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+      - name: Start Chrome with remote debugging
+        run: |
+          "$CHROME_PATH" --headless=new --disable-gpu --no-sandbox \
+            --remote-debugging-port=9223 --user-data-dir=/tmp/smoke-profile \
+            about:blank &
+          for _ in $(seq 1 50); do
+            curl -sf http://127.0.0.1:9223/json/version >/dev/null && break
+            sleep 0.2
+          done
+      - run: npm run test:browser
+        env:
+          REQUIRE_BROWSER: "1"
