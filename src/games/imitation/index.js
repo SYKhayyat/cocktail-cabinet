@@ -27,7 +27,10 @@ export class ImitationGame {
   acceptManualAnswer(text) { return this.controller.acceptManualAnswer(text); }
   reset(keepScore) { this.controller.reset(keepScore); }
   destroy() { this.controller.destroy(); }
-  sendMessage(text) { this.controller.sendMessage(text); }
+  // Returns what the model accepted, or null when it refused the text. The
+  // shell relies on this to leave a rejected message in the box rather than
+  // silently discarding it.
+sendMessage(text) { return this.controller.sendMessage(text); }
   downloadModel() { return this.model.downloadModel(); }
   restartGuess() { return this.model.restartGuess(); }
   chooseGuess(value) { return this.model.chooseGuess(value); }

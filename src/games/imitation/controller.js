@@ -137,6 +137,7 @@ this.manualActive = false;
       else if (this.model.peerId) this.model.addMessage("System", "Wait for a prompt before writing a response.");
       else this.model.addMessage("System", "No Guess player is connected. Create or join an invite first.");
     }
+    return clean;
   }
   update(dt) { this.model.update(dt); }
 }

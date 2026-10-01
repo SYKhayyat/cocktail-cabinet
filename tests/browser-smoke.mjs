@@ -636,6 +636,28 @@ async function testGuessProvideAcrossTabs(first, second, step) {
   assertEqual(mystery.text, "I would have pasta with tomato sauce.", "the mystery carries the provider's text");
   assertEqual(mystery.buttonsEnabled, true, "the guess buttons are enabled once a mystery arrives");
 
+  // A prompt submitted while a mystery is on screen must start a fresh round
+  // rather than wedge it (issue #25).
+  const replaced = await second.evaluate(`(() => {
+    const game = globalThis.__cocktailCabinet.games.get('imitation');
+    const before = { phase: game.phase, prompt: game.model.prompt };
+    const sent = game.sendMessage('A replacement question.');
+    return { before, sent, after: { phase: game.phase, prompt: game.model.prompt, mystery: game.model.mystery } };
+  })()`);
+  assertEqual(replaced.sent, "A replacement question.", "a prompt sent during the guess phase is accepted");
+  assertEqual(replaced.after.mystery, null, "the stale mystery is cleared");
+  assertEqual(replaced.after.phase, "guess-waiting", "the round waits for a new mystery");
+  assertEqual(replaced.after.prompt, "A replacement question.", "the new prompt is recorded");
+  assertEqual(replaced.before.phase, "guess", "the round really was showing a mystery first");
+  // Let the round recover. There is no local AI model in this environment, so
+  // the peer's answer is what produces the new mystery.
+  await waitFor(first, "(() => { const g = globalThis.__cocktailCabinet.games.get('imitation'); return g.model.prompt === 'A replacement question.'; })()", "the provider receives the replacement prompt", 200);
+  await first.evaluate("globalThis.__cocktailCabinet.games.get('imitation').sendMessage('Rice, with vegetables.'); true");
+  await waitFor(second, "(() => { const g = globalThis.__cocktailCabinet.games.get('imitation'); return g.phase === 'guess' && Boolean(g.model.mystery); })()", "the replaced round produces a new mystery", 300);
+  await step(2);
+  const recovered = await second.evaluate("(() => { const g = globalThis.__cocktailCabinet.games.get('imitation'); return { enabled: [...document.querySelectorAll('[data-guess]')].every((b) => !b.disabled) }; })()");
+  assertEqual(recovered.enabled, true, "the guess buttons re-enable after the round is replaced");
+
   const guessed = await second.evaluate(`(() => {
     const game = globalThis.__cocktailCabinet.games.get('imitation');
     const correct = game.chooseGuess('human');

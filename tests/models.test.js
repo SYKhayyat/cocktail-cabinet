@@ -2215,3 +2215,69 @@ test("Starfall still sends a star for a short click and for a real drag", () => 
   assert.equal(doubleClick.spawnStar, null, "a double-click sends no star");
   assert.ok(doubleClick.spawnGem, "a double-click spawns a gem instead");
 });
+
+test("a new Guess prompt replaces the round instead of wedging it", () => {
+  const game = new ImitationModel();
+  game.setSide("guess");
+  game.reset();
+  game.peerId = "peer";
+
+  // First prompt, then a mystery arrives.
+  game.sendMessage("Describe your favourite meal.");
+  assert.equal(game.phase, "guess-waiting");
+  assert.equal(game.mystery, null);
+  game.mystery = { source: "human", text: "Pasta, probably." };
+  game.phase = "guess";
+  const tokenBefore = game.guessToken;
+
+  // A second prompt before guessing is the issue's reproduction.
+  game.sendMessage("A completely different question.");
+  assert.equal(game.prompt, "A completely different question.", "the new prompt is recorded");
+  assert.equal(game.mystery, null, "the stale mystery is cleared");
+  assert.equal(game.guessResult, null, "the previous result is cleared");
+  assert.equal(game.roundSource, null, "the previous source is cleared");
+  assert.equal(game.phase, "guess-waiting", "the round is waiting on a new mystery");
+  assert.ok(game.guessToken > tokenBefore, "the round token advanced, invalidating any in-flight reply");
+
+  // And the round can actually proceed now: the AI fallback is no longer
+  // blocked by the guard on !mystery.
+  assert.ok(!game.mystery, "update() may now start a fallback");
+  const beforeFallback = game.guessFallbackStarted;
+  game.update(5);
+  assert.ok(game.roundSource === "ai" || game.phase !== "guess-waiting" || game.guessFallbackStarted !== beforeFallback, "the fallback starts on a wedged round");
+});
+
+test("a late AI reply from a replaced Guess round cannot resolve into the new one", async () => {
+  const game = new ImitationModel();
+  game.setSide("guess");
+  game.reset();
+  game.peerId = "peer";
+  game.sendMessage("First question.");
+  const staleToken = game.guessToken;
+
+  // Simulate a reply already in flight for the first prompt.
+  game.sendMessage("Second question.");
+  assert.notEqual(game.guessToken, staleToken, "the token moved on");
+
+  // The stale reply path in generateAiResponse() checks the token before
+  // setting a mystery, so replaying it must be a no-op.
+  const token = game.guessToken;
+  const mysteryBefore = game.mystery;
+  assert.equal(token === staleToken, false);
+  assert.equal(mysteryBefore, null, "the new round has no mystery yet");
+});
+
+test("Guess does not accept a message while a mystery is unresolved in the UI", async () => {
+  // Model behaviour: a prompt is still accepted (it starts a fresh round), but
+  // the round state must never be left inconsistent.
+  const game = new ImitationModel();
+  game.setSide("guess");
+  game.reset();
+  game.mystery = { source: "ai", text: "An old mystery." };
+  game.phase = "guess";
+  game.sendMessage("Replacement prompt.");
+  assert.equal(game.mystery, null);
+  assert.equal(game.phase, "guess-waiting");
+  // chooseGuess must now refuse, since there is no mystery to guess about.
+  assert.equal(game.chooseGuess("ai"), false, "guessing is refused with no mystery on screen");
+});

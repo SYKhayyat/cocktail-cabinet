@@ -189,11 +189,22 @@ export class ImitationModel {
     this.addMessage("You", clean);
     if (this.side === "ai") void this.askAi(clean);
     if (this.side === "guess") {
+      // A prompt replaces the round rather than layering on top of it. The
+      // previous mystery, any in-flight reply, and the round token must all be
+      // cleared: generateAiResponse() and update() guard on !mystery, so
+      // leaving it behind wedges the round until Restart.
+      //
+      // guessToken is advanced so a reply already on its way for the previous
+      // prompt cannot resolve into this one (see generateAiResponse).
+      this.guessToken += 1;
       this.prompt = clean;
+      this.mystery = null;
+      this.guessResult = null;
       this.roundSource = null;
       this.phase = "guess-waiting";
       this.guessClock = 4;
       this.guessFallbackStarted = false;
+      this.onRoundStart?.();
     }
     if (this.side === "write") void this.classifyText(clean);
     return clean;

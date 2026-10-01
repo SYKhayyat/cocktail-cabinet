@@ -156,6 +156,12 @@ function renderGuessControls(state) {
     button.classList.toggle("is-answer", Boolean(result?.correct && result.choice !== choice));
     button.disabled = state.phase !== "guess" || Boolean(result);
   }
+  // While a mystery is on screen the round belongs to the guess, not to the
+  // prompt box. A message sent here would replace the prompt mid-round, which
+  // is why the model treats a new prompt as starting a fresh round.
+  const awaitingGuess = isGuess && state.phase === "guess";
+  chatInput.disabled = awaitingGuess;
+  chatInput.placeholder = awaitingGuess ? "Choose AI or Human first" : "Type a message · Enter to send";
 }
 
 let activeId = "snake";
@@ -323,8 +329,10 @@ finishConnectionButton.addEventListener("click", () => runManualConnection(async
 chatForm.addEventListener("submit", (event) => {
   event.preventDefault();
   if (activeId !== "imitation") return;
-  engine.game.sendMessage(chatInput.value);
-  chatInput.value = "";
+  // sendMessage returns null when it refuses the text, so the box is only
+  // cleared on a send that happened.
+  const sent = engine.game.sendMessage(chatInput.value);
+  if (sent) chatInput.value = "";
 });
 applySettingDescriptors();
 loadGame(activeId);
