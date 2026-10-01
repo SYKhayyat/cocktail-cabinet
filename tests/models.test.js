@@ -1660,3 +1660,78 @@ test("Asteroids versus ends immediately when either side runs out of lives", () 
   assert.equal(computerOut.winner, "human");
   assert.match(computerResult.message, /You win/);
 });
+
+test("Asteroids versus lets rocks damage the computer ship too", () => {
+  const duel = () => {
+    const game = new AsteroidsModel();
+    game.setSide("versus");
+    game.reset();
+    game.invulnerable = 0;
+    game.computerShotClock = 99;
+    return game;
+  };
+  const rockAt = (x, y) => ({ x, y, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [], tone: 0, generation: 0 });
+
+  const computerHit = duel();
+  computerHit.ship.x = 100;
+  computerHit.ship.y = 500;
+  computerHit.playerLives.computer = 3;
+  computerHit.asteroids = [rockAt(computerHit.computerShip.x, computerHit.computerShip.y)];
+  computerHit.update(0, { pointer: null, fire: false });
+  assert.equal(computerHit.playerLives.computer, 2, "a rock costs the computer a life");
+  assert.equal(computerHit.lifeLost, false, "the human does not lose a life for the computer's hit");
+
+  // The computer is moved clear, so one rock cannot drain its whole life bank
+  // across consecutive frames.
+  assert.notDeepEqual(
+    { x: computerHit.computerShip.x, y: computerHit.computerShip.y },
+    { x: 400, y: 160 },
+    "the computer is displaced so the same rock cannot hit again"
+  );
+
+  const humanHit = duel();
+  humanHit.computerShip.x = 700;
+  humanHit.computerShip.y = 60;
+  humanHit.asteroids = [rockAt(humanHit.ship.x, humanHit.ship.y)];
+  humanHit.update(0, { pointer: null, fire: false });
+  assert.equal(humanHit.lifeLost, true, "a rock still costs the human a life");
+  assert.equal(humanHit.playerLives.computer, 3, "the computer is unaffected by the human's hit");
+});
+
+test("Asteroids versus respects the respawn grace period for both ships", () => {
+  const game = new AsteroidsModel();
+  game.setSide("versus");
+  game.reset();
+  const rock = { x: game.ship.x, y: game.ship.y, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [], tone: 0, generation: 0 };
+  game.invulnerable = 1;
+  game.asteroids = [rock];
+  game.computerShip.x = 700;
+  game.computerShip.y = 60;
+  game.update(0.1, { pointer: null, fire: false });
+  assert.equal(game.lifeLost, false, "a blinking ship cannot lose a life to a rock");
+
+  // Once the grace period lapses the same rock does count.
+  game.invulnerable = 0;
+  rock.x = game.ship.x;
+  rock.y = game.ship.y;
+  game.update(0, { pointer: null, fire: false });
+  assert.equal(game.lifeLost, true);
+});
+
+test("Asteroids versus ends when rocks alone exhaust the computer's lives", () => {
+  const game = new AsteroidsModel();
+  game.setSide("versus");
+  game.reset();
+  game.invulnerable = 0;
+  game.computerShotClock = 99;
+  game.ship.x = 60;
+  game.ship.y = 500;
+  game.playerLives.computer = 1;
+  game.asteroids = [{ x: game.computerShip.x, y: game.computerShip.y, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [], tone: 0, generation: 0 }];
+  game.update(0, { pointer: null, fire: false });
+  assert.equal(game.playerLives.computer, 0);
+  assert.equal(game.lifeLost, true, "the duel reaches its terminal state");
+  const result = game.handleLifeLoss();
+  assert.equal(result.gameOver, true);
+  assert.equal(game.winner, "human");
+});

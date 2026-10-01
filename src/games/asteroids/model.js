@@ -204,7 +204,32 @@ export class AsteroidsModel {
     this.asteroids = this.asteroids.filter((asteroid) => asteroid.radius);
     this.bullets = this.bullets.filter((bullet) => bullet.life > 0);
     if (this.asteroids.length === 0 && (this.side === "ship" || this.side === "versus")) this.spawnAsteroid();
-    if (this.invulnerable === 0 && this.asteroids.some((asteroid) => circleHitsCircle(this.ship.x, this.ship.y, this.ship.radius, asteroid.x, asteroid.y, asteroid.radius))) this.lifeLost = true;
+    this.resolveShipHazards();
+  }
+  // Rocks threaten both pilots in the duel, as the view states. The respawn
+  // grace period covers whichever ship respawned, so a life lost to a rock
+  // cannot immediately cost a second life while the ship is still blinking.
+  resolveShipHazards() {
+    if (this.side !== "versus") {
+      if (this.invulnerable === 0 && this.asteroids.some((asteroid) => circleHitsCircle(this.ship.x, this.ship.y, this.ship.radius, asteroid.x, asteroid.y, asteroid.radius))) this.lifeLost = true;
+      return;
+    }
+    for (const [owner, ship] of [["human", this.ship], ["computer", this.computerShip]]) {
+      if (!ship) continue;
+      const hit = this.asteroids.some((asteroid) => circleHitsCircle(ship.x, ship.y, ship.radius, asteroid.x, asteroid.y, asteroid.radius));
+      if (!hit) continue;
+      if (owner === "human") {
+        if (this.invulnerable === 0) this.lifeLost = true;
+        continue;
+      }
+      this.playerLives.computer = Math.max(0, this.playerLives.computer - 1);
+      // Move the computer clear so it does not lose every remaining life to
+      // one rock in consecutive frames.
+      ship.x = (ship.x + 240) % 800;
+      ship.y = clamp(ship.y, 40, 520);
+      ship.aiTarget = null;
+    }
+    if (this.playerLives.computer <= 0) this.lifeLost = true;
   }
   spawnAsteroidAt(x, y, target = this.ship, velocity = null) {
     const angle = velocity ? Math.atan2(velocity.vy, velocity.vx) : Math.atan2(target.y - y, target.x - x) + (Math.random() - 0.5) * 0.8;
@@ -254,6 +279,9 @@ export class AsteroidsModel {
     this.ship.angle = -Math.PI / 2;
     this.ship.speed = 0;
     this.invulnerable = 1.2;
+    // The computer's position is restored alongside the human's, so a life
+    // lost does not leave the duel with the computer displaced or missing.
+    this.computerShip = this.newShip(400, 160);
   }
   publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "versus" ? "Shoot the opposing ship and protect your own." : "Asteroids vary in size, shape, speed, and rotation as the score rises." }; }
 }
