@@ -16,8 +16,10 @@ export function draw(model, context) {
   model.interceptors.forEach((missile) => drawMissile(context, missile));
   model.fireballs.forEach((fireball) => { context.globalAlpha = Math.min(1, fireball.life); context.fillStyle = "#fb923c88"; context.strokeStyle = "#fde68a"; context.lineWidth = 2; context.beginPath(); context.arc(fireball.x, fireball.y, fireball.radius * Math.max(0.35, fireball.life / 4), 0, Math.PI * 2); context.fill(); context.stroke(); context.globalAlpha = 1; });
   if (model.side === "defender") { context.strokeStyle = "#fbbf24"; context.lineWidth = 2; context.beginPath(); context.arc(model.target.x, model.target.y, 13, 0, Math.PI * 2); context.stroke(); context.beginPath(); context.moveTo(model.target.x - 18, model.target.y); context.lineTo(model.target.x + 18, model.target.y); context.moveTo(model.target.x, model.target.y - 18); context.lineTo(model.target.x, model.target.y + 18); context.stroke(); }
-  drawText(context, model.side === "defender" ? "Move the mouse to aim · click to launch · Left/Right selects the lit battery" : "Click a city area to launch a red missile · the computer intercepts", 16, 28, 14, "#cbd5e1");
-  drawText(context, model.side === "defender" ? `Level ${model.level} · ${model.multiplier}x · Cities ${model.cities.filter((city) => city.alive).length}/6 · Reserve ${model.reserveCities}` : "Red = incoming · blue = yours · protect the three batteries", 16, 556, 12, "#64748b");
+  drawText(context, model.side === "defender" ? "Move the mouse to aim · Space or click to launch · Left/Right selects the lit battery" : "Click or drag to launch a red missile at a city · the computer intercepts", 16, 28, 14, "#cbd5e1");
+  // Both modes are about the six cities: the defender protects them, the
+  // attacker destroys them. The batteries are how each side fights.
+  drawText(context, model.side === "defender" ? `Level ${model.level} · ${model.multiplier}x · Cities ${model.citiesRemaining()}/6 · Reserve ${model.reserveCities}` : `Cities ${model.citiesRemaining()}/6 · Batteries ${model.batteriesRemaining()}/3`, 16, 556, 12, "#64748b");
 }
 
 function drawMissile(context, missile) {

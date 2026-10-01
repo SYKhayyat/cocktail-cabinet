@@ -18,7 +18,7 @@ export class MissileModel {
   constructor() {
     this.id = "missile";
     this.title = "Missile Command";
-    this.description = "Move the crosshair, choose a battery with Left/Right, then click to launch an interceptor. Protect six cities as the levels intensify.";
+    this.description = "Defend: aim the crosshair, choose a battery with Left/Right, then press Space or click to launch. Attack: click or drag to fire a red missile at a city. Both modes are about the six cities.";
     this.side = "defender";
     this.score = 0;
   }
@@ -49,6 +49,7 @@ export class MissileModel {
     this.levelTransition = 0;
     this.lifeLost = false;
     this.gameOver = false;
+    this.won = false;
     this.winner = null;
   }
   selectBattery(direction) {
@@ -160,7 +161,16 @@ export class MissileModel {
     for (const enemy of this.enemyMissiles) if (enemy.targetObject?.alive && enemy.y >= enemy.targetY - enemy.targetObject.radius - 8) { enemy.targetObject.alive = false; enemy.dead = true; }
     this.enemyMissiles = this.enemyMissiles.filter((missile) => !missile.dead && missile.y < 560);
     this.interceptors = this.interceptors.filter((missile) => !missile.dead);
-    if (this.bases.every((base) => !base.alive)) this.lifeLost = true;
+    // The attacker's objective is the cities, so losing all batteries is losing
+    // the means to that end: a loss, not a generic life loss. Raising the
+    // engine's lifeLost flag here would restart the round with fresh cities and
+    // fresh batteries, which is not a defeat at all.
+    if (this.batteriesRemaining() === 0 && this.citiesRemaining() > 0) {
+      this.gameOver = true;
+      this.won = false;
+      this.winner = "computer";
+    }
+    this.checkGameOver();
   }
   updateEntities(dt) {
     for (const interceptor of this.interceptors) {
@@ -278,10 +288,37 @@ export class MissileModel {
     destroyed.alive = true;
     this.reserveCities -= 1;
   }
+  // The objective in both modes is the six cities: Defender protects them, and
+// Attacker destroys them. Batteries are the means to that end -- interceptors
+// for the defender, and for the attacker the batteries that shoot back. That is
+// the reading the mode selector, the mode name, and this existing
+// city-based check all pointed at; the copy elsewhere disagreed with them.
+//
+// So the terminal states are mirrored:
+//   Defender: all cities lost -> game over ("The End").
+//   Attacker: all cities lost -> the attacker wins.
+//   Attacker: all batteries lost -> the attacker is out of options, a loss.
+  citiesRemaining() { return this.cities.filter((city) => city.alive).length; }
+  batteriesRemaining() { return this.bases.filter((base) => base.alive).length; }
   checkGameOver() {
-    if (this.cities.every((city) => !city.alive) && this.reserveCities === 0) this.gameOver = true;
+    if (this.side === "attacker") {
+      if (this.citiesRemaining() === 0) {
+        this.gameOver = true;
+        this.won = true;
+        this.winner = "human";
+      }
+      return;
+    }
+    if (this.citiesRemaining() === 0 && this.reserveCities === 0) this.gameOver = true;
   }
-  handleLifeLoss() { return this.gameOver ? { gameOver: true, message: "The End" } : null; }
+  handleLifeLoss() {
+    if (this.side === "attacker") {
+      if (this.winner === "computer") return { gameOver: true, message: "The batteries are gone — the cities hold." };
+      if (this.gameOver) return { gameOver: true, message: "Every city is down — you win." };
+      return null;
+    }
+    return this.gameOver ? { gameOver: true, message: "The End" } : null;
+  }
   closestTarget(x) {
     const targets = [
       ...this.cities.filter((city) => city.alive).map((city) => ({ target: city, kind: "city" })),
@@ -293,5 +330,10 @@ export class MissileModel {
     const target = this.bases.reduce((closest, base) => Math.abs(base.x - x) < Math.abs(closest.x - x) ? base : closest, this.bases[0]);
     return { target, kind: "battery" };
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: `Level ${this.level} · ${this.multiplier}x · choose a battery with Left/Right and click to launch` }; }
+  publicState() {
+    const status = this.side === "defender"
+      ? `Level ${this.level} · ${this.multiplier}x · choose a battery with Left/Right and press Space or click to launch`
+      : `Cities ${this.citiesRemaining()}/6 · Batteries ${this.batteriesRemaining()}/3 · destroy the cities`;
+    return { title: this.title, description: this.description, side: this.sideLabel(), status };
+  }
 }

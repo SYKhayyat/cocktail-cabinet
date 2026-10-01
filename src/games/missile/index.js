@@ -11,6 +11,10 @@ export class MissileCommandGame {
   get score() { return this.model.score; }
   get gameOver() { return this.model.gameOver; }
   set gameOver(value) { this.model.gameOver = value; }
+  get won() { return this.model.won; }
+  set won(value) { this.model.won = value; }
+  get winner() { return this.model.winner; }
+  winMessage() { return this.model.winner === "computer" ? "The batteries are gone — the cities hold." : "Every city is down — you win."; }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
   get modes() { return this.model.modes; }

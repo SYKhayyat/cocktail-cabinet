@@ -2501,3 +2501,62 @@ test("Missile attacker does not score for an already-resolved enemy", () => {
   assert.equal(game.score, 0, "a dead enemy cannot be killed twice");
   assert.equal(game.interceptors.length, 1, "the interceptor survives a dead target");
 });
+
+test("Missile Attacker wins by destroying the cities", () => {
+  const game = new MissileCommandGame();
+  game.setSide("attacker");
+  game.reset();
+  game.model.interceptorClock = 999;
+  assert.match(game.publicState().status, /Cities 6\/6/, "attacker status reports cities remaining");
+
+  game.model.cities.forEach((city) => { city.alive = false; });
+  game.update(0, input({ pointer: pointer() }));
+
+  assert.equal(game.model.gameOver, true, "destroying every city ends the round");
+  assert.equal(game.won, true, "the attacker wins");
+  assert.equal(game.winner, "human", "the human is the attacker");
+  const result = game.handleLifeLoss();
+  assert.equal(result.gameOver, true);
+  assert.match(result.message, /city/i);
+  assert.match(result.message, /win/i);
+  assert.match(game.winMessage(), /city/i);
+});
+
+test("Missile Attacker loses when every battery is destroyed", () => {
+  const game = new MissileCommandGame();
+  game.setSide("attacker");
+  game.reset();
+  game.model.interceptorClock = 999;
+  game.model.bases.forEach((base) => { base.alive = false; });
+  game.update(0, input({ pointer: pointer() }));
+
+  assert.equal(game.model.gameOver, true, "losing every battery ends the round");
+  assert.equal(game.won, false, "that is a loss, not a win");
+  assert.equal(game.winner, "computer", "the defender wins");
+  assert.equal(game.model.lifeLost, false, "no generic life-loss restart: the cities are still standing");
+  assert.match(game.handleLifeLoss().message, /batteries are gone/i);
+  assert.match(game.winMessage(), /batteries are gone/i);
+});
+
+test("Missile Defender still ends when its cities are lost", () => {
+  const game = new MissileCommandGame();
+  game.setSide("defender");
+  game.reset();
+  game.model.cities.forEach((city) => { city.alive = false; });
+  game.update(0, input({ pointer: pointer() }));
+  assert.equal(game.model.gameOver, true);
+  assert.equal(game.model.winner, null, "the defender mode has no winner field to set");
+  assert.match(game.handleLifeLoss().message, /The End/);
+});
+
+test("Missile copy is consistent about the objective in both modes", () => {
+  const attacker = new MissileCommandGame();
+  attacker.setSide("attacker");
+  attacker.reset();
+  assert.match(attacker.sideLabel(), /attack cities/i, "the selector label says attack cities");
+  assert.match(attacker.model.sideLabel(), /attack cities/i, "the model's own label agrees");
+  const defender = new MissileCommandGame();
+  defender.setSide("defender");
+  defender.reset();
+  assert.match(defender.sideLabel(), /defend cities/i);
+});
