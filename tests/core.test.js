@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { clamp, circleHitsCircle, distance } from "../src/engine.js";
+import { clamp, circleHitsCircle, distance, GameEngine } from "../src/engine.js";
 import { SnakeModel } from "../src/games/snake/model.js";
 import { BreakoutModel } from "../src/games/breakout/model.js";
 import { StarfallGame } from "../src/games/starfall.js";
@@ -123,4 +123,91 @@ test("Starfall can spawn stars and the machine runner stays in bounds", () => {
   assert.equal(game.stars.length, 1);
   for (let index = 0; index < 100; index += 1) game.update(0.016, { keys: new Set(), pressed: new Set(), pointer: { clicked: false } });
   assert.ok(game.runner.x >= 0 && game.runner.x <= 800);
+});
+
+function withFakeDom(run) {
+  const listeners = new Map();
+  const canvasListeners = new Map();
+  const noop = () => {};
+  const contextStub = new Proxy({}, { get: () => noop, set: () => true });
+  const canvas = {
+    width: 800,
+    height: 560,
+    getContext: () => contextStub,
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 560 }),
+    addEventListener: (type, handler) => canvasListeners.set(type, handler),
+    removeEventListener: (type) => canvasListeners.delete(type)
+  };
+  const fakeWindow = {
+    addEventListener: (type, handler) => listeners.set(type, handler),
+    removeEventListener: (type) => listeners.delete(type)
+  };
+  const saved = { window: globalThis.window, raf: globalThis.requestAnimationFrame, caf: globalThis.cancelAnimationFrame };
+  globalThis.window = fakeWindow;
+  globalThis.requestAnimationFrame = () => 0;
+  globalThis.cancelAnimationFrame = noop;
+  try {
+    return run({
+      engine: new GameEngine(canvas),
+      dispatch: (type, event) => canvasListeners.get(type)?.(event),
+      dispatchWindow: (type, event) => listeners.get(type)?.(event)
+    });
+  } finally {
+    globalThis.window = saved.window;
+    globalThis.requestAnimationFrame = saved.raf;
+    globalThis.cancelAnimationFrame = saved.caf;
+  }
+}
+
+test("a cancelled pointer gesture leaves no click, drag, or release behind", () => {
+  withFakeDom(({ engine, dispatch, dispatchWindow }) => {
+    const pointerEvent = { pointerId: 7, clientX: 100, clientY: 120 };
+    dispatch("pointerdown", pointerEvent);
+    dispatch("pointermove", { ...pointerEvent, clientX: 160, clientY: 180 });
+    assert.equal(engine.input.pointer.down, true);
+    assert.equal(engine.input.pointer.clicked, true);
+    assert.ok(engine.input.pointer.dragDistance > 0);
+
+    dispatchWindow("pointercancel", { pointerId: 7 });
+
+    const pointer = engine.input.pointer;
+    assert.equal(pointer.clicked, false, "a cancelled press must not become a click");
+    assert.equal(pointer.released, false, "a cancelled press must not become a release");
+    assert.equal(pointer.doubleClicked, false);
+    assert.equal(pointer.down, false);
+    assert.equal(pointer.moved, false);
+    assert.equal(pointer.dragDeltaX, 0);
+    assert.equal(pointer.dragDeltaY, 0);
+    assert.equal(pointer.dragDistance, 0);
+    assert.equal(engine.input.scrollDeltaX, 0);
+    assert.equal(engine.activePointerId, null, "the cancelled pointer is released for the next gesture");
+
+    const freshGesture = dispatch("pointerdown", { pointerId: 9, clientX: 300, clientY: 200 });
+    assert.equal(engine.input.pointer.down, true);
+    assert.equal(engine.input.pointer.clicked, true);
+    assert.equal(engine.input.pointer.dragDeltaX, 0, "the next gesture starts from a clean drag baseline");
+    assert.equal(engine.input.pointer.dragDistance, 0);
+  });
+});
+
+test("pointercancel for an unrelated pointer leaves the active gesture alone", () => {
+  withFakeDom(({ engine, dispatch, dispatchWindow }) => {
+    dispatch("pointerdown", { pointerId: 1, clientX: 50, clientY: 60 });
+    dispatchWindow("pointercancel", { pointerId: 2 });
+    assert.equal(engine.input.pointer.down, true, "a second pointer's cancel must not abort the first");
+    assert.equal(engine.input.pointer.clicked, true);
+    assert.equal(engine.activePointerId, 1);
+  });
+});
+
+test("pointercancel discards a pending double-click so it cannot re-fire", () => {
+  withFakeDom(({ engine, dispatch, dispatchWindow }) => {
+    dispatch("pointerdown", { pointerId: 3, clientX: 200, clientY: 200 });
+    dispatchWindow("pointerup", { pointerId: 3, clientX: 200, clientY: 200 });
+    dispatch("pointerdown", { pointerId: 3, clientX: 201, clientY: 201 });
+    assert.equal(engine.input.pointer.doubleClicked, true);
+    dispatchWindow("pointercancel", { pointerId: 3 });
+    dispatch("pointerdown", { pointerId: 3, clientX: 202, clientY: 202 });
+    assert.equal(engine.input.pointer.doubleClicked, false, "the cancelled click must not pair with the next press");
+  });
 });

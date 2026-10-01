@@ -28,6 +28,31 @@ export class GameEngine {
     this.lastPointerClickX = 0;
     this.lastPointerClickY = 0;
 
+    this.clearTransientPointer = () => {
+      this.input.pointer.clicked = false;
+      this.input.pointer.released = false;
+      this.input.pointer.doubleClicked = false;
+      this.input.pointer.moved = false;
+      this.input.pointer.dragDeltaX = 0;
+      this.input.pointer.dragDeltaY = 0;
+      this.input.pointer.dragDistance = 0;
+      this.input.scrollDeltaX = 0;
+    };
+
+    this.cancelPointer = () => {
+      const pointer = this.input.pointer;
+      this.activePointerId = null;
+      this.lastPointerClickAt = 0;
+      this.lastPointerClickX = 0;
+      this.lastPointerClickY = 0;
+      this.clearTransientPointer();
+      pointer.down = false;
+      pointer.dragStartX = pointer.x;
+      pointer.dragStartY = pointer.y;
+      pointer.lastX = pointer.x;
+      pointer.lastY = pointer.y;
+    };
+
     this.handleKeyDown = (event) => {
       const tagName = event.target?.tagName;
       if (["INPUT", "TEXTAREA", "SELECT"].includes(tagName) || event.target?.isContentEditable) return;
@@ -87,11 +112,9 @@ export class GameEngine {
       this.input.pointer.released = true;
       this.activePointerId = null;
     };
-    this.handlePointerCancel = () => {
-      this.input.pointer.down = false;
-      this.input.pointer.released = false;
-      this.input.pointer.doubleClicked = false;
-      this.activePointerId = null;
+    this.handlePointerCancel = (event) => {
+      if (this.activePointerId !== null && event.pointerId !== this.activePointerId) return;
+      this.cancelPointer();
     };
      this.handleDoubleClick = () => {
        this.input.pointer.doubleClicked = true;
@@ -231,14 +254,7 @@ export class GameEngine {
       drawText(this.context, instruction, 400, 340, 14, "#cbd5e1", "center");
     }
     this.input.pressed.clear();
-    this.input.pointer.clicked = false;
-    this.input.pointer.released = false;
-    this.input.pointer.doubleClicked = false;
-    this.input.pointer.dragDeltaX = 0;
-    this.input.pointer.dragDeltaY = 0;
-    this.input.pointer.dragDistance = 0;
-    this.input.scrollDeltaX = 0;
-    this.input.pointer.moved = false;
+    this.clearTransientPointer();
     this.onState?.(this.game.publicState());
     this.onScore?.(this.game.score);
     this.animationFrame = requestAnimationFrame((nextTime) => this.frame(nextTime));
