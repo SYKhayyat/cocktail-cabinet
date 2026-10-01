@@ -1415,3 +1415,90 @@ test("setSide rejects unregistered values instead of silently accepting them", (
   splat.setSide("race");
   assert.equal(splat.side, "race");
 });
+
+const allGames = () => ({
+  snake: new SnakeGame(),
+  breakout: new BreakoutGame(),
+  splat: new SplatGame(),
+  asteroids: new AsteroidsGame(),
+  missile: new MissileCommandGame(),
+  imitation: new ImitationGame(),
+  starfall: new StarfallGame()
+});
+
+test("every registered mode is selectable, labelled, and reaches its own model", () => {
+  for (const [id, game] of Object.entries(allGames())) {
+    assert.ok(Array.isArray(game.modes) && game.modes.length > 1, `${id} registers multiple modes`);
+    for (const mode of game.modes) {
+      assert.equal(typeof mode.value, "string", `${id} mode has a value`);
+      assert.ok(mode.label && mode.label.length > 2, `${id}/${mode.value} has a human label`);
+    }
+    assert.deepEqual([...new Set(game.sides)], game.sides, `${id} has no duplicate modes`);
+    assert.ok(game.sides.includes(game.side), `${id} starts on a registered mode`);
+
+    for (const side of game.sides) {
+      game.setSide(side);
+      assert.equal(game.side, side, `${id} accepts registered mode ${side}`);
+      assert.equal(game.sideLabel(), game.modes.find((mode) => mode.value === side).label, `${id}/${side} label comes from the descriptor`);
+      game.reset();
+    }
+  }
+});
+
+test("mode descriptors offer every registered mode except explicitly hidden aliases", () => {
+  const games = allGames();
+  for (const [id, game] of Object.entries(games)) {
+    const offered = game.modes.filter((mode) => mode.available !== false).map((mode) => mode.value);
+    for (const side of offered) {
+      assert.ok(game.sides.includes(side), `${id} offers ${side}, which its model accepts`);
+      assert.ok(game.controlHint().length > 0, `${id} has control hints for mode ${side}`);
+    }
+  }
+  const hidden = games.splat.modes.filter((mode) => mode.available === false).map((mode) => mode.value);
+  assert.deepEqual(hidden, ["layout"], "the undocumented Splat alias stays hidden rather than silently offered");
+});
+
+test("settings descriptors are the single source of bounds, labels, and validation", () => {
+  const snake = new SnakeGame();
+  const descriptors = snake.settings;
+  assert.deepEqual(Object.keys(descriptors).sort(), ["cols", "rows", "startingLength", "wrap"]);
+  assert.equal(descriptors.cols.min, 10);
+  assert.equal(descriptors.cols.max, 60);
+  assert.equal(descriptors.cols.default, 40);
+  assert.equal(descriptors.wrap.type, "checkbox");
+
+  assert.deepEqual(snake.validateSettings({ cols: 20, rows: 15, startingLength: 4, wrap: true }), { cols: 20, rows: 15, startingLength: 4, wrap: true });
+  assert.equal(snake.validateSettings({ cols: 9, rows: 15, startingLength: 4 }), null, "below minimum");
+  assert.equal(snake.validateSettings({ cols: 61, rows: 15, startingLength: 4 }), null, "above maximum");
+  assert.equal(snake.validateSettings({ cols: 20, rows: 15.5, startingLength: 4 }), null, "not a whole number");
+  assert.equal(snake.validateSettings({ cols: 20, rows: 15, startingLength: 20 }), null, "start length must fit the board");
+
+  const splat = new SplatGame();
+  assert.equal(splat.settings.columnSpacing.min, 90);
+  assert.equal(splat.settings.columnSpacing.max, 240);
+  assert.deepEqual(splat.validateSettings({ columnSpacing: 150 }), { columnSpacing: 150 });
+  assert.equal(splat.validateSettings({ columnSpacing: 89 }), null);
+  assert.equal(splat.validateSettings({ columnSpacing: 241 }), null);
+});
+
+test("settings descriptors match the values the model actually applies", () => {
+  const snake = new SnakeGame();
+  snake.setSettings(snake.validateSettings({ cols: 25, rows: 20, startingLength: 6, wrap: true }));
+  snake.applyPendingSettings();
+  snake.reset();
+  assert.deepEqual({ cols: snake.model.cols, rows: snake.model.rows, startingLength: snake.model.startingLength, wrap: snake.model.wrap }, { cols: 25, rows: 20, startingLength: 6, wrap: true });
+  assert.equal(snake.model.snake.length, 6);
+
+  const splat = new SplatGame();
+  splat.setSettings(splat.validateSettings({ columnSpacing: 160 }));
+  splat.applyPendingSettings();
+  assert.equal(splat.model.columnSpacing, 160);
+});
+
+test("games without settings expose no descriptor or validator", () => {
+  for (const [id, game] of Object.entries(allGames())) {
+    if (id === "snake" || id === "splat") continue;
+    assert.equal(game.settings, undefined, `${id} has no settings descriptor`);
+    assert.equal(game.validateSettings({ anything: 1 }), undefined, `${id} has no settings validator`);
+  }
+});

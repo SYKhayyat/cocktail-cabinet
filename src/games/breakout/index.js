@@ -28,7 +28,10 @@ export class BreakoutGame {
   set won(value) { this.model.won = value; }
   set engine(value) { this.model.engine = value; }
   sideLabel() { return this.model.sideLabel(); }
+  get modes() { return this.model.modes; }
   get sides() { return this.model.sides; }
+  get settings() { return this.model.settings; }
+  validateSettings(values) { return this.model.validateSettings?.(values); }
   setSide(side) { this.model.setSide(side); }
   reset(keepScore) { this.model.reset(keepScore); }
   controlHint() { return this.controller.controlHint(); }

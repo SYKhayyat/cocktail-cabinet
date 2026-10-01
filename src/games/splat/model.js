@@ -3,8 +3,6 @@ import { clamp } from "../../engine.js";
 const COLUMN_WIDTH = 30;
 const COLUMN_COUNT = 50;
 const DEFAULT_COLUMN_SPACING = 130;
-const MIN_COLUMN_SPACING = 90;
-const MAX_COLUMN_SPACING = 240;
 const GAP_HEIGHT = 112;
 const HORIZONTAL_SPEED = 120;
 const GRAVITY = 220;
@@ -12,6 +10,20 @@ const DRIFT_SPEED = 260;
 const BOUNCE_DISTANCE = 18;
 const COMPUTER_MISTAKE_CHANCE = 0.002;
 const RACE_COMPUTER_MISTAKE_CHANCE = 0.02;
+
+export const SPLAT_MODES = [
+  { value: "climber", label: "Solo — steer the ball" },
+  { value: "race", label: "You vs computer — two-ball race" },
+  { value: "builder", label: "Computer navigates — place columns" },
+  // `layout` is a registered alias of `builder` kept for compatibility with
+  // existing saves and tests. It is not offered in the mode selector; see
+  // issue #1 for the decision on whether to remove it entirely.
+  { value: "layout", label: "Computer navigates — place columns", available: false }
+];
+
+export const SPLAT_SETTINGS = {
+  columnSpacing: { label: "Column spacing", min: 90, max: 240, step: 10, default: DEFAULT_COLUMN_SPACING }
+};
 
 export class SplatModel {
   constructor() {
@@ -26,17 +38,20 @@ export class SplatModel {
     this.driftActive = 0;
     this.tool = "column";
   }
-  get sides() { return ["climber", "race", "builder", "layout"]; }
-  sideLabel() {
-    if (this.side === "builder") return "You place columns while the computer navigates";
-    if (this.side === "race") return "You and the computer race two balls";
-    if (this.side === "layout") return "Computer navigates while you place columns";
-    return "You steer the falling object";
+  get modes() { return SPLAT_MODES; }
+  get sides() { return SPLAT_MODES.map((mode) => mode.value); }
+  get settings() { return SPLAT_SETTINGS; }
+  validateSettings(values) {
+    const descriptor = SPLAT_SETTINGS.columnSpacing;
+    const columnSpacing = Number(values.columnSpacing);
+    if (!Number.isInteger(columnSpacing) || columnSpacing < descriptor.min || columnSpacing > descriptor.max) return null;
+    return { columnSpacing };
   }
+  sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || SPLAT_MODES[0].label; }
   setSide(side) { if (this.sides.includes(side)) this.side = side; this.tool = "column"; }
   setTool(tool) { if (tool === "column" || tool === "gap") this.tool = tool; }
   setSettings(settings = {}) {
-    if (Number.isInteger(settings.columnSpacing)) this.pendingSettings.columnSpacing = clamp(settings.columnSpacing, MIN_COLUMN_SPACING, MAX_COLUMN_SPACING);
+    if (Number.isInteger(settings.columnSpacing)) this.pendingSettings.columnSpacing = clamp(settings.columnSpacing, SPLAT_SETTINGS.columnSpacing.min, SPLAT_SETTINGS.columnSpacing.max);
   }
   applyPendingSettings() { this.columnSpacing = this.pendingSettings.columnSpacing; }
   reset(keepScore = false, preserveLayout = false) {

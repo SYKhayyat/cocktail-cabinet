@@ -4,6 +4,18 @@ const BOARD_WIDTH = 800;
 const BOARD_HEIGHT = 560;
 const AI_MISTAKE_CHANCE = 0.0001;
 
+export const SNAKE_MODES = [
+  { value: "snake", label: "Solo — steer the snake" },
+  { value: "apples", label: "Computer vs you — place apples" }
+];
+
+export const SNAKE_SETTINGS = {
+  cols: { label: "Columns", min: 10, max: 60, step: 1, default: 40 },
+  rows: { label: "Rows", min: 8, max: 44, step: 1, default: 28 },
+  startingLength: { label: "Start length", min: 3, max: 12, step: 1, default: 3 },
+  wrap: { type: "checkbox", default: false }
+};
+
 export class SnakeModel {
   constructor() {
     this.id = "snake";
@@ -24,9 +36,26 @@ export class SnakeModel {
     this.roundSettings = { ...this.pendingSettings };
     this.gameOver = false;
   }
-  get sides() { return ["snake", "apples"]; }
-  sideLabel() { return this.side === "apples" ? "You place apples" : "You steer the snake"; }
+  get modes() { return SNAKE_MODES; }
+  get sides() { return SNAKE_MODES.map((mode) => mode.value); }
+  get settings() { return SNAKE_SETTINGS; }
+  sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || SNAKE_MODES[0].label; }
   setSide(side) { if (this.sides.includes(side)) this.side = side; }
+  validateSettings(values) {
+    const read = (key) => {
+      const descriptor = SNAKE_SETTINGS[key];
+      if (!descriptor || descriptor.type === "checkbox") return undefined;
+      const value = Number(values[key]);
+      if (!Number.isInteger(value) || value < descriptor.min || value > descriptor.max) return null;
+      return value;
+    };
+    const cols = read("cols");
+    const rows = read("rows");
+    const startingLength = read("startingLength");
+    if (cols === null || rows === null || startingLength === null) return null;
+    if (startingLength >= Math.min(cols, rows)) return null;
+    return { cols, rows, startingLength, wrap: Boolean(values.wrap) };
+  }
   setSettings(settings) {
     this.pendingSettings = {
       cols: Number(settings.cols) || this.pendingSettings.cols,
@@ -39,7 +68,7 @@ export class SnakeModel {
     this.roundSettings = { ...this.pendingSettings };
     this.cols = this.roundSettings.cols;
     this.rows = this.roundSettings.rows;
-    this.startingLength = clamp(this.roundSettings.startingLength, 3, 12);
+    this.startingLength = clamp(this.roundSettings.startingLength, SNAKE_SETTINGS.startingLength.min, SNAKE_SETTINGS.startingLength.max);
     this.wrap = this.roundSettings.wrap;
   }
   cellWidth() { return BOARD_WIDTH / this.cols; }
@@ -51,7 +80,7 @@ export class SnakeModel {
   reset(keepScore = false, length = this.startingLength) {
     this.cols = this.roundSettings.cols;
     this.rows = this.roundSettings.rows;
-    this.startingLength = clamp(this.roundSettings.startingLength, 3, 12);
+    this.startingLength = clamp(this.roundSettings.startingLength, SNAKE_SETTINGS.startingLength.min, SNAKE_SETTINGS.startingLength.max);
     this.wrap = this.roundSettings.wrap;
     if (!keepScore) this.score = 0;
     this.gameOver = false;

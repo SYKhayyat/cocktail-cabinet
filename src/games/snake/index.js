@@ -23,7 +23,10 @@ export class SnakeGame {
   set engine(value) { this.model.engine = value; }
   get engine() { return this.model.engine; }
   sideLabel() { return this.model.sideLabel(); }
+  get modes() { return this.model.modes; }
   get sides() { return this.model.sides; }
+  get settings() { return this.model.settings; }
+  validateSettings(values) { return this.model.validateSettings?.(values); }
   setSide(side) { this.model.setSide(side); }
   setSettings(settings) { this.model.setSettings(settings); }
   applyPendingSettings() { this.model.applyPendingSettings(); }

@@ -18,6 +18,12 @@ const BREAKOUT_DIFFICULTY_STEP = 10;
 const BREAKOUT_DIFFICULTY_FACTOR = 1.045;
 const BREAKOUT_MAX_DIFFICULTY_LEVEL = 8;
 
+export const BREAKOUT_MODES = [
+  { value: "bottom", label: "Solo — keep the ball alive" },
+  { value: "blocks", label: "Computer vs you — drag the blocks" },
+  { value: "versus", label: "You vs computer — central brick duel" }
+];
+
 export class BreakoutModel {
   constructor() {
     this.id = "breakout";
@@ -27,8 +33,9 @@ export class BreakoutModel {
     this.score = 0;
     this.layout = null;
   }
-  get sides() { return ["bottom", "blocks", "versus"]; }
-  sideLabel() { return this.side === "bottom" ? "You control the bottom paddle" : this.side === "versus" ? "Central brick duel" : "You move the blocks"; }
+  get modes() { return BREAKOUT_MODES; }
+  get sides() { return BREAKOUT_MODES.map((mode) => mode.value); }
+  sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || BREAKOUT_MODES[0].label; }
   setSide(side) { if (this.sides.includes(side)) this.side = side; }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;

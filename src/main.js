@@ -63,15 +63,68 @@ const snakeLength = document.querySelector("#snakeLength");
 const snakeWrap = document.querySelector("#snakeWrap");
 let lastChatRevision = -1;
 
-const sideOptions = {
-  snake: [["snake", "Solo — steer the snake"], ["apples", "Computer vs you — place apples"]],
-  breakout: [["bottom", "Solo — keep the ball alive"], ["blocks", "Computer vs you — drag the blocks"], ["versus", "You vs computer — central brick duel"]],
-  splat: [["climber", "Solo — steer the ball"], ["race", "You vs computer — two-ball race"], ["builder", "Computer navigates — place columns"]],
-  asteroids: [["ship", "Solo — fly the ship"], ["versus", "You vs computer — both ships"], ["rocks", "Computer vs you — send asteroids"]],
-  missile: [["defender", "You vs computer — defend cities"], ["attacker", "Computer vs you — attack cities"]],
-  imitation: [["ai", "Chat with the local AI"], ["human", "Chat with another player"], ["guess", "Guess AI or human"], ["provide", "Provide a guessing message"], ["write", "Write text for AI to classify"]],
-  starfall: [["runner", "Solo — guide the runner"], ["stars", "Computer vs you — send stars"]]
+const settingsInputs = {
+  snake: { cols: snakeCols, rows: snakeRows, startingLength: snakeLength, wrap: snakeWrap },
+  splat: { columnSpacing: splatSpacing }
 };
+
+function readSettingsInputs(id) {
+  const values = {};
+  for (const [key, input] of Object.entries(settingsInputs[id] || {})) {
+    values[key] = input.type === "checkbox" ? input.checked : Number(input.value);
+  }
+  return values;
+}
+
+// Applied once at boot. Bounds and labels are static per game, and the
+// default must only seed the input once -- re-running this on every game
+// load would discard values the player has already typed.
+function applySettingDescriptors() {
+  for (const [id, inputs] of Object.entries(settingsInputs)) {
+    const descriptors = games.get(id)?.settings;
+    if (!descriptors) continue;
+    for (const [key, descriptor] of Object.entries(descriptors)) {
+      const input = inputs[key];
+      if (!input) continue;
+      const caption = settingsPanel.querySelector(`[data-setting-label="${key}"]`);
+      if (caption && descriptor.label) caption.textContent = descriptor.label;
+      if (descriptor.type === "checkbox") {
+        input.checked = Boolean(descriptor.default);
+        continue;
+      }
+      input.min = descriptor.min;
+      input.max = descriptor.max;
+      input.step = descriptor.step ?? 1;
+      if (descriptor.default !== undefined) input.value = descriptor.default;
+    }
+  }
+}
+
+function describeInvalidSettings(id) {
+  const game = games.get(id);
+  const descriptors = game?.settings || {};
+  const parts = Object.entries(descriptors)
+    .filter(([key, descriptor]) => descriptor.type !== "checkbox")
+    .map(([key, descriptor]) => `${descriptor.label} ${descriptor.min}–${descriptor.max}`);
+  const snakeLengthRule = id === "snake" ? ", start length must be smaller than both board dimensions" : "";
+  return `Use whole numbers within range: ${parts.join(", ")}${snakeLengthRule}.`;
+}
+
+function applySettings(id) {
+  if (activeId !== id) return;
+  const game = games.get(id);
+  const settings = game.validateSettings?.(readSettingsInputs(id));
+  if (!settings) {
+    message.textContent = describeInvalidSettings(id);
+    return;
+  }
+  game.setSettings(settings);
+  if (engine.ready) {
+    game.applyPendingSettings();
+    game.reset();
+    message.textContent = "Preview updated. Press New game when ready.";
+  } else message.textContent = "Settings saved for the next game.";
+}
 
 function renderChat(game) {
   if (!game) return;
@@ -105,52 +158,6 @@ function renderGuessControls(state) {
   }
 }
 
-function readSnakeSettings() {
-  const cols = Number(snakeCols.value);
-  const rows = Number(snakeRows.value);
-  const startingLength = Number(snakeLength.value);
-  if (!Number.isInteger(cols) || cols < 10 || cols > 60 || !Number.isInteger(rows) || rows < 8 || rows > 44 || !Number.isInteger(startingLength) || startingLength < 3 || startingLength > 12 || startingLength >= Math.min(cols, rows)) return null;
-  return { cols, rows, startingLength, wrap: snakeWrap.checked };
-}
-
-function applySnakeSettings() {
-  if (activeId !== "snake") return;
-  const settings = readSnakeSettings();
-  if (!settings) {
-    message.textContent = "Use whole numbers: columns 10–60, rows 8–44, and start length 3–12, smaller than both board dimensions.";
-    return;
-  }
-  const game = games.get("snake");
-  game.setSettings(settings);
-  if (engine.ready) {
-    game.applyPendingSettings();
-    game.reset();
-    message.textContent = "Preview updated. Press New game when ready.";
-  } else message.textContent = "Settings saved for the next game.";
-}
-
-function readSplatSettings() {
-  const columnSpacing = Number(splatSpacing.value);
-  if (!Number.isInteger(columnSpacing) || columnSpacing < 90 || columnSpacing > 240) return null;
-  return { columnSpacing };
-}
-
-function applySplatSettings() {
-  if (activeId !== "splat") return;
-  const settings = readSplatSettings();
-  if (!settings) {
-    message.textContent = "Use a whole number from 90 to 240 pixels for column spacing.";
-    return;
-  }
-  const game = games.get("splat");
-  game.setSettings(settings);
-  if (engine.ready) {
-    game.applyPendingSettings();
-    game.reset();
-    message.textContent = "Preview updated. Press New game when ready.";
-  } else message.textContent = "Settings saved for the next game.";
-}
-
 let activeId = "snake";
 const games = new Map(gameFactories.map(([id, , , factory]) => [id, factory()]));
 
@@ -168,9 +175,11 @@ function renderCards() {
 
 function renderSideOptions(game) {
   sideSelect.replaceChildren();
-  for (const [value, label] of sideOptions[game.id]) {
+  for (const mode of game.modes.filter((entry) => entry.available !== false)) {
     const option = document.createElement("option");
-    option.value = value; option.textContent = label; sideSelect.append(option);
+    option.value = mode.value;
+    option.textContent = mode.label;
+    sideSelect.append(option);
   }
   sideSelect.value = game.side;
 }
@@ -220,14 +229,8 @@ function loadGame(id) {
   settingsTitle.textContent = id === "splat" ? "Splat settings" : "Snake settings";
   snakeSettings.hidden = id !== "snake";
   splatSettings.hidden = id !== "splat";
-  if (id === "snake") {
-    const settings = readSnakeSettings();
-    if (settings) game.setSettings(settings);
-  }
-  if (id === "splat") {
-    const settings = readSplatSettings();
-    if (settings) game.setSettings(settings);
-  }
+  const settings = game.validateSettings?.(readSettingsInputs(id));
+  if (settings) game.setSettings(settings);
   chatPanel.hidden = id !== "imitation";
   lastChatRevision = -1;
   game.setStateListener?.(() => {
@@ -278,8 +281,11 @@ sideSelect.addEventListener("change", () => {
   updateSplatTools();
   updateImitationTools();
 });
-[snakeCols, snakeRows, snakeLength, snakeWrap].forEach((control) => control.addEventListener("change", applySnakeSettings));
-splatSpacing.addEventListener("change", applySplatSettings);
+for (const [id, inputs] of Object.entries(settingsInputs)) {
+  for (const control of Object.values(inputs)) {
+    control.addEventListener("change", () => applySettings(id));
+  }
+}
 splatAddColumn.addEventListener("click", () => { games.get("splat").setTool("column"); updateSplatTools(); });
 splatAddGap.addEventListener("click", () => { games.get("splat").setTool("gap"); updateSplatTools(); });
 restartButton.addEventListener("click", () => engine.restart());
@@ -320,4 +326,5 @@ chatForm.addEventListener("submit", (event) => {
   engine.game.sendMessage(chatInput.value);
   chatInput.value = "";
 });
+applySettingDescriptors();
 loadGame(activeId);

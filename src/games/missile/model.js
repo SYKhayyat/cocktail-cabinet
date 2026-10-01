@@ -9,6 +9,11 @@ const ENEMY_RADIUS = 11;
 const FIREBALL_RADIUS = 46;
 const FIREBALL_LIFE = 4;
 
+export const MISSILE_MODES = [
+  { value: "defender", label: "You vs computer — defend cities" },
+  { value: "attacker", label: "Computer vs you — attack cities" }
+];
+
 export class MissileModel {
   constructor() {
     this.id = "missile";
@@ -17,8 +22,9 @@ export class MissileModel {
     this.side = "defender";
     this.score = 0;
   }
-  get sides() { return ["defender", "attacker"]; }
-  sideLabel() { return this.side === "defender" ? "You defend the cities" : "You attack the batteries"; }
+  get modes() { return MISSILE_MODES; }
+  get sides() { return MISSILE_MODES.map((mode) => mode.value); }
+  sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || MISSILE_MODES[0].label; }
   setSide(side) { if (this.sides.includes(side)) this.side = side; }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;

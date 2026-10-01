@@ -19,7 +19,10 @@ export class SplatGame {
   set gameOver(value) { this.model.gameOver = value; }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
+  get modes() { return this.model.modes; }
   get sides() { return this.model.sides; }
+  get settings() { return this.model.settings; }
+  validateSettings(values) { return this.model.validateSettings?.(values); }
   setSide(side) { this.model.setSide(side); }
   setSettings(settings) { this.model.setSettings(settings); }
   applyPendingSettings() { this.model.applyPendingSettings(); }

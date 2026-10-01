@@ -1,5 +1,11 @@
 import { clamp, circleHitsCircle } from "../../engine.js";
 
+export const ASTEROIDS_MODES = [
+  { value: "ship", label: "Solo — fly the ship" },
+  { value: "versus", label: "You vs computer — both ships" },
+  { value: "rocks", label: "Computer vs you — send asteroids" }
+];
+
 export class AsteroidsModel {
   constructor() {
     this.id = "asteroids";
@@ -8,8 +14,9 @@ export class AsteroidsModel {
     this.side = "ship";
     this.score = 0;
   }
-  get sides() { return ["ship", "versus", "rocks"]; }
-  sideLabel() { return this.side === "ship" ? "You fly the ship" : this.side === "versus" ? "You and the computer fly" : "You send the asteroids"; }
+  get modes() { return ASTEROIDS_MODES; }
+  get sides() { return ASTEROIDS_MODES.map((mode) => mode.value); }
+  sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || ASTEROIDS_MODES[0].label; }
   setSide(side) { if (this.sides.includes(side)) this.side = side; }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;

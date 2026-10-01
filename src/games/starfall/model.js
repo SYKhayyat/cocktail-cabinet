@@ -1,5 +1,10 @@
 import { clamp, circleHitsCircle } from "../../engine.js";
 
+export const STARFALL_MODES = [
+  { value: "runner", label: "Solo — guide the runner" },
+  { value: "stars", label: "Computer vs you — send stars" }
+];
+
 export class StarfallModel {
   constructor() {
     this.id = "starfall";
@@ -8,8 +13,9 @@ export class StarfallModel {
     this.side = "runner";
     this.score = 0;
   }
-  get sides() { return ["runner", "stars"]; }
-  sideLabel() { return this.side === "runner" ? "You guide the runner" : "You send the stars"; }
+  get modes() { return STARFALL_MODES; }
+  get sides() { return STARFALL_MODES.map((mode) => mode.value); }
+  sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || STARFALL_MODES[0].label; }
   setSide(side) { if (this.sides.includes(side)) this.side = side; }
   newGem(x = null, y = -20) {
     let nextX = x;
