@@ -1969,3 +1969,118 @@ test("the Snake facade exposes the completion state and a message", () => {
   assert.match(game.winMessage(), /filled the board/i, "the win message explains the outcome");
   assert.match(game.winMessage(), /\d+ apples/, "the win message reports the score");
 });
+
+test("Snake places apples quickly even on a nearly full maximum board", () => {
+  const game = new SnakeModel();
+  game.setSettings({ cols: 60, rows: 44, startingLength: 12, wrap: false });
+  game.applyPendingSettings();
+  game.reset();
+  assert.deepEqual({ cols: game.cols, rows: game.rows }, { cols: 60, rows: 44 }, "the largest supported board is in use");
+  const cells = game.cols * game.rows;
+
+  // Fill the board to one cell short of full. This is the pathological case:
+  // the original nested scan was O(cells * snake length), so 2,640 cells x
+  // ~2,640 segments is about 7 million coordinate comparisons per apple.
+  const path = [];
+  for (let y = 0; y < game.rows; y += 1) for (let x = 0; x < game.cols; x += 1) path.push({ x, y });
+  game.snake = path.slice(0, cells - 1);
+  game.rebuildOccupied();
+  assert.equal(game.snake.length, cells - 1, "one cell is free");
+
+  const occupied = new Set(game.snake.map((part) => part.y * game.cols + part.x));
+  const placements = 200;
+  // Warm up before timing: the first pass through a fresh function is JIT
+  // compilation, not the cost of the algorithm.
+  for (let index = 0; index < placements; index += 1) game.freeApple();
+  const started = process.hrtime.bigint();
+  const chosen = [];
+  for (let index = 0; index < placements; index += 1) chosen.push(game.freeApple());
+  const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+
+  // Correctness first: every placement must be the one free cell.
+  for (const apple of chosen) {
+    assert.ok(apple, "a free cell was found");
+    assert.equal(occupied.has(apple.y * game.cols + apple.x), false, "the apple lands on a free cell");
+  }
+
+  // The original implementation, kept here as the reference point. It is
+  // O(cells * snake length): on this board ~2,640 cells x ~2,640 segments.
+  // Timing a handful of its placements and extrapolating keeps the test quick
+  // while still failing loudly if this regresses to the quadratic form.
+  const originalScan = () => {
+    const open = [];
+    for (let y = 0; y < game.rows; y += 1) for (let x = 0; x < game.cols; x += 1) {
+      if (!game.snake.some((part) => part.x === x && part.y === y)) open.push({ x, y });
+    }
+    return open[0] || { x: 0, y: 0 };
+  };
+  originalScan();
+  const sample = 5;
+  const originalStart = process.hrtime.bigint();
+  for (let index = 0; index < sample; index += 1) originalScan();
+  const originalPerPlacementMs = Number(process.hrtime.bigint() - originalStart) / 1e6 / sample;
+  const currentPerPlacementMs = elapsedMs / placements;
+
+  // Require at least a 50x improvement. Measured here: the original is roughly
+  // 37ms per placement against ~0.25ms, so ~150x.
+  assert.ok(
+    currentPerPlacementMs * 50 < originalPerPlacementMs,
+    `expected at least a 50x speedup, got ${(originalPerPlacementMs / currentPerPlacementMs).toFixed(1)}x (${originalPerPlacementMs.toFixed(2)}ms -> ${currentPerPlacementMs.toFixed(3)}ms per placement)`
+  );
+});
+
+test("Snake places apples predictably as the board fills", () => {
+  const game = new SnakeModel();
+  game.setSettings({ cols: 20, rows: 20, startingLength: 12, wrap: false });
+  game.applyPendingSettings();
+  game.reset();
+  const seen = new Set();
+  for (let length = 12; length < 400; length += 1) {
+    const path = [];
+    for (let y = 0; y < game.rows; y += 1) for (let x = 0; x < game.cols; x += 1) path.push({ x, y });
+    game.snake = path.slice(0, Math.min(length, game.cols * game.rows - 1));
+    game.rebuildOccupied();
+    const apple = game.freeApple();
+    if (!apple) break;
+    assert.ok(!game.isOccupiedCell(apple.x, apple.y), `length ${length}: apple is on a free cell`);
+    seen.add(`${apple.x},${apple.y}`);
+  }
+  assert.ok(seen.size > 10, `apples vary across the board as it fills (saw ${seen.size} distinct cells)`);
+});
+
+test("Snake occupancy stays coherent as the snake moves and grows", () => {
+  const game = new SnakeModel();
+  game.setSettings({ cols: 12, rows: 12, startingLength: 4, wrap: false });
+  game.applyPendingSettings();
+  game.reset();
+  const head = () => game.snake[0];
+
+  for (let step = 0; step < 60; step += 1) {
+    game.update(0.2, { direction: null, steer: null, placeApple: null });
+    // The set must always describe exactly the current body.
+    const expected = new Set(game.snake.map((part) => part.y * game.cols + part.x));
+    assert.equal(game.occupied.size, expected.size, `step ${step}: occupancy size matches the body`);
+    for (const key of expected) assert.ok(game.occupied.has(key), `step ${step}: occupied cell is tracked`);
+    if (game.gameOver) break;
+  }
+});
+
+test("Snake places apples predictably as the board fills", () => {
+  const game = new SnakeModel();
+  game.setSettings({ cols: 20, rows: 20, startingLength: 12, wrap: false });
+  game.applyPendingSettings();
+  game.reset();
+  const seen = new Set();
+  for (let length = 12; length < 400; length += 1) {
+    const path = [];
+    for (let y = 0; y < game.rows; y += 1) {
+      for (let x = 0; x < game.cols; x += 1) path.push({ x, y });
+    }
+    game.snake = path.slice(0, Math.min(length, game.cols * game.rows - 1));
+    const apple = game.freeApple();
+    if (!apple) break;
+    assert.ok(!game.snake.some((part) => part.x === apple.x && part.y === apple.y), `length ${length}: apple is on a free cell`);
+    seen.add(`${apple.x},${apple.y}`);
+  }
+  assert.ok(seen.size > 10, `apples vary across the board as it fills (saw ${seen.size} distinct cells)`);
+});

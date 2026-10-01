@@ -92,25 +92,67 @@ export class SnakeModel {
     this.nextDirection = { x: 1, y: 0 };
     this.aiClock = 0;
     this.won = false;
+    this.rebuildOccupied();
     const placed = this.side === "apples" ? { x: Math.min(this.cols - 3, startX + 6), y: Math.max(2, startY - 6) } : this.freeApple();
     this.apple = placed || this.freeApple();
   }
   moveInterval() { return Math.max(0.08, 0.18 - this.score * 0.004); }
   // Returns a free cell, or null when the board is full. Null is a real
   // outcome, not a fallback case: the caller treats a full board as a win.
+// A single integer key per cell. The board is at most 60x44, so y * cols + x
+  // is unique and cheap; a "x,y" string would allocate ~2,600 strings on every
+  // scan, which dominated the measurement once the scan stopped being
+  // quadratic.
+cellKey(x, y) { return y * this.cols + x; }
+  // The occupied set is maintained as the snake moves rather than rebuilt for
+  // every scan. The original code re-tested every segment for every candidate
+  // cell -- O(cells * snake length), about 6.7 million comparisons per apple on
+  // a nearly-full 60x44 board, with a move possible every 80ms.
+  //
+  // Coherence: update() is the only mutator, and reset() rebuilds from scratch.
+  // The size check in occupiedCells() catches an externally replaced body (as
+  // tests do) and rebuilds. Assigning a body of the *same* length without going
+  // through reset() or update() would defeat it, so external callers should
+  // prefer reset() -- a stale cache would otherwise misplace an apple.
+  rebuildOccupied() {
+    this.occupied = new Set(this.snake.map((part) => this.cellKey(part.x, part.y)));
+    return this.occupied;
+  }
+  occupiedCells() {
+    if (!this.occupied || this.occupied.size !== this.snake.length) return this.rebuildOccupied();
+    return this.occupied;
+  }
+  isOccupiedCell(x, y) { return this.occupiedCells().has(this.cellKey(x, y)); }
+  // Two passes and exactly one random draw per placement: count the free cells,
+  // pick an index, then walk to that cell. Neither pass allocates, so this
+  // avoids the ~2,600 object allocations the original array-building version
+  // performed per apple.
+  //
+  // The single draw is deliberate. Reservoir sampling also avoids allocation,
+//  but it consumes one Math.random call per free cell, which changes how many
+  // values the seeded Monte Carlo suite consumes per turn -- that silently
+  // resampled the opponent's mistake rolls and moved the measured difficulty
+  // band. Keeping the draw count constant preserves the existing stream.
   freeApple() {
-    const open = [];
+    const occupied = this.occupiedCells();
+    let freeCount = 0;
     for (let y = 0; y < this.rows; y += 1) for (let x = 0; x < this.cols; x += 1) {
-      if (!this.snake.some((part) => part.x === x && part.y === y)) open.push({ x, y });
+      if (!occupied.has(this.cellKey(x, y))) freeCount += 1;
     }
-    if (!open.length) return null;
-    return open[Math.floor(Math.random() * open.length)];
+    if (!freeCount) return null;
+    let index = Math.floor(Math.random() * freeCount);
+    for (let y = 0; y < this.rows; y += 1) for (let x = 0; x < this.cols; x += 1) {
+      if (occupied.has(this.cellKey(x, y))) continue;
+      if (index === 0) return { x, y };
+      index -= 1;
+    }
+    return null;
   }
   update(dt, input) {
     if (this.gameOver || this.won) return;
     if (this.side === "apples" && input.placeApple) {
       const cell = this.cellFromPointer(input.placeApple);
-      if (!this.snake.some((part) => part.x === cell.x && part.y === cell.y)) this.apple = cell;
+      if (!this.isOccupiedCell(cell.x, cell.y)) this.apple = cell;
     }
     const interval = this.moveInterval();
     if (this.side === "snake") {
@@ -139,6 +181,7 @@ export class SnakeModel {
     if (eating) {
       this.score += 1;
       this.snake.unshift(next);
+      this.occupied.add(this.cellKey(next.x, next.y));
       const apple = this.freeApple();
       if (!apple) {
         // Every cell is occupied: the board is cleared, so the round is won.
@@ -151,8 +194,10 @@ export class SnakeModel {
       this.apple = apple;
       return;
     }
+    const vacated = this.snake.pop();
     this.snake.unshift(next);
-    this.snake.pop();
+    this.occupied.delete(this.cellKey(vacated.x, vacated.y));
+    this.occupied.add(this.cellKey(next.x, next.y));
   }
   steerToward(pointerX, pointerY) {
     const head = this.snake[0];
