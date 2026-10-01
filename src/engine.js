@@ -182,10 +182,6 @@ export class GameEngine {
     this.onMessage?.("Continuing in 3…");
   }
 
-  stopGame() {
-    this.pauseGame();
-  }
-
   setLives(value) {
     const parsed = Math.trunc(Number(value));
     const next = Number.isFinite(parsed) ? Math.max(MIN_LIVES, Math.min(MAX_LIVES, parsed)) : DEFAULT_LIVES;
@@ -350,18 +346,9 @@ export function circleHitsRect(circle, rectangle) {
   return distance(circle.x, circle.y, closestX, closestY) < circle.radius;
 }
 
-export function randomItem(items) {
-  return items[Math.floor(Math.random() * items.length)];
-}
-
 export function drawText(context, text, x, y, size = 16, color = "#f8fafc", align = "left") {
   context.fillStyle = color;
   context.font = `700 ${size}px system-ui, sans-serif`;
   context.textAlign = align;
   context.fillText(text, x, y);
-}
-
-export function drawPanel(context, x, y, width, height, color = "#111827") {
-  context.fillStyle = color;
-  context.fillRect(x, y, width, height);
 }
