@@ -1502,3 +1502,95 @@ test("games without settings expose no descriptor or validator", () => {
     assert.equal(game.validateSettings({ anything: 1 }), undefined, `${id} has no settings validator`);
   }
 });
+
+function withFakeStorage(run) {
+  const store = new Map();
+  const saved = { window: globalThis.window, storage: globalThis.localStorage };
+  globalThis.window = {};
+  globalThis.localStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key)
+  };
+  try {
+    return run(store);
+  } finally {
+    globalThis.window = saved.window;
+    globalThis.localStorage = saved.storage;
+  }
+}
+
+test("the cached-model marker must be a valid versioned record, not a bare string", async () => {
+  const { hasCachedModel, cachedModelRecord } = await import("../src/ai/on-device.js");
+  withFakeStorage((store) => {
+    assert.equal(hasCachedModel(), false, "nothing cached to start with");
+
+    store.set("cocktail-cabinet-local-ai-ready-v5", "ready");
+    assert.equal(hasCachedModel(), false, "the legacy bare 'ready' marker is not proof of a loadable model");
+
+    const key = "cocktail-cabinet-local-ai-ready-v6";
+    store.set(key, "ready");
+    assert.equal(hasCachedModel(), false, "a bare string under the new key is rejected too");
+
+    store.set(key, JSON.stringify({ modelId: "onnx-community/Llama-3.2-1B-Instruct-q4f16", device: "webgpu", at: Date.now() }));
+    assert.equal(hasCachedModel(), false, "a record without a version is rejected");
+
+    store.set(key, JSON.stringify({ version: 5, modelId: "onnx-community/Llama-3.2-1B-Instruct-q4f16", device: "webgpu", at: Date.now() }));
+    assert.equal(hasCachedModel(), false, "a stale version is rejected");
+
+    store.set(key, JSON.stringify({ version: 6, modelId: "some-other-model", device: "webgpu", at: Date.now() }));
+    assert.equal(hasCachedModel(), false, "an unknown model id is rejected");
+
+    store.set(key, JSON.stringify({ version: 6, modelId: "onnx-community/Llama-3.2-1B-Instruct-q4f16", device: "quantum", at: Date.now() }));
+    assert.equal(hasCachedModel(), false, "an unknown device is rejected");
+
+    store.set(key, "{ not json");
+    assert.equal(hasCachedModel(), false, "unparseable storage does not throw or pass");
+
+    store.set(key, JSON.stringify({ version: 6, modelId: "onnx-community/Llama-3.2-1B-Instruct-q4f16", device: "webgpu", at: Date.now() }));
+    assert.equal(hasCachedModel(), true, "a complete versioned record is accepted");
+    assert.equal(cachedModelRecord().device, "webgpu");
+  });
+});
+
+test("every concurrent loadLocalModel caller receives progress and a terminal report", async () => {
+  const saved = { window: globalThis.window, storage: globalThis.localStorage, LanguageModel: globalThis.LanguageModel };
+  const store = new Map();
+  globalThis.window = {};
+  globalThis.localStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key)
+  };
+  // Minimal Chrome built-in AI stand-in so the loader resolves on the
+  // first strategy without needing a real model download.
+  globalThis.LanguageModel = {
+    availability: async () => "available",
+    create: async ({ monitor }) => {
+      const listeners = [];
+      monitor?.addEventListener?.("downloadprogress", (event) => { for (const listener of listeners) listener(event); });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      for (const loaded of [10, 20]) for (const listener of listeners) listener({ loaded });
+      return { prompt: async () => "hello" };
+    }
+  };
+  try {
+    const { loadLocalModel } = await import(`../src/ai/on-device.js?fresh=${Date.now()}`);
+    const first = [];
+    const second = [];
+    const [a, b] = await Promise.all([
+      loadLocalModel((report) => first.push(report)),
+      loadLocalModel((report) => second.push(report))
+    ]);
+    assert.equal(a, b, "concurrent callers share one engine");
+    for (const [name, reports] of [["first", first], ["second", second]]) {
+      assert.ok(reports.length > 0, `${name} caller received progress`);
+      assert.ok(reports.some((report) => report.text), `${name} caller received text`);
+      assert.equal(reports.at(-1).progress, 1, `${name} caller received the terminal ready report`);
+    }
+  } finally {
+    globalThis.window = saved.window;
+    globalThis.localStorage = saved.storage;
+    globalThis.LanguageModel = saved.LanguageModel;
+  }
+});

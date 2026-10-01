@@ -2,7 +2,13 @@ const WEBGPU_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-q4f16";
 const WASM_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-ONNX";
 const OLLAMA_MODEL = "llama3.2:1b";
 const OLLAMA_BASE_URLS = ["http://127.0.0.1:11435", "http://localhost:11435", "http://127.0.0.1:11434", "http://localhost:11434"];
-const MODEL_CACHE_KEY = "cocktail-cabinet-local-ai-ready-v5";
+// Bumped to v6: the v5 key stored either a bare "ready" string or a record
+// with no version field, neither of which can be checked against a model
+// that could actually be loaded today.
+const MODEL_CACHE_KEY = "cocktail-cabinet-local-ai-ready-v6";
+const MODEL_CACHE_VERSION = 6;
+const LEGACY_MODEL_CACHE_KEYS = ["cocktail-cabinet-local-ai-ready-v5"];
+const SUPPORTED_DEVICES = ["chrome", "ollama", "webgpu", "wasm"];
 
 export function localModelSupport() {
   if (typeof window === "undefined") return { ok: false, device: "none", reason: "Local AI requires a browser." };
@@ -12,14 +18,35 @@ export function localModelSupport() {
 
 let enginePromise = null;
 let engineValue = null;
+const progressSubscribers = new Set();
+
+function emitProgress(report) {
+  for (const subscriber of progressSubscribers) {
+    try { subscriber(report); } catch (error) { console.error("[local-ai] progress subscriber failed:", error); }
+  }
+}
+
+function readCacheRecord() {
+  let raw = null;
+  try { raw = localStorage.getItem(MODEL_CACHE_KEY); } catch { return null; }
+  if (!raw) return null;
+  try {
+    const record = JSON.parse(raw);
+    return record && typeof record === "object" ? record : null;
+  } catch { return null; }
+}
 
 export function hasCachedModel() {
-  try {
-    const value = localStorage.getItem(MODEL_CACHE_KEY);
-    if (value === "ready") return true;
-    const record = JSON.parse(value || "null");
-    return record?.modelId === WEBGPU_MODEL_ID || record?.modelId === WASM_MODEL_ID;
-  } catch { return false; }
+  const record = readCacheRecord();
+  if (!record) return false;
+  if (record.version !== MODEL_CACHE_VERSION) return false;
+  if (record.modelId !== WEBGPU_MODEL_ID && record.modelId !== WASM_MODEL_ID) return false;
+  if (!SUPPORTED_DEVICES.includes(record.device)) return false;
+  return Number.isFinite(record.at) && record.at > 0;
+}
+
+export function cachedModelRecord() {
+  return hasCachedModel() ? readCacheRecord() : null;
 }
 
 export async function requestPersistentStorage() {
@@ -27,7 +54,10 @@ export async function requestPersistentStorage() {
 }
 
 function markModelReady(modelId, device) {
-  try { localStorage.setItem(MODEL_CACHE_KEY, JSON.stringify({ modelId, device, at: Date.now() })); } catch { }
+  try {
+    localStorage.setItem(MODEL_CACHE_KEY, JSON.stringify({ version: MODEL_CACHE_VERSION, modelId, device, at: Date.now() }));
+    for (const key of LEGACY_MODEL_CACHE_KEYS) localStorage.removeItem(key);
+  } catch { }
 }
 
 async function fetchJson(url, options = {}, milliseconds = 10000) {
@@ -42,7 +72,7 @@ async function fetchJson(url, options = {}, milliseconds = 10000) {
   }
 }
 
-async function loadChromeModel(onProgress) {
+async function loadChromeModel() {
   const api = globalThis.LanguageModel;
   if (!api?.availability || !api.create) throw new Error("Chrome built-in AI is unavailable.");
   const options = {
@@ -51,11 +81,11 @@ async function loadChromeModel(onProgress) {
   };
   const availability = await api.availability(options);
   if (availability === "unavailable") throw new Error("Chrome built-in AI is unavailable on this device.");
-  onProgress?.({ device: "chrome", progress: 0, text: availability === "available" ? "Connected to Chrome built-in AI." : "Downloading Chrome built-in AI…" });
+  emitProgress({ device: "chrome", progress: 0, text: availability === "available" ? "Connected to Chrome built-in AI." : "Downloading Chrome built-in AI…" });
   const session = await api.create({
     ...options,
     monitor(monitor) {
-      monitor.addEventListener("downloadprogress", (event) => onProgress?.({ device: "chrome", progress: event.loaded, text: "Downloading Chrome built-in AI…" }));
+      monitor.addEventListener("downloadprogress", (event) => emitProgress({ device: "chrome", progress: event.loaded, text: "Downloading Chrome built-in AI…" }));
     },
   });
   return {
@@ -67,14 +97,14 @@ async function loadChromeModel(onProgress) {
   };
 }
 
-async function loadOllamaModel(onProgress) {
+async function loadOllamaModel() {
   const failures = [];
   for (const baseUrl of OLLAMA_BASE_URLS) {
     try {
       const tags = await fetchJson(`${baseUrl}/api/tags`);
       const installed = (tags.models || []).some((entry) => entry.name === OLLAMA_MODEL || entry.name === `${OLLAMA_MODEL}:latest`);
       if (!installed) continue;
-      onProgress?.({ device: "ollama", progress: 1, text: "Connected to Ollama." });
+      emitProgress({ device: "ollama", progress: 1, text: "Connected to Ollama." });
       return {
         device: "ollama",
     chat: async ({ messages, temperature, max_tokens, format, tools }) => {
@@ -93,23 +123,34 @@ async function loadOllamaModel(onProgress) {
   throw new Error(`Ollama unavailable (${failures.join("; ")})`);
 }
 
+// Every caller registers its own progress callback, so concurrent
+// consumers each see the load rather than only the first one. Returns an
+// unsubscribe function; the callback receives a final terminal report so a
+// late subscriber is not left showing a stalled progress bar.
 export function loadLocalModel(onProgress) {
+  if (onProgress) progressSubscribers.add(onProgress);
+  const unsubscribe = () => { progressSubscribers.delete(onProgress); };
+
   if (engineValue?.cancelled) {
     engineValue = null;
     enginePromise = null;
+  }
+  if (engineValue && onProgress) {
+    // Already loaded: report the terminal state immediately.
+    queueMicrotask(() => onProgress({ device: engineValue.device, progress: 1, text: "The local AI model is ready." }));
   }
   if (!enginePromise) {
     void requestPersistentStorage();
     enginePromise = (async () => {
       try {
-        return await loadChromeModel(onProgress);
+        return await loadChromeModel();
       } catch { }
       let ollamaError = null;
       try {
-        return await loadOllamaModel(onProgress);
+        return await loadOllamaModel();
       } catch (error) {
         ollamaError = error;
-        onProgress?.({ device: "browser", progress: 0, text: "Ollama is unavailable; using the browser model…" });
+        emitProgress({ device: "browser", progress: 0, text: "Ollama is unavailable; using the browser model…" });
       }
       try {
         const support = localModelSupport();
@@ -117,28 +158,33 @@ export function loadLocalModel(onProgress) {
         if (support.device === "webgpu") {
           try {
             const adapter = await navigator.gpu.requestAdapter();
-            if (adapter) return await loadModelWorker("webgpu", onProgress);
+            if (adapter) return await loadModelWorker("webgpu");
           } catch { }
-          onProgress?.({ device: "wasm", progress: 0, text: "WebGPU is unavailable; using the local fallback…" });
+          emitProgress({ device: "wasm", progress: 0, text: "WebGPU is unavailable; using the local fallback…" });
         }
-        return await loadModelWorker("wasm", onProgress);
+        return await loadModelWorker("wasm");
       } catch (error) {
         if (ollamaError) throw new Error(`Ollama unavailable: ${ollamaError.message}; browser fallback failed: ${error.message}`);
         throw error;
       }
     })().then((engine) => {
       engineValue = engine;
+      emitProgress({ device: engine.device, progress: 1, text: "The local AI model is ready." });
       return engine;
     }).catch((error) => {
       engineValue = null;
       enginePromise = null;
+      emitProgress({ device: "none", progress: 0, text: error.message, failed: true });
       throw error;
     });
   }
-  return enginePromise;
+  return enginePromise.then(
+    (engine) => { unsubscribe(); return engine; },
+    (error) => { unsubscribe(); throw error; }
+  );
 }
 
-function loadModelWorker(device, onProgress) {
+function loadModelWorker(device) {
   if (typeof Worker === "undefined") return Promise.reject(new Error("AI workers are unavailable in this browser."));
   const worker = new Worker(new URL("./wasm-worker.js", import.meta.url), { type: "module" });
   return new Promise((resolve, reject) => {
@@ -166,7 +212,7 @@ function loadModelWorker(device, onProgress) {
      });
     worker.onmessage = (event) => {
       const message = event.data;
-      if (message.type === "progress") onProgress?.({ ...message, device });
+      if (message.type === "progress") emitProgress({ ...message, device });
        if (message.type === "error") {
          const error = new Error(message.error || "The local AI model failed.");
          cancelled = true;
