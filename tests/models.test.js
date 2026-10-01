@@ -2454,3 +2454,50 @@ test("Imitation validates message envelope types", () => {
   game.receive({ type: "chat", from: "peer-a", text: "x", to: "someone-else" });
   assert.equal(game.chatLog.length, length, "a message for another recipient is dropped");
 });
+
+test("Missile attacker scores one kill per enemy, however many interceptors overlap", () => {
+  const game = new MissileModel();
+  game.setSide("attacker");
+  game.reset();
+  game.interceptorClock = 999;
+  game.enemyMissiles = [{ x: 400, y: 200, targetX: 400, targetY: 500, speed: 100, color: "#fb7185", kind: "city", targetObject: game.cities[0], dead: false }];
+  game.interceptors = [
+    { x: 400, y: 200, targetX: 500, targetY: 500, speed: 200, color: "#22d3ee", machine: true },
+    { x: 401, y: 201, targetX: 600, targetY: 500, speed: 200, color: "#22d3ee", machine: true },
+    { x: 399, y: 199, targetX: 700, targetY: 500, speed: 200, color: "#22d3ee", machine: true }
+  ];
+  game.update(0, { aim: null, launch: false, attack: null });
+  assert.equal(game.score, 15, `one enemy yields one kill (got ${game.score})`);
+  assert.equal(game.enemyMissiles.length, 0, "the enemy is resolved");
+  assert.equal(game.interceptors.length, 2, "only the interceptors that connected are consumed");
+
+  // One interceptor per enemy still scores one point each.
+  const solo = new MissileModel();
+  solo.setSide("attacker");
+  solo.reset();
+  solo.interceptorClock = 999;
+  solo.enemyMissiles = [
+    { x: 200, y: 200, targetX: 200, targetY: 500, speed: 100, color: "#fb7185", kind: "city", targetObject: solo.cities[0], dead: false },
+    { x: 600, y: 200, targetX: 600, targetY: 500, speed: 100, color: "#fb7185", kind: "city", targetObject: solo.cities[1], dead: false }
+  ];
+  solo.interceptors = [
+    { x: 200, y: 200, targetX: 200, targetY: 500, speed: 200, color: "#22d3ee", machine: true },
+    { x: 600, y: 200, targetX: 600, targetY: 500, speed: 200, color: "#22d3ee", machine: true }
+  ];
+  solo.update(0, { aim: null, launch: false, attack: null });
+  assert.equal(solo.score, 30, "two distinct enemies still score twice");
+  assert.equal(solo.interceptors.length, 0);
+});
+
+test("Missile attacker does not score for an already-resolved enemy", () => {
+  const game = new MissileModel();
+  game.setSide("attacker");
+  game.reset();
+  game.interceptorClock = 999;
+  // An enemy already marked dead from a previous pass.
+  game.enemyMissiles = [{ x: 400, y: 200, targetX: 400, targetY: 500, speed: 100, color: "#fb7185", kind: "city", targetObject: game.cities[0], dead: true }];
+  game.interceptors = [{ x: 400, y: 200, targetX: 500, targetY: 500, speed: 200, color: "#22d3ee", machine: true }];
+  game.update(0, { aim: null, launch: false, attack: null });
+  assert.equal(game.score, 0, "a dead enemy cannot be killed twice");
+  assert.equal(game.interceptors.length, 1, "the interceptor survives a dead target");
+});

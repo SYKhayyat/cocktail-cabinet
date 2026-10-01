@@ -142,7 +142,21 @@ export class MissileModel {
     }
     for (const missile of this.enemyMissiles) this.moveEnemy(missile, dt);
     for (const missile of this.interceptors) if (this.moveInterceptor(missile, dt)) missile.dead = true;
-    for (const interceptor of this.interceptors) for (const enemy of this.enemyMissiles) if (circleHitsCircle(interceptor.x, interceptor.y, 4, enemy.x, enemy.y, 5)) { interceptor.dead = true; enemy.dead = true; this.score += 15; }
+    // Both sides are checked for dead before scoring. Marking an entity dead is
+    // not enough on its own: the nested loop kept iterating over an already
+    // resolved enemy, so two interceptors overlapping one missile each awarded
+    // a kill. The defender's fireball pass already guarded this way.
+    for (const interceptor of this.interceptors) {
+      if (interceptor.dead) continue;
+      for (const enemy of this.enemyMissiles) {
+        if (enemy.dead) continue;
+        if (!circleHitsCircle(interceptor.x, interceptor.y, 4, enemy.x, enemy.y, 5)) continue;
+        interceptor.dead = true;
+        enemy.dead = true;
+        this.score += 15;
+        break;
+      }
+    }
     for (const enemy of this.enemyMissiles) if (enemy.targetObject?.alive && enemy.y >= enemy.targetY - enemy.targetObject.radius - 8) { enemy.targetObject.alive = false; enemy.dead = true; }
     this.enemyMissiles = this.enemyMissiles.filter((missile) => !missile.dead && missile.y < 560);
     this.interceptors = this.interceptors.filter((missile) => !missile.dead);
