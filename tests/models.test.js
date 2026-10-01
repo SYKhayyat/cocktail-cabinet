@@ -1899,3 +1899,73 @@ test("Snake still collides with every non-tail segment", () => {
   assert.equal(game.gameOver, true, "the head cannot enter a mid-body segment");
   assert.equal(game.lossReason, "self");
 });
+
+test("Snake wins when eating the last free cell instead of looping forever", () => {
+  const game = new SnakeModel();
+  game.setSettings({ cols: 4, rows: 3, startingLength: 3, wrap: false });
+  game.applyPendingSettings();
+  game.reset();
+  assert.equal(game.won, false);
+
+  // Boustrophedon travel order over a 4x3 board: row 0 rightwards, row 1
+  // leftwards, row 2 rightwards. The head starts on the second-to-last cell
+  // with the body trailing behind it along the path, leaving exactly one
+  // reachable free cell -- the last step.
+  const travel = [];
+  for (let x = 0; x < 4; x += 1) travel.push({ x, y: 0 });
+  for (let x = 3; x >= 0; x -= 1) travel.push({ x, y: 1 });
+  for (let x = 0; x < 4; x += 1) travel.push({ x, y: 2 });
+  assert.equal(travel.length, game.cols * game.rows, "the path covers every cell");
+  assert.equal(new Set(travel.map((c) => c.x + "," + c.y)).size, travel.length, "no cell is repeated");
+
+  const body = travel.slice(0, travel.length - 1);
+  const headStart = body[body.length - 1];
+  const finalCell = travel.at(-1);
+  // Head first, body trailing back along the path.
+  game.snake = [...body].reverse();
+  game.apple = { ...finalCell };
+  game.direction = { x: finalCell.x - headStart.x, y: finalCell.y - headStart.y };
+  game.nextDirection = { ...game.direction };
+  game.aiClock = 0;
+  assert.equal(game.snake.length, game.cols * game.rows - 1, "one cell is free before the final apple");
+  assert.ok(!game.snake.some((cell) => cell.x === finalCell.x && cell.y === finalCell.y), "the apple is on a free cell");
+
+  game.update(0.2, { direction: null, steer: null, placeApple: null });
+
+  assert.equal(game.won, true, "filling the board wins the round");
+  assert.equal(game.apple, null, "no unreachable apple is left behind");
+  assert.equal(game.gameOver, false, "a win is not reported as a loss");
+  assert.equal(game.snake.length, game.cols * game.rows, "the snake covers every cell");
+  assert.equal(game.score, 1, "the final apple still scored");
+  assert.equal(game.lossReason, "", "a win is not reported as a collision");
+
+  // A won round stops advancing rather than immediately self-colliding.
+  const scoreAfterWin = game.score;
+  game.update(0.5, { direction: { x: 1, y: 0 }, steer: null, placeApple: null });
+  assert.equal(game.score, scoreAfterWin, "a won round ignores further input");
+  assert.equal(game.won, true, "the win state survives further updates");
+  assert.equal(game.gameOver, false, "a won round does not become a loss");
+});
+
+test("freeApple reports a full board instead of returning an occupied cell", () => {
+  const game = new SnakeModel();
+  game.setSettings({ cols: 3, rows: 3, startingLength: 3, wrap: false });
+  game.applyPendingSettings();
+  game.reset();
+  assert.ok(game.freeApple(), "a fresh board has a free cell");
+
+  game.snake = [];
+  for (let y = 0; y < game.rows; y += 1) for (let x = 0; x < game.cols; x += 1) game.snake.push({ x, y });
+  assert.equal(game.freeApple(), null, "a full board reports null rather than (0,0)");
+  assert.ok(game.snake.some((part) => part.x === 0 && part.y === 0), "the cell (0,0) really is occupied");
+});
+
+test("the Snake facade exposes the completion state and a message", () => {
+  const game = new SnakeGame();
+  game.reset();
+  assert.equal(game.won, false);
+  game.won = true;
+  assert.equal(game.won, true, "the engine can read the completion flag");
+  assert.match(game.winMessage(), /filled the board/i, "the win message explains the outcome");
+  assert.match(game.winMessage(), /\d+ apples/, "the win message reports the score");
+});

@@ -16,6 +16,9 @@ export class SnakeGame {
   get apple() { return this.model.apple; }
   get gameOver() { return this.model.gameOver; }
   set gameOver(value) { this.model.gameOver = value; }
+  get won() { return this.model.won; }
+  set won(value) { this.model.won = value; }
+  winMessage() { return `You filled the board — ${this.model.score} apples!`; }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
   get lossReason() { return this.model.lossReason; }

@@ -132,6 +132,50 @@ async function makeDeterministic(page) {
   return async (frames = 1) => page.evaluate(`globalThis.__tick(${frames})`);
 }
 
+// Drives frames until the round is actually live -- countdown finished, not
+// paused, not stopped, not game over. Blindly ticking a fixed number of frames
+// is not enough: a round can re-enter its countdown or end between setup and
+// assertion, and an input dispatched then lands while update() is not running,
+// which looks exactly like a broken control.
+// Drives frames until the round reaches a settled state: either live
+// (countdown finished, not paused, not stopped) or finished (game over or
+// won). Blindly ticking a fixed number of frames is not enough -- a round can
+// re-enter its countdown or end between setup and assertion, and an input
+// dispatched then lands while update() is not running, which looks exactly
+// like a broken control.
+//
+// `requireLive` distinguishes the two callers: suites that dispatch an input
+// need a live round, while the mode catalogue only needs the round to have
+// reached a definite state, since a duel can legitimately end on its own.
+async function settle(page, { requireLive = true, maxFrames = 1200 } = {}) {
+  const state = await page.evaluate(`(() => {
+    const engine = globalThis.__cocktailCabinet.engine;
+    const game = () => engine.game;
+    for (let frame = 0; frame < ${maxFrames}; frame += 1) {
+      globalThis.__tick(1);
+      const pending = engine.countdown > 0 || engine.paused || engine.stopped || engine.ready;
+      const finished = Boolean(game()?.gameOver || game()?.won);
+      if (pending) continue;
+      if (!finished || ${requireLive ? "false" : "true"}) return { live: !finished, finished, frames: frame + 1 };
+    }
+    return { live: false, finished: false, frames: ${maxFrames} };
+  })()`);
+  if (state.live || state.finished) return state;
+  throw new Error(`Round never settled within ${maxFrames} frames (${await describeState(page)})`);
+}
+
+async function describeState(page) {
+  return page.evaluate(`(() => {
+    const engine = globalThis.__cocktailCabinet.engine;
+    const game = engine.game;
+    return JSON.stringify({
+      id: game?.id, side: game?.side, countdown: Math.round(engine.countdown * 100) / 100,
+      paused: engine.paused, stopped: engine.stopped, ready: engine.ready,
+      gameOver: game?.gameOver, won: game?.won, lives: engine.lives
+    });
+  })()`);
+}
+
 async function selectMode(page, cardIndex, side) {
   await page.evaluate(`(() => {
     document.querySelectorAll('.game-card')[${cardIndex}].click();
@@ -302,7 +346,7 @@ async function testPauseDuringCountdown(page, step) {
   assertEqual(report.afterRestart.countdown, true, "the countdown is live after New game");
 
   // Let the countdown finish, then confirm Pause/Continue behave as documented.
-  await step(200);
+  await settle(page);
   const paused = await page.evaluate(`(() => {
     document.querySelector('#pauseButton').click();
     const engine = globalThis.__cocktailCabinet.engine;
@@ -334,7 +378,7 @@ async function testKeyboardAndPointerControls(page, step) {
     document.querySelector('#restartButton').click();
     return { bullets: model.bullets.length };
   })()`);
-  await step(200);
+  await settle(page);
   const fired = await page.evaluate(`(() => {
     const model = globalThis.__cocktailCabinet.games.get('asteroids').model;
     const before = model.bullets.length;
@@ -349,7 +393,7 @@ async function testKeyboardAndPointerControls(page, step) {
 
   // Missile: Space launches, matching the advertised control.
   await selectMode(page, 4, "defender");
-  await step(200);
+  await settle(page);
   const missile = await page.evaluate(`(() => {
     const model = globalThis.__cocktailCabinet.games.get('missile').model;
     const before = model.interceptors.length;
@@ -363,7 +407,7 @@ async function testKeyboardAndPointerControls(page, step) {
 
   // Starfall: a click spawns a star.
   await selectMode(page, 6, "stars");
-  await step(200);
+  await settle(page);
   const starfall = await page.evaluate(`(() => {
     const model = globalThis.__cocktailCabinet.games.get('starfall').model;
     const before = model.stars.length;
@@ -395,7 +439,7 @@ async function testKeyboardAndPointerControls(page, step) {
 
   // Breakout: the mouse moves the paddle.
   await selectMode(page, 1, "bottom");
-  await step(200);
+  await settle(page);
   const breakout = await page.evaluate(`(() => {
     const model = globalThis.__cocktailCabinet.games.get('breakout').model;
     const canvas = document.querySelector('#gameCanvas');
@@ -423,7 +467,10 @@ async function testEveryModeSurvivesPlay(page, step) {
   // front would leave only the last one loaded when the frames are driven.
   for (const entry of catalogue) {
     await selectMode(page, entry.index, entry.mode);
-    await step(120);
+    // Restart so each mode is inspected from a fresh round rather than
+    // inheriting whatever the previous mode left behind.
+    await page.evaluate("document.querySelector('#restartButton')?.click(); true");
+    await settle(page, { requireLive: false });
     const health = await page.evaluate(`(() => {
       const engine = globalThis.__cocktailCabinet.engine;
       const game = engine.game;
@@ -487,7 +534,7 @@ async function testGameOverAndRestart(page, step) {
 
 async function testSplatBuilderTools(page, step) {
   await selectMode(page, 2, "builder");
-  await step(200);
+  await settle(page);
   const report = await page.evaluate(`(() => {
     const model = globalThis.__cocktailCabinet.games.get('splat').model;
     const out = { toolsVisible: !document.querySelector('#splatTools').hidden };

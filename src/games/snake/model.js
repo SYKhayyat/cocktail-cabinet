@@ -91,18 +91,23 @@ export class SnakeModel {
     this.direction = { x: 1, y: 0 };
     this.nextDirection = { x: 1, y: 0 };
     this.aiClock = 0;
-    this.apple = this.side === "apples" ? { x: Math.min(this.cols - 3, startX + 6), y: Math.max(2, startY - 6) } : this.freeApple();
+    this.won = false;
+    const placed = this.side === "apples" ? { x: Math.min(this.cols - 3, startX + 6), y: Math.max(2, startY - 6) } : this.freeApple();
+    this.apple = placed || this.freeApple();
   }
   moveInterval() { return Math.max(0.08, 0.18 - this.score * 0.004); }
+  // Returns a free cell, or null when the board is full. Null is a real
+  // outcome, not a fallback case: the caller treats a full board as a win.
   freeApple() {
     const open = [];
     for (let y = 0; y < this.rows; y += 1) for (let x = 0; x < this.cols; x += 1) {
       if (!this.snake.some((part) => part.x === x && part.y === y)) open.push({ x, y });
     }
-    return open[Math.floor(Math.random() * open.length)] || { x: 0, y: 0 };
+    if (!open.length) return null;
+    return open[Math.floor(Math.random() * open.length)];
   }
   update(dt, input) {
-    if (this.gameOver) return;
+    if (this.gameOver || this.won) return;
     if (this.side === "apples" && input.placeApple) {
       const cell = this.cellFromPointer(input.placeApple);
       if (!this.snake.some((part) => part.x === cell.x && part.y === cell.y)) this.apple = cell;
@@ -134,7 +139,16 @@ export class SnakeModel {
     if (eating) {
       this.score += 1;
       this.snake.unshift(next);
-      this.apple = this.freeApple();
+      const apple = this.freeApple();
+      if (!apple) {
+        // Every cell is occupied: the board is cleared, so the round is won.
+        // Previously the apple fell back to (0,0), which the snake was
+        // already covering, and the game limped on to a self-collision.
+        this.apple = null;
+        this.won = true;
+        return;
+      }
+      this.apple = apple;
       return;
     }
     this.snake.unshift(next);
