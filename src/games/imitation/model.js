@@ -140,9 +140,32 @@ export class ImitationModel {
     this.chatRevision += 1;
     this.startNextRound(false);
   }
+  // Message types that establish a peer rather than act on one. Anything else
+  // must come from the peer already negotiated, so an unrelated same-origin tab
+  // cannot inject chat or hijack a Guess round.
+  static get HANDSHAKE_TYPES() { return ["hello", "hello-ack", "guess-ready"]; }
   receive(message) {
-    if (this.disposed || !message || message.from === this.matchId) return;
+    if (this.disposed || !message || typeof message !== "object") return;
+    if (typeof message.type !== "string" || typeof message.from !== "string") return;
+    if (message.from === this.matchId) return;
     if (message.to && message.to !== this.matchId) return;
+
+    // Envelope validation. A malformed payload is dropped silently: these
+    // arrive from an unauthenticated broadcast, so a wrong shape is noise
+    // rather than something to report to the player.
+    if (message.text !== undefined && typeof message.text !== "string") return;
+    if (message.to !== undefined && typeof message.to !== "string") return;
+    if (message.mode !== undefined && typeof message.mode !== "string") return;
+    if (typeof message.from !== "string" || !message.from) return;
+
+    const isHandshake = ImitationModel.HANDSHAKE_TYPES.includes(message.type);
+    if (!isHandshake) {
+      // Once a peer is negotiated, only that peer may act on this model. With
+      // no peer yet there is nothing to act on, so drop it -- otherwise any
+      // tab on the channel could speak first and become the transcript.
+      if (!this.peerId || message.from !== this.peerId) return;
+    }
+
     if (message.type === "bye" && message.from === this.peerId) {
       this.peerId = null;
       this.matchmaking = 2.5;
@@ -150,7 +173,7 @@ export class ImitationModel {
       this.addMessage("System", "The other tab left. Waiting for another player.");
       return;
     }
-    if (message.type === "hello" || message.type === "hello-ack" || message.type === "guess-ready") {
+    if (ImitationModel.HANDSHAKE_TYPES.includes(message.type)) {
       const expectedMode = this.side === "guess" ? "provide" : this.side === "provide" ? "guess" : this.side === "human" ? "human" : "";
       if (message.mode && expectedMode && message.mode !== expectedMode) {
         this.addMessage("System", this.side === "guess" ? "That tab is not in Provide guessing message mode." : this.side === "provide" ? "That tab is not in Guess AI or human mode." : "That tab is not in human chat mode.");

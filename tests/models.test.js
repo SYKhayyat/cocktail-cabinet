@@ -2376,3 +2376,81 @@ test("concurrent AI requests cannot resolve out of order", async () => {
   // Replies appear in the order they were requested, not the order resolved.
   assert.ok(texts.indexOf("reply to second") < texts.indexOf("reply to first"), "the newer request's reply is inserted at its own position");
 });
+
+test("Imitation accepts payloads only from the negotiated peer", () => {
+  const game = new ImitationModel();
+  game.setSide("human");
+  game.reset();
+  game.peerId = "peer-a";
+
+  // An unrelated same-origin tab on the shared channel.
+  const spam = { type: "chat", from: "unrelated-tab", text: "spam" };
+  game.receive(spam);
+  assert.ok(!game.chatLog.some((message) => message.sender === "Partner"), "an unrelated chat message is dropped");
+  assert.equal(game.score, 0, "an injected message does not award score");
+  assert.equal(game.peerId, "peer-a", "the negotiated peer is unchanged");
+
+  // The real peer still works.
+  game.receive({ type: "chat", from: "peer-a", text: "hello" });
+  assert.equal(game.chatLog.at(-1).sender, "Partner", "the negotiated peer's chat is accepted");
+  assert.equal(game.chatLog.at(-1).text, "hello");
+  assert.equal(game.score, 5, "a legitimate message still scores");
+});
+
+test("Imitation drops non-handshake payloads before a peer exists", () => {
+  const game = new ImitationModel();
+  game.setSide("human");
+  game.reset();
+  assert.equal(game.peerId, null, "no peer yet");
+  game.receive({ type: "chat", from: "some-tab", text: "let me in first" });
+  assert.ok(!game.chatLog.some((message) => message.sender === "Partner"), "no tab can speak before the handshake");
+  assert.equal(game.score, 0);
+  assert.equal(game.peerId, null, "a chat message does not establish a peer");
+});
+
+test("Imitation rejects a Guess response from an unrelated tab", () => {
+  const game = new ImitationModel();
+  game.setSide("guess");
+  game.reset();
+  game.peerId = "provider-tab";
+  game.peerId = "provider-tab";
+  game.sendMessage("Describe your favourite meal.");
+
+  game.receive({ type: "guess-response", from: "impostor", text: "Pizza, obviously." });
+  assert.equal(game.mystery, null, "an impostor response does not become the mystery");
+  assert.equal(game.roundSource, null, "the round source is untouched");
+
+  game.receive({ type: "guess-response", from: "provider-tab", text: "Pasta, probably." });
+  assert.deepEqual(game.mystery, { source: "human", text: "Pasta, probably." }, "the real provider's answer is accepted");
+});
+
+test("Imitation validates message envelope types", () => {
+  const game = new ImitationModel();
+  game.setSide("human");
+  game.reset();
+  game.peerId = "peer-a";
+  const length = game.chatLog.length;
+
+  for (const bad of [
+    null,
+    undefined,
+    "just a string",
+    42,
+    {},
+    { type: 42, from: "peer-a" },
+    { type: "chat" },
+    { type: "chat", from: 7, text: "x" },
+    { type: "chat", from: "peer-a", text: { nested: true } },
+    { type: "chat", from: "peer-a", text: "x", to: 9 },
+    { type: "chat", from: "peer-a", text: "x", mode: {} },
+    { type: "chat", from: "", text: "x" }
+  ]) {
+    assert.doesNotThrow(() => game.receive(bad), `malformed payload ${JSON.stringify(bad)} does not throw`);
+  }
+  assert.equal(game.chatLog.length, length, "no malformed payload produced a message");
+  assert.equal(game.score, 0);
+
+  // A well-formed message addressed to someone else is still dropped.
+  game.receive({ type: "chat", from: "peer-a", text: "x", to: "someone-else" });
+  assert.equal(game.chatLog.length, length, "a message for another recipient is dropped");
+});
