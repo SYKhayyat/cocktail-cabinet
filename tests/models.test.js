@@ -305,23 +305,46 @@ test("Breakout versus charges a top exit to the ball owner", () => {
   assert.equal(replacement.y, 160);
 });
 
-test("Breakout versus restores two balls after simultaneous exits", () => {
+test("Breakout versus restores a ball per side after a simultaneous exit", () => {
   const game = new BreakoutModel();
   game.setSide("versus");
   game.reset();
-  for (const ball of game.balls) {
-    ball.x = 400;
-    ball.y = 545;
-    ball.vx = 0;
-    ball.vy = 300;
-  }
+  const [humanBall, computerBall] = game.balls;
+
+  // One ball leaves past each paddle, so each side loses exactly one ball.
+  humanBall.x = 400; humanBall.y = 545; humanBall.vx = 0; humanBall.vy = 300;
+  computerBall.x = 400; computerBall.y = -5; computerBall.vx = 0; computerBall.vy = -300;
   game.update(0.02, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
-  assert.equal(game.balls.length, 0);
-  assert.equal(game.handleLifeLoss().gameOver, false);
+
+  assert.equal(game.balls.length, 0, "both balls left the field");
+  assert.deepEqual([...game.pendingLifeLossOwners].sort(), ["computer", "human"], "both sides are queued for the loss");
+
+  const result = game.handleLifeLoss();
+  assert.equal(result.gameOver, false, "neither side is out of lives");
+  assert.deepEqual([...result.owners].sort(), ["computer", "human"], "both owners are charged");
+  assert.equal(game.playerLives.human, 2, "the human lost a life");
+  assert.equal(game.playerLives.computer, 2, "the computer lost a life");
+
   game.resetAfterLife();
-  assert.equal(game.balls.length, 2);
+  assert.equal(game.balls.length, 2, "a replacement ball per side");
   assert.deepEqual(new Set(game.balls.map((ball) => ball.owner)), new Set(["human", "computer"]));
-  assert.equal(game.pendingLifeLossOwners.length, 0);
+  assert.equal(game.pendingLifeLossOwners.length, 0, "the queue is drained");
+});
+
+test("Breakout versus charges two lost balls on the same side twice", () => {
+  const game = new BreakoutModel();
+  game.setSide("versus");
+  game.reset();
+  // Two human balls both leave past the bottom in the same frame.
+  game.balls = [
+    { x: 300, y: 545, vx: 0, vy: 300, radius: 8, owner: "human" },
+    { x: 500, y: 545, vx: 0, vy: 300, radius: 8, owner: "human" }
+  ];
+  game.update(0.02, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
+  assert.deepEqual(game.pendingLifeLossOwners, ["human", "human"], "both losses are queued");
+  game.handleLifeLoss();
+  assert.equal(game.playerLives.human, 1, "two lost balls cost two lives");
+  assert.equal(game.playerLives.computer, 3, "the other side is untouched");
 });
 
 test("Breakout versus extra life updates the scoring player", () => {
@@ -2752,4 +2775,72 @@ test("Missile collision geometry uses the shared named constants", async () => {
   assert.equal(hit(0, 0), 15, "a centred interceptor connects");
   assert.equal(hit(8, 0), 15, "a hit just inside 4+5 connects");
   assert.equal(hit(12, 0), 0, "a miss beyond 4+5 does not");
+});
+
+test("Breakout versus charges simultaneous losses in either order", () => {
+  for (const order of [["human", "computer"], ["computer", "human"]]) {
+    const game = new BreakoutModel();
+    game.setSide("versus");
+    game.reset();
+    game.pendingLifeLossOwners = [...order];
+    game.lifeLost = true;
+
+    const result = game.handleLifeLoss();
+    assert.deepEqual([...result.owners].sort(), ["computer", "human"], `queue ${order.join(",")}: both owners charged`);
+    assert.equal(game.playerLives.human, 2, `queue ${order.join(",")}: the human is charged`);
+    assert.equal(game.playerLives.computer, 2, `queue ${order.join(",")}: the computer is charged`);
+    assert.equal(game.pendingLifeLossOwners.length, 0, `queue ${order.join(",")}: the queue is drained`);
+  }
+});
+
+test("Breakout versus ends correctly when a simultaneous loss eliminates a side", () => {
+  for (const order of [["human", "computer"], ["computer", "human"]]) {
+    const game = new BreakoutModel();
+    game.setSide("versus");
+    game.reset();
+    game.playerLives.human = 1;
+    game.playerLives.computer = 2;
+    game.pendingLifeLossOwners = [...order];
+    game.lifeLost = true;
+
+    const result = game.handleLifeLoss();
+    assert.equal(result.gameOver, true, `queue ${order.join(",")}: the round ends`);
+    assert.equal(game.winner, "computer", `queue ${order.join(",")}: the human's elimination decides the winner`);
+    assert.equal(game.playerLives.human, 0, "the human is out of lives");
+    assert.equal(game.playerLives.computer, 1, "the computer keeps the life it had");
+    assert.ok(/Computer wins/i.test(result.message), `queue ${order.join(",")}: the winner is announced (got ${result.message})`);
+  }
+
+  // The reverse case: the computer is the one eliminated.
+  const flipped = new BreakoutModel();
+  flipped.setSide("versus");
+  flipped.reset();
+  flipped.playerLives.human = 2;
+  flipped.playerLives.computer = 1;
+  flipped.pendingLifeLossOwners = ["human", "computer"];
+  flipped.lifeLost = true;
+  const flippedResult = flipped.handleLifeLoss();
+  assert.equal(flippedResult.gameOver, true);
+  assert.equal(flipped.winner, "human", "the computer's elimination makes the human win");
+  assert.equal(flipped.playerLives.computer, 0);
+});
+
+test("Breakout versus does not double-charge a loss the engine already reported", () => {
+  const game = new BreakoutModel();
+  game.setSide("versus");
+  game.reset();
+  // The hazard path sets lifeLost itself and queues its owner; the summary
+  // field must not also add a second charge.
+  game.pendingLifeLossOwners.push("human");
+  game.lifeLost = true;
+  game.lastLifeLossOwner = "human";
+  game.handleLifeLoss();
+  assert.equal(game.playerLives.human, 2, "a single queued loss costs exactly one life");
+  assert.equal(game.pendingLifeLossOwners.length, 0);
+  // The engine clears the summary before calling, so a second call must not
+  // charge again.
+  game.lastLifeLossOwner = null;
+  game.lifeLossOwner = null;
+  const second = game.handleLifeLoss();
+  assert.equal(second.owners.length, 1, "the fallback path is still available");
 });

@@ -291,7 +291,11 @@ export class BreakoutModel {
     }
     this.balls = this.balls.filter((ball) => !ball.dead);
     if (this.side === "versus" && this.pendingLifeLossOwners.length) {
-      this.lastLifeLossOwner = this.pendingLifeLossOwners.shift();
+      // Summary only -- the pending list stays whole. It used to be shifted
+      // into lastLifeLossOwner, which silently dropped that owner: two balls
+      // crossing their exits in one frame queued both, the shift removed the
+      // first, and handleLifeLoss() preferred the remainder.
+      this.lastLifeLossOwner = this.pendingLifeLossOwners[0];
       this.lifeLost = true;
     } else if (!this.balls.length) this.lifeLost = true;
     if (this.bricks.every((brick) => !brick.hits)) {
@@ -355,7 +359,13 @@ export class BreakoutModel {
   handleLifeLoss() {
     if (this.versusRoundOver) return { gameOver: true, message: this.winner ? `${this.winner === "human" ? "You win" : "Computer wins"} the duel.` : "The duel ended in a tie." };
     if (this.side !== "versus") return null;
-    const owners = this.pendingLifeLossOwners.length ? [...this.pendingLifeLossOwners] : [this.lastLifeLossOwner || this.lifeLossOwner || "human"];
+    // Every owner queued this frame is charged exactly once, whatever order they
+    // were queued in. A repeated owner (two of the same side's balls lost
+    // together) is charged once per loss, which is why the queue is walked in
+    // full rather than deduplicated.
+    const owners = this.pendingLifeLossOwners.length
+      ? [...this.pendingLifeLossOwners]
+      : [this.lastLifeLossOwner || this.lifeLossOwner || "human"];
     this.pendingLifeLossOwners = [];
     this.lifeLossOwners = owners;
     this.lifeLossOwner = owners[0] || "human";
