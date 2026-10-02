@@ -1,6 +1,17 @@
-import { clamp, circleHitsCircle } from "../../engine.js";
+import { clamp, circleHitsCircle, recordDecision } from "../../engine.js";
 
-export const STARFALL_MODES = [
+export // Runner factors. The runner does not roll for mistakes: it can only see stars
+// that have fallen past a certain height, it re-reads them on a clock, and once
+// it commits to a lane it holds that lane for a beat.
+const RUNNER_PERCEPTION_MIN = 0.1;
+const RUNNER_PERCEPTION_MAX = 0.24;
+const RUNNER_VISION_HEIGHT = 300;
+const RUNNER_LANE_COMMIT_MIN = 0.55;
+const RUNNER_LANE_COMMIT_MAX = 0.95;
+const RUNNER_LANE_WIDTH = 45;
+const RUNNER_SPEED = 220;
+
+const STARFALL_MODES = [
   { value: "runner", label: "Solo — guide the runner" },
   { value: "stars", label: "Computer vs you — send stars" }
 ];
@@ -49,7 +60,7 @@ export class StarfallModel {
     }
   }
   reset(keepScore = false) {
-    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.aiTargetGem = null; this.aiTargetLock = 0; this.gemHoldTime = 0; this.gemSpawnClock = 0; this.gemSpawnCooldown = 0; this.lifeLost = false; this.gameOver = false;
+    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.aiTargetGem = null; this.aiTargetLock = 0; this.aiLaneCommit = 0; this.aiPerceptionClock = 0; this.aiSeenStars = []; this.decisionLog = []; this.lastDecision = null; this.gemHoldTime = 0; this.gemSpawnClock = 0; this.gemSpawnCooldown = 0; this.lifeLost = false; this.gameOver = false;
     if (this.side === "runner") for (let index = 0; index < 3; index += 1) this.gems.push(this.newGem(undefined, -20 - index * 80));
   }
   update(dt, input) {
@@ -121,14 +132,29 @@ export class StarfallModel {
     for (const star of this.stars) if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, star.x, star.y, star.radius)) { star.dead = true; this.lifeLost = true; }
     this.stars = this.stars.filter((star) => !star.dead && star.y < 560 && star.x > -30 && star.x < 830);
   }
+  // What the runner can actually see. A star still high up has not been falling
+  // long enough to have registered, which is why it used to look invulnerable:
+  // it was checking every star on the board against every candidate lane.
+  visibleStars() {
+    return this.stars.filter((star) => star.y >= RUNNER_VISION_HEIGHT);
+  }
   aiRunner(dt) {
-    const activeGems = this.gems.filter((gem) => !gem.collected && gem.y <= this.runner.y + 50);
+    const visible = this.visibleStars();
     this.aiTargetLock = Math.max(0, (this.aiTargetLock || 0) - dt);
-    if (!this.stars.length && !activeGems.length) return;
+    this.aiLaneCommit = Math.max(0, (this.aiLaneCommit || 0) - dt);
+    this.aiPerceptionClock = Math.max(0, (this.aiPerceptionClock || 0) - dt);
+    // Re-read the lanes on a clock rather than continuously.
+    if (this.aiPerceptionClock <= 0) {
+      this.aiSeenStars = visible.map((star) => ({ x: star.x, vx: star.vx || 0 }));
+      this.aiPerceptionClock = RUNNER_PERCEPTION_MIN + Math.random() * (RUNNER_PERCEPTION_MAX - RUNNER_PERCEPTION_MIN);
+    }
+    const seen = this.aiSeenStars || [];
+    const activeGems = this.gems.filter((gem) => !gem.collected && gem.y <= this.runner.y + 50);
+    if (!seen.length && !activeGems.length) return;
     const gemCost = (gem) => Math.abs(gem.x - this.runner.x) + Math.abs(this.runner.y - gem.y) * 0.15;
     const rankedGems = [...activeGems].sort((first, second) => gemCost(first) - gemCost(second));
     let targetGem = rankedGems.find((gem) => gem === this.aiTargetGem);
-    const targetIsSafe = this.aiTargetX === null || this.stars.every((star) => Math.abs(this.aiTargetX - star.x) > 45);
+    const targetIsSafe = this.aiTargetX === null || seen.every((star) => Math.abs(this.aiTargetX - star.x) > RUNNER_LANE_WIDTH);
     if (!targetGem || !targetIsSafe) {
       targetGem = rankedGems[0] || null;
       this.aiTargetLock = 0.45;
@@ -142,18 +168,36 @@ export class StarfallModel {
       this.aiTargetLock = 0.45;
     }
     const candidates = [20, 160, 300, 440, 580, 720, 780];
-    const safe = candidates.filter((candidate) => this.stars.every((star) => Math.abs(candidate - star.x) > 45));
+    const safe = candidates.filter((candidate) => seen.every((star) => Math.abs(candidate - star.x) > RUNNER_LANE_WIDTH));
     const pool = safe.length ? safe : [this.runner.x < 400 ? 20 : 780];
     const target = pool.reduce((best, candidate) => {
       const distance = targetGem ? Math.abs(candidate - targetGem.x) : Math.abs(candidate - this.runner.x);
       return distance < best.distance ? { x: candidate, distance } : best;
     }, { x: pool[0], distance: Infinity });
-    if (this.aiTargetX === null || !targetIsSafe || this.aiTargetGem !== targetGem) {
+
+    // A lane is held once chosen. Without this the runner re-picks the safest
+    // lane every frame, so a star that moves into its path is never a problem --
+    // there was never a decision to get wrong.
+    let replanned = false;
+    const laneUnsafe = this.aiTargetX !== null && !seen.every((star) => Math.abs(this.aiTargetX - star.x) > RUNNER_LANE_WIDTH);
+    if (this.aiTargetX === null || this.aiLaneCommit <= 0 && (laneUnsafe || this.aiTargetGem !== targetGem)) {
       this.aiTargetX = target.x;
       this.aiTargetGem = targetGem;
+      this.aiLaneCommit = RUNNER_LANE_COMMIT_MIN + Math.random() * (RUNNER_LANE_COMMIT_MAX - RUNNER_LANE_COMMIT_MIN);
+      replanned = true;
+    } else if (this.aiTargetGem !== targetGem) {
+      this.aiTargetGem = targetGem;
     }
+    recordDecision(this, {
+      lane: this.aiTargetX,
+      replanned,
+      laneUnsafe,
+      starsSeen: seen.length,
+      starsOnBoard: this.stars.length,
+      targetGemX: targetGem ? Math.round(targetGem.x) : null
+    });
     if (Math.abs(this.aiTargetX - this.runner.x) <= 4) this.runner.x = this.aiTargetX;
-    else this.runner.x = clamp(this.runner.x + clamp(this.aiTargetX - this.runner.x, -1, 1) * 300 * dt, 20, 780);
+    else this.runner.x = clamp(this.runner.x + clamp(this.aiTargetX - this.runner.x, -1, 1) * RUNNER_SPEED * dt, 20, 780);
   }
   publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "The computer changes direction to dodge; it does not phase through stars." }; }
 }

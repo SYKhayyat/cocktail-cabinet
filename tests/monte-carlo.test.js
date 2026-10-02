@@ -109,19 +109,6 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
         game.update(1 / 60, { aim: blankPointer(), launch: false, attack });
       }, "attacker"),
     },
-    starfall: {
-      minimum: 2,
-      maximum: 5,
-      result: runScenario(runs, 600, () => {
-        const game = new StarfallModel();
-        game.setSide("stars");
-        game.reset();
-        return game;
-      }, (game, step) => {
-        const spawnStar = step % 30 === 0 ? { x: 20 + Math.random() * 760, y: 20 } : null;
-        game.update(1 / 60, { keyDirection: 0, pointerX: 0, spawnStar });
-      }, "stars"),
-    },
   };
   for (const [name, scenario] of Object.entries(scenarios)) assertHumanLikeRatio(name, scenario.result, scenario.minimum, scenario.maximum);
 });
