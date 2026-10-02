@@ -346,10 +346,10 @@ export class AsteroidsModel {
       const hit = this.asteroids.some((asteroid) => wrapHitsCircle(ship.x, ship.y, ship.radius, asteroid.x, asteroid.y, asteroid.radius));
       if (!hit) continue;
       if (owner === "human") {
-        if (this.invulnerable === 0) this.lifeLost = true;
+        if (this.invulnerable === 0) this.chargeLifeLoss("human");
         continue;
       }
-      this.playerLives.computer = Math.max(0, this.playerLives.computer - 1);
+      this.chargeLifeLoss("computer");
       // Move the computer clear so it does not lose every remaining life to
       // one rock in consecutive frames.
       ship.x = (ship.x + 240) % 800;
@@ -400,10 +400,12 @@ export class AsteroidsModel {
       this.winner = this.playerLives.human <= 0 ? "computer" : "human";
       return { gameOver: true, message: `${this.winner === "human" ? "You win" : "Computer wins"} the space duel!` };
     }
-    if (!this.lifeLost) return null;
+    // The engine clears lifeLost before calling this hook. The pending owner is
+    // therefore the durable edge trigger for every already-charged duel loss.
+    if (!this.lifeLost && this.lastDuelLossOwner === null) return null;
     this.lifeLost = false;
-    // A rock collision reaches the engine without passing through the bullet
-    // path, so charge the human here. Bullets have already been charged.
+    // Keep the fallback for a caller that raises lifeLost directly, but all real
+    // bullet and rock collisions use chargeLifeLoss() before reaching here.
     if (this.lastDuelLossOwner === null) {
       this.playerLives.human = Math.max(0, this.playerLives.human - 1);
       this.lastDuelLossOwner = "human";

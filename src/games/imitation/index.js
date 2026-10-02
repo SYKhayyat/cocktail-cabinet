@@ -13,6 +13,10 @@ export class ImitationGame {
   get chatLog() { return this.model.chatLog; }
   get chatRevision() { return this.model.chatRevision; }
   get phase() { return this.model.phase; }
+  get won() { return this.model.won; }
+  set won(value) { this.model.won = value; }
+  get gameOver() { return this.model.gameOver; }
+  set gameOver(value) { this.model.gameOver = value; }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
   sideLabel() { return this.model.sideLabel(); }

@@ -57,7 +57,7 @@ src/engine.js       canvas, input collection, animation loop, geometry helpers
 src/main.js         cabinet UI; swaps game modules in and out
 src/games/<id>/     model.js (rules), controller.js (input), view.js (drawing), index.js (facade)
 src/ai/on-device.js local-AI provider ladder: Chrome built-in AI → Ollama → WebGPU/WASM worker
-tests/              core.test.js, models.test.js, monte-carlo.test.js, browser-smoke.mjs
+tests/              core.test.js, models.test.js, ai/*.mjs + ai/*.test.js, browser-smoke.mjs
 scripts/            dead-code-check.py
 ```
 

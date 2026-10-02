@@ -334,6 +334,27 @@ test("the engine stops and announces a winner when a duel reaches zero lives", a
   });
 });
 
+test("Asteroids versus routes rock losses through duel lives and reset", async () => {
+  const { AsteroidsGame } = await import("../src/games/asteroids/index.js");
+  await withEngine((engine) => {
+    for (const owner of ["human", "computer"]) {
+      const game = new AsteroidsGame();
+      game.setSide("versus");
+      engine.load(game);
+      engine.ready = false;
+      engine.stopped = false;
+      engine.paused = false;
+      engine.countdown = 0;
+      game.model.asteroids = [{ x: owner === "human" ? game.model.ship.x : game.model.computerShip.x, y: owner === "human" ? game.model.ship.y : game.model.computerShip.y, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [], tone: 0, generation: 1 }];
+      game.model.invulnerable = 0;
+      engine.frame(performance.now() + 1000);
+      assert.equal(game.model.playerLives[owner], 2, `${owner} rock loss charges the duel counter once`);
+      assert.equal(engine.lives, 3, "a duel rock loss does not spend the engine's solo budget");
+      assert.equal(engine.countdown, 3, "a non-terminal rock loss starts the normal countdown");
+    }
+  });
+});
+
 test("the ready overlay shows a versus life line only for two-owner games", async () => {
   const { BreakoutGame } = await import("../src/games/breakout/index.js");
   const lifeLine = (game) => (game.playerLives

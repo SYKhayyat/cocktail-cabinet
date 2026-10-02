@@ -11,6 +11,10 @@ export class StarfallGame {
   get score() { return this.model.score; }
   get runner() { return this.model.runner; }
   get stars() { return this.model.stars; }
+  get won() { return this.model.won; }
+  set won(value) { this.model.won = value; }
+  get gameOver() { return this.model.gameOver; }
+  set gameOver(value) { this.model.gameOver = value; }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
   get modes() { return this.model.modes; }

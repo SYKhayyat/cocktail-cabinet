@@ -1,6 +1,7 @@
 const WEBGPU_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-q4f16";
 const WASM_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-ONNX";
 const OLLAMA_MODEL = "llama3.2:1b";
+const CHROME_MODEL_ID = "chrome-built-in";
 const OLLAMA_BASE_URLS = ["http://127.0.0.1:11435", "http://localhost:11435", "http://127.0.0.1:11434", "http://localhost:11434"];
 // Bumped to v6: the v5 key stored either a bare "ready" string or a record
 // with no version field, neither of which can be checked against a model
@@ -40,8 +41,8 @@ export function hasCachedModel() {
   const record = readCacheRecord();
   if (!record) return false;
   if (record.version !== MODEL_CACHE_VERSION) return false;
-  if (record.modelId !== WEBGPU_MODEL_ID && record.modelId !== WASM_MODEL_ID) return false;
-  if (!SUPPORTED_DEVICES.includes(record.device)) return false;
+  const modelForDevice = { chrome: CHROME_MODEL_ID, ollama: OLLAMA_MODEL, webgpu: WEBGPU_MODEL_ID, wasm: WASM_MODEL_ID };
+  if (!SUPPORTED_DEVICES.includes(record.device) || record.modelId !== modelForDevice[record.device]) return false;
   return Number.isFinite(record.at) && record.at > 0;
 }
 
@@ -88,6 +89,7 @@ async function loadChromeModel() {
       monitor.addEventListener("downloadprogress", (event) => emitProgress({ device: "chrome", progress: event.loaded, text: "Downloading Chrome built-in AI…" }));
     },
   });
+  markModelReady(CHROME_MODEL_ID, "chrome");
   return {
     device: "chrome",
     chat: async ({ messages, format }) => {
@@ -105,6 +107,7 @@ async function loadOllamaModel() {
       const installed = (tags.models || []).some((entry) => entry.name === OLLAMA_MODEL || entry.name === `${OLLAMA_MODEL}:latest`);
       if (!installed) continue;
       emitProgress({ device: "ollama", progress: 1, text: "Connected to Ollama." });
+      markModelReady(OLLAMA_MODEL, "ollama");
       return {
         device: "ollama",
     chat: async ({ messages, temperature, max_tokens, format, tools }) => {

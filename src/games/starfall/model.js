@@ -28,6 +28,7 @@ export class StarfallModel {
     // clear it.
     this.lifeLost = false;
     this.gameOver = false;
+    this.won = false;
   }
   get modes() { return STARFALL_MODES; }
   get sides() { return STARFALL_MODES.map((mode) => mode.value); }
@@ -60,7 +61,7 @@ export class StarfallModel {
     }
   }
   reset(keepScore = false) {
-    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.aiTargetGem = null; this.aiTargetLock = 0; this.aiLaneCommit = 0; this.aiPerceptionClock = 0; this.aiSeenStars = []; this.decisionLog = []; this.lastDecision = null; this.gemHoldTime = 0; this.gemSpawnClock = 0; this.gemSpawnCooldown = 0; this.lifeLost = false; this.gameOver = false;
+    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.aiTargetGem = null; this.aiTargetLock = 0; this.aiLaneCommit = 0; this.aiPerceptionClock = 0; this.aiSeenStars = []; this.decisionLog = []; this.lastDecision = null; this.gemHoldTime = 0; this.gemSpawnClock = 0; this.gemSpawnCooldown = 0; this.lifeLost = false; this.gameOver = false; this.won = false;
     if (this.side === "runner") for (let index = 0; index < 3; index += 1) this.gems.push(this.newGem(undefined, -20 - index * 80));
   }
   update(dt, input) {

@@ -10,6 +10,7 @@ export class AsteroidsGame {
   get side() { return this.model.side; }
   get score() { return this.model.score; }
   get won() { return this.model.won; }
+  set won(value) { this.model.won = value; }
   get winner() { return this.model.winner; }
   get gameOver() { return this.model.gameOver; }
   set gameOver(value) { this.model.gameOver = value; }

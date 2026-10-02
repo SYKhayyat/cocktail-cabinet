@@ -742,7 +742,28 @@ test("Splat builder computer has reaction and targeting error", () => {
   game.reset();
   game.moveComputer(game.player, 1 / 60);
   assert.ok(game.player.aiReaction > 0);
-  assert.notEqual(game.player.aiError, 0);
+  assert.ok(game.player.aiCommit > 0, "the decision has a real commitment window");
+  assert.equal(game.player.aiTargetY, game.columns[0].gapY + game.columns[0].gapHeight / 2);
+});
+
+test("Splat computer keeps steering at its committed gap", () => {
+  const game = new SplatModel();
+  game.setSide("builder");
+  game.reset();
+  const first = game.columns[0];
+  const second = game.columns[1];
+  first.passed = true;
+  second.x = 200;
+  second.gapY = 380;
+  second.gapHeight = 40;
+  game.player.x = 150;
+  game.player.y = 100;
+  game.player.vy = 0;
+  game.player.aiTargetY = 100;
+  game.player.aiReaction = 0;
+  game.player.aiCommit = 0.05;
+  game.moveComputer(game.player, 1 / 60);
+  assert.ok(game.player.vy <= 0, "a live commitment does not immediately steer toward the next gap");
 });
 
 test("Splat computer can steer through a generated route", () => {
@@ -1400,7 +1421,23 @@ test("all game facades reset, update, and expose public state", () => {
     assert.equal(typeof state.description, "string");
     assert.equal(typeof state.side, "string");
     assert.equal(typeof state.status, "string");
+    for (const field of ["won", "gameOver", "lifeLost"]) {
+      game[field] = true;
+      assert.equal(game.model[field], true, `${game.id} facade writes ${field} through to its model`);
+      game[field] = false;
+      assert.equal(game.model[field], false, `${game.id} facade clears ${field} through to its model`);
+    }
   }
+});
+
+test("Starfall exposes a model-backed terminal state", () => {
+  const game = new StarfallGame();
+  game.reset();
+  game.gameOver = true;
+  assert.equal(game.model.gameOver, true);
+  game.gameOver = false;
+  game.won = true;
+  assert.equal(game.model.won, true);
 });
 
 test("a disposed Imitation controller drops its channel and stops mutating the model", async () => {
@@ -1560,6 +1597,7 @@ test("settings descriptors are the single source of bounds, labels, and validati
   assert.equal(splat.settings.columnSpacing.min, 90);
   assert.equal(splat.settings.columnSpacing.max, 240);
   assert.deepEqual(splat.validateSettings({ columnSpacing: 150 }), { columnSpacing: 150 });
+  assert.equal(splat.validateSettings({ columnSpacing: 91 }), null, "values outside the descriptor step are rejected");
   assert.equal(splat.validateSettings({ columnSpacing: 89 }), null);
   assert.equal(splat.validateSettings({ columnSpacing: 241 }), null);
 });
@@ -1576,6 +1614,8 @@ test("settings descriptors match the values the model actually applies", () => {
   splat.setSettings(splat.validateSettings({ columnSpacing: 160 }));
   splat.applyPendingSettings();
   assert.equal(splat.model.columnSpacing, 160);
+  assert.equal(splat.setSettings({ columnSpacing: 241 }), false, "invalid settings are refused at the model API");
+  assert.equal(splat.model.pendingSettings.columnSpacing, 160, "invalid settings do not mutate the pending value");
 });
 
 test("games without settings expose no descriptor or validator", () => {
@@ -1634,6 +1674,39 @@ test("the cached-model marker must be a valid versioned record, not a bare strin
     assert.equal(hasCachedModel(), true, "a complete versioned record is accepted");
     assert.equal(cachedModelRecord().device, "webgpu");
   });
+});
+
+test("successful Chrome and Ollama providers persist recognizable cache records", async () => {
+  const saved = { window: globalThis.window, storage: globalThis.localStorage, LanguageModel: globalThis.LanguageModel, fetch: globalThis.fetch };
+  const store = new Map();
+  globalThis.window = {};
+  globalThis.localStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key)
+  };
+  try {
+    const chrome = await import(`../src/ai/on-device.js?chrome-cache-${Date.now()}`);
+    globalThis.LanguageModel = {
+      availability: async () => "available",
+      create: async () => ({ prompt: async () => "ok" })
+    };
+    await chrome.loadLocalModel();
+    assert.equal(chrome.cachedModelRecord().device, "chrome");
+
+    // A fresh module instance avoids the memoized Chrome engine while the same
+    // storage represents the browser's shared cache.
+    const ollama = await import(`../src/ai/on-device.js?ollama-cache-${Date.now()}`);
+    globalThis.LanguageModel = undefined;
+    globalThis.fetch = async (url) => ({ ok: true, json: async () => url.endsWith("/api/tags") ? { models: [{ name: "llama3.2:1b" }] } : { message: { content: "ok" } } });
+    await ollama.loadLocalModel();
+    assert.equal(ollama.cachedModelRecord().device, "ollama");
+  } finally {
+    globalThis.window = saved.window;
+    globalThis.localStorage = saved.storage;
+    globalThis.LanguageModel = saved.LanguageModel;
+    globalThis.fetch = saved.fetch;
+  }
 });
 
 test("every concurrent loadLocalModel caller receives progress and a terminal report", async () => {
@@ -1761,7 +1834,7 @@ test("Asteroids versus lets rocks damage the computer ship too", () => {
   computerHit.asteroids = [rockAt(computerHit.computerShip.x, computerHit.computerShip.y)];
   computerHit.update(0, { pointer: null, fire: false });
   assert.equal(computerHit.playerLives.computer, 2, "a rock costs the computer a life");
-  assert.equal(computerHit.lifeLost, false, "the human does not lose a life for the computer's hit");
+  assert.equal(computerHit.lifeLost, true, "a computer hit enters the shared duel loss lifecycle");
 
   // The computer is moved clear, so one rock cannot drain its whole life bank
   // across consecutive frames.
@@ -2448,6 +2521,11 @@ test("Imitation accepts payloads only from the negotiated peer", () => {
   game.setSide("human");
   game.reset();
   game.peerId = "peer-a";
+
+  // An unrelated same-origin tab cannot replace the negotiated peer with a
+  // valid-looking handshake before sending its payload.
+  game.receive({ type: "hello", from: "unrelated-tab", mode: "human" });
+  assert.equal(game.peerId, "peer-a", "an impostor handshake cannot replace the active peer");
 
   // An unrelated same-origin tab on the shared channel.
   const spam = { type: "chat", from: "unrelated-tab", text: "spam" };
@@ -3212,6 +3290,7 @@ test("Splat Builder is a puzzle with an outcome, not a win for the navigating ac
   assert.equal(game.won, true, "clearing the route ends the puzzle");
   assert.equal(model.puzzleResult, "solved");
   assert.equal(game.winMessage(), "Solved — your route works.", "the message credits the design, not the navigator");
+  assert.equal(game.resultHeading(), "SOLVED", "the generic overlay uses a puzzle result heading");
   assert.ok(!/you win/i.test(game.winMessage()), "the puzzle does not claim the human won");
 
   // Running the computer out of lives is the failure state, and the copy says
@@ -3229,6 +3308,7 @@ test("Splat Builder is a puzzle with an outcome, not a win for the navigating ac
   assert.equal(failing.model.puzzleResult, "unsolved", "a route that cannot be cleared is unsolved");
   assert.ok(/unsolved/i.test(result.message), "the failure is named as unsolved");
   assert.ok(/widen the gaps/i.test(result.message), "and says what to change");
+  assert.equal(failing.resultHeading(), "UNSOLVED", "the generic overlay names an unsolved puzzle");
   assert.ok(!/you lost/i.test(result.message), "the puzzle does not frame failure as the player losing");
 });
 
@@ -3237,22 +3317,27 @@ test("Splat Builder spends lives from its own budget", () => {
   game.engine = { maxLives: 2 };
   game.setSide("builder");
   game.reset();
-  assert.deepEqual(game.playerLives, { human: 2, computer: 2 }, "Builder starts from the configured budget");
+  assert.deepEqual(game.model.raceLives, { human: 2, computer: 2 }, "Builder starts from the configured budget");
+  assert.equal(game.playerLives, null, "Builder is a single puzzle owner, not a two-pilot game");
 
   game.model.lostPlayers.push(game.model.player);
   const first = game.handleLifeLoss();
   assert.equal(first.gameOver, false, "one life is not terminal");
-  assert.equal(game.playerLives.human, 1, "the budget is charged once");
+  assert.equal(game.model.raceLives.human, 1, "the budget is charged once");
 
   game.model.lostPlayers.push(game.model.player);
   const second = game.handleLifeLoss();
   assert.equal(second.gameOver, true, "the budget is spent");
-  assert.equal(game.playerLives.human, 0, "the budget reaches zero rather than going negative");
+  assert.equal(game.model.raceLives.human, 0, "the budget reaches zero rather than going negative");
 
   // Climber keeps spending the shared engine lives, so this change does not
-  // quietly give it its own budget.
+  // quietly give it its own budget. Race is the only mode with two owners.
   const climber = new SplatGame();
   climber.setSide("climber");
   climber.reset();
   assert.equal(climber.playerLives, null, "Climber still defers to the engine for lives");
+  const race = new SplatGame();
+  race.setSide("race");
+  race.reset();
+  assert.deepEqual(race.playerLives, { human: 3, computer: 3 }, "Race exposes per-pilot lives");
 });

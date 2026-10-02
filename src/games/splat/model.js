@@ -56,13 +56,17 @@ export class SplatModel {
     const descriptor = SPLAT_SETTINGS.columnSpacing;
     const columnSpacing = Number(values.columnSpacing);
     if (!Number.isInteger(columnSpacing) || columnSpacing < descriptor.min || columnSpacing > descriptor.max) return null;
+    if ((columnSpacing - descriptor.min) % (descriptor.step || 1) !== 0) return null;
     return { columnSpacing };
   }
   sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || SPLAT_MODES[0].label; }
   setSide(side) { if (this.sides.includes(side)) this.side = side; this.tool = "column"; }
   setTool(tool) { if (tool === "column" || tool === "gap") this.tool = tool; }
   setSettings(settings = {}) {
-    if (Number.isInteger(settings.columnSpacing)) this.pendingSettings.columnSpacing = clamp(settings.columnSpacing, SPLAT_SETTINGS.columnSpacing.min, SPLAT_SETTINGS.columnSpacing.max);
+    const validated = this.validateSettings({ ...this.pendingSettings, ...settings });
+    if (!validated) return false;
+    this.pendingSettings = validated;
+    return true;
   }
   applyPendingSettings() { this.columnSpacing = this.pendingSettings.columnSpacing; }
   reset(keepScore = false, preserveLayout = false) {
@@ -271,9 +275,10 @@ export class SplatModel {
         player.aiCommit = COMPUTER_COMMIT_MIN + Math.random() * (COMPUTER_COMMIT_MAX - COMPUTER_COMMIT_MIN);
         recordDecision(this, { side: this.side, targetY: Math.round(targetY), engaged, columnX: Math.round(column.x), playerX: Math.round(player.x) });
       }
-      // While reacting it is still steering for the gap it last saw, not the one
-      // it is looking at now.
-      desiredY = player.aiReaction > 0 && player.aiTargetY !== null ? player.aiTargetY : targetY;
+      // While reacting or committed it is still steering for the gap it last
+      // chose, not the one it is looking at now. The commitment is meaningful
+      // only if it controls the actual steering target as well as replanning.
+      desiredY = (player.aiReaction > 0 || player.aiCommit > 0) && player.aiTargetY !== null ? player.aiTargetY : targetY;
     }
     const difference = desiredY - player.y;
     // Acceleration rather than a velocity that snaps to the answer, so a late or

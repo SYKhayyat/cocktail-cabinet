@@ -27,6 +27,7 @@ export class ImitationModel {
     // than left undefined.
     this.lifeLost = false;
     this.gameOver = false;
+    this.won = false;
     this.matchId = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
     this.score = 0;
     this.guessStats = { right: 0, wrong: 0 };
@@ -68,6 +69,7 @@ export class ImitationModel {
     this.disposed = false;
     this.lifeLost = false;
     this.gameOver = false;
+    this.won = false;
     this.invalidatePendingRequests();
     if (!keepScore) {
       this.score = 0;
@@ -181,6 +183,10 @@ export class ImitationModel {
       return;
     }
     if (ImitationModel.HANDSHAKE_TYPES.includes(message.type)) {
+      // A handshake may establish an empty slot, or confirm the peer already
+      // negotiated. It must not replace an active peer: a third same-origin
+      // tab could otherwise become trusted simply by saying hello.
+      if (this.peerId && message.from !== this.peerId) return;
       const expectedMode = this.side === "guess" ? "provide" : this.side === "provide" ? "guess" : this.side === "human" ? "human" : "";
       if (message.mode && expectedMode && message.mode !== expectedMode) {
         this.addMessage("System", this.side === "guess" ? "That tab is not in Provide guessing message mode." : this.side === "provide" ? "That tab is not in Guess AI or human mode." : "That tab is not in human chat mode.");
