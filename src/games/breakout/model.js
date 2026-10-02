@@ -32,6 +32,11 @@ export class BreakoutModel {
     this.side = "bottom";
     this.score = 0;
     this.layout = null;
+    // The engine treats lifeLost as an edge trigger, so it must start and end
+    // a round as a definite false rather than depending on the caller to
+    // clear it.
+    this.lifeLost = false;
+    this.gameOver = false;
   }
   get modes() { return BREAKOUT_MODES; }
   get sides() { return BREAKOUT_MODES.map((mode) => mode.value); }
@@ -39,6 +44,7 @@ export class BreakoutModel {
   setSide(side) { if (this.sides.includes(side)) this.side = side; }
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;
+    this.lifeLost = false;
     this.scores = keepScore && this.scores ? { ...this.scores } : { human: 0, computer: 0 };
     const startingLives = this.engine?.maxLives ?? 3;
     this.playerLives = { human: startingLives, computer: startingLives };

@@ -44,6 +44,11 @@ export class AsteroidsModel {
     this.description = "Fly with the mouse or WASD, click or hold to shoot, and break rocks into pieces. Versus mode gives both pilots a ship.";
     this.side = "ship";
     this.score = 0;
+    // The engine treats lifeLost and gameOver as edge triggers, so they must
+    // start as definite booleans rather than depending on the caller to clear
+    // them.
+    this.lifeLost = false;
+    this.gameOver = false;
   }
   get modes() { return ASTEROIDS_MODES; }
   get sides() { return ASTEROIDS_MODES.map((mode) => mode.value); }

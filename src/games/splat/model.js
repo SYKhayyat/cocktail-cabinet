@@ -37,6 +37,11 @@ export class SplatModel {
     this.furthestColumns = 0;
     this.driftActive = 0;
     this.tool = "column";
+    // The engine treats lifeLost and gameOver as edge triggers, so they must
+    // start and end a round as definite booleans rather than depending on the
+    // caller to clear them.
+    this.lifeLost = false;
+    this.gameOver = false;
   }
   get modes() { return SPLAT_MODES; }
   get sides() { return SPLAT_MODES.map((mode) => mode.value); }
@@ -77,6 +82,7 @@ export class SplatModel {
     this.won = false;
     this.gameOver = false;
     this.winner = null;
+    this.lifeLost = false;
     if (preservedColumns) this.columns.push(...preservedColumns);
     else {
       for (let index = 0; index < COLUMN_COUNT; index += 1) {

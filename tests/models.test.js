@@ -2560,3 +2560,45 @@ test("Missile copy is consistent about the objective in both modes", () => {
   defender.reset();
   assert.match(defender.sideLabel(), /defend cities/i);
 });
+
+test("every model's reset establishes a clean life-loss state", () => {
+  const games = {
+    snake: new SnakeModel(),
+    breakout: new BreakoutModel(),
+    splat: new SplatModel(),
+    asteroids: new AsteroidsModel(),
+    missile: new MissileModel(),
+    imitation: new ImitationModel(),
+    starfall: new StarfallModel()
+  };
+  // Every model the engine can drive must expose both flags as definite
+  // booleans from construction, not just after the first reset.
+  for (const [id, game] of Object.entries(games)) {
+    assert.equal(typeof game.lifeLost, "boolean", `${id} initialises lifeLost as a boolean`);
+    assert.equal(typeof game.gameOver, "boolean", `${id} initialises gameOver as a boolean`);
+    assert.equal(game.lifeLost, false, `${id} starts with no life lost`);
+  }
+
+  for (const [id, game] of Object.entries(games)) {
+    game.lifeLost = true;
+    game.gameOver = true;
+    game.reset();
+    assert.equal(game.lifeLost, false, `${id} reset clears lifeLost`);
+    assert.equal(game.gameOver, false, `${id} reset clears gameOver`);
+  }
+});
+
+test("a facade exposes lifeLost consistently with its model after reset", () => {
+  const facades = {
+    snake: new SnakeGame(),
+    splat: new SplatGame(),
+    starfall: new StarfallGame(),
+    imitation: new ImitationGame()
+  };
+  for (const [id, game] of Object.entries(facades)) {
+    game.lifeLost = true;
+    assert.equal(game.lifeLost, true, `${id} facade reads the flag it was set`);
+    game.reset();
+    assert.equal(game.lifeLost, false, `${id} reset clears the flag through the facade too`);
+  }
+});

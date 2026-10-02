@@ -21,6 +21,11 @@ export class MissileModel {
     this.description = "Defend: aim the crosshair, choose a battery with Left/Right, then press Space or click to launch. Attack: click or drag to fire a red missile at a city. Both modes are about the six cities.";
     this.side = "defender";
     this.score = 0;
+    // The engine treats lifeLost and gameOver as edge triggers, so they must
+    // start as definite booleans rather than depending on the caller to clear
+    // them.
+    this.lifeLost = false;
+    this.gameOver = false;
   }
   get modes() { return MISSILE_MODES; }
   get sides() { return MISSILE_MODES.map((mode) => mode.value); }

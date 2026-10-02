@@ -35,6 +35,7 @@ export class SnakeModel {
     this.pendingSettings = { cols: 40, rows: 28, startingLength: 3, wrap: false };
     this.roundSettings = { ...this.pendingSettings };
     this.gameOver = false;
+    this.lifeLost = false;
   }
   get modes() { return SNAKE_MODES; }
   get sides() { return SNAKE_MODES.map((mode) => mode.value); }
@@ -86,6 +87,7 @@ export class SnakeModel {
     this.wrap = this.roundSettings.wrap;
     if (!keepScore) this.score = 0;
     this.gameOver = false;
+    this.lifeLost = false;
     this.lossReason = "";
     // The body trails to the left of the head along the middle row, so the body is
   // laid out from the head at x = headX back to x = headX - length + 1. The

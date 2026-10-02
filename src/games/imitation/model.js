@@ -22,6 +22,11 @@ export class ImitationModel {
     this.title = "Imitation";
     this.description = "Explore AI and human conversation: chat, guess the source, or submit text for classification.";
     this.side = "ai";
+    // Imitation has no lives, but the engine still reads these two flags on
+    // every game. They are part of the shared contract, so they are set rather
+    // than left undefined.
+    this.lifeLost = false;
+    this.gameOver = false;
     this.matchId = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
     this.score = 0;
     this.guessStats = { right: 0, wrong: 0 };
@@ -61,6 +66,8 @@ export class ImitationModel {
   pendingRequestIsCurrent(token) { return !this.disposed && token === this.requestToken; }
   reset(keepScore = false) {
     this.disposed = false;
+    this.lifeLost = false;
+    this.gameOver = false;
     this.invalidatePendingRequests();
     if (!keepScore) {
       this.score = 0;
