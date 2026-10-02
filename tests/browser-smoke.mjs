@@ -687,6 +687,76 @@ async function testGuessProvideAcrossTabs(first, second, step) {
   await step(5);
 }
 
+async function testNonRaceSplatSpendsEngineLives(page, step) {
+  // Issue #37: Climber/Builder/Layout return a custom handleLifeLoss response
+  // but the engine never spent a life for it, so a collision could repeat
+  // forever against a configured budget of one.
+  for (const side of ["climber", "builder"]) {
+    await selectMode(page, 2, side);
+    await settle(page);
+    const report = await page.evaluate(`(() => {
+      const engine = globalThis.__cocktailCabinet.engine;
+      const game = globalThis.__cocktailCabinet.games.get('splat');
+      const lives = document.querySelector('#livesInput');
+      lives.value = '2';
+      lives.dispatchEvent(new Event('change', { bubbles: true }));
+      document.querySelector('#restartButton').click();
+      const start = { lives: engine.lives, maxLives: engine.maxLives };
+      return { start, display: document.querySelector('#lives').textContent };
+    })()`);
+    assertEqual(report.start.lives, 2, `splat/${side} starts on the configured budget`);
+    assertEqual(report.start.maxLives, 2, `splat/${side} honours the Lives setting`);
+    await settle(page);
+
+    // Spend both lives by colliding twice.
+    const losses = [];
+    for (let hit = 0; hit < 2; hit += 1) {
+      const step = await page.evaluate(`(() => {
+        const engine = globalThis.__cocktailCabinet.engine;
+        const game = globalThis.__cocktailCabinet.games.get('splat');
+        engine.ready = false; engine.countdown = 0;
+        // Drive the real path: Splat queues the collided player in
+        // lostPlayers, and handleLifeLoss() returns null when that is empty.
+        // Setting lifeLost alone would fall through to the engine's default
+        // branch and never exercise the custom response at all.
+        game.model.lostPlayers.push(game.model.player);
+        game.model.lifeLost = true;
+        globalThis.__tick(1);
+        return { lives: engine.lives, gameOver: Boolean(game.model.gameOver), stopped: engine.stopped, message: document.querySelector('#message').textContent };
+      })()`);
+      losses.push(step);
+      if (hit === 0) await settle(page);
+    }
+
+    assertEqual(losses[0].lives, 1, `splat/${side}: the first collision spends a life`);
+    assertEqual(losses[0].gameOver, false, `splat/${side}: the round continues after the first life`);
+    assertEqual(losses[1].lives, 0, `splat/${side}: the second collision spends the last life`);
+    assertEqual(losses[1].gameOver, true, `splat/${side}: the round ends at zero lives rather than repeating`);
+    assertEqual(losses[1].stopped, true, `splat/${side}: the engine halts the round`);
+    assertMatch(losses[1].message, /Out of lives/i, `splat/${side}: the end of the round is reported`);
+  }
+
+  // Race keeps its own per-player counter and must not spend the engine's.
+  await selectMode(page, 2, "race");
+  await settle(page);
+  const race = await page.evaluate(`(() => {
+    const engine = globalThis.__cocktailCabinet.engine;
+    const game = globalThis.__cocktailCabinet.games.get('splat');
+    engine.lives = 3;
+    const before = { engineLives: engine.lives, raceLives: { ...game.model.raceLives } };
+    // Push the actual player object: ownership is by identity, so a copy is
+    // attributed to the computer instead.
+    game.model.lostPlayers.push(game.model.player);
+    const response = game.model.handleLifeLoss();
+    return { before, after: { engineLives: engine.lives, raceLives: { ...game.model.raceLives } }, response };
+  })()`);
+  assertEqual(race.response.gameOver, false, "race: losing one ball does not end the round");
+  assertMatch(race.response.message, /You lost a ball/, "race attributes the loss to the human");
+  assertEqual(race.after.raceLives.human, race.before.raceLives.human - 1, "race spends its own per-player life");
+  assertEqual(race.after.raceLives.computer, race.before.raceLives.computer, "race leaves the other player's lives alone");
+  assertEqual(race.after.engineLives, race.before.engineLives, "race does not also spend the engine's lives");
+}
+
 async function testNarrowLayout(page) {
   // 375x812 is the narrowest target in the issue; 320 is used as well so a
   // regression shows up before it reaches a real device.
@@ -797,6 +867,7 @@ async function main() {
       ["all twenty modes load and run", () => testEveryModeSurvivesPlay(first.page, step)],
       ["life loss, game over, and restart", () => testGameOverAndRestart(first.page, step)],
       ["Splat builder tools", () => testSplatBuilderTools(first.page, step)],
+      ["non-Race Splat spends engine lives", () => testNonRaceSplatSpendsEngineLives(first.page, step)],
       ["Imitation provider fallback without a model", () => testImitationProviderFallback(first.page)],
       ["narrow viewport layout", () => testNarrowLayout(first.page)]
     ];
@@ -806,7 +877,13 @@ async function main() {
       passed.push(name);
     }
 
-    // Cross-tab protocol needs a second page.
+    // Cross-tab protocol needs a second page, and a fresh first page: the
+    // suites above leave the cabinet on another game, and switching away
+    // disposes the outgoing Imitation controller.
+    await first.page.close();
+    await closeTarget(first.target.id);
+    first = await openPage(pageUrl);
+    await makeDeterministic(first.page);
     second = await openPage(pageUrl);
     await makeDeterministic(second.page);
     const secondStep = (frames) => second.page.evaluate(`globalThis.__tick(${frames})`);

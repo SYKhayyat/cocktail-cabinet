@@ -238,14 +238,28 @@ export class GameEngine {
         this.game.lifeLost = false;
         const customLifeLoss = this.game.handleLifeLoss?.();
         if (customLifeLoss) {
-          this.onLives?.(this.game.playerLives?.human ?? this.lives, this.maxLives);
+          // A game that tracks its own lives exposes playerLives, and the
+          // engine mirrors it. A game that does not is spending the engine's
+          // lives, so the engine spends one -- previously this branch spent
+          // nothing, so a non-Race Splat collision could repeat indefinitely
+          // against a configured budget of one.
+          if (this.game.playerLives) this.onLives?.(this.game.playerLives.human, this.maxLives);
+          else {
+            this.lives -= 1;
+            this.onLives?.(this.lives, this.maxLives);
+          }
           if (customLifeLoss.gameOver) {
             this.stopped = true;
             this.onMessage?.(customLifeLoss.message);
-          } else {
+          } else if (this.game.playerLives ? this.game.playerLives.human > 0 : this.lives > 0) {
             this.game.resetAfterLife?.();
             this.countdown = 3;
             this.onMessage?.(customLifeLoss.message);
+          } else {
+            // Out of lives: end the round rather than restarting it forever.
+            this.game.gameOver = true;
+            this.stopped = true;
+            this.onMessage?.(`Out of lives — press New game to try again. ${customLifeLoss.message}`);
           }
         } else {
           const lossReason = this.game.lossReason || "collision";
