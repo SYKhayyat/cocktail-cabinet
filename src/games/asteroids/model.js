@@ -4,6 +4,10 @@ import { clamp } from "../../engine.js";
 // is not still inside a rock once the grace period lapses.
 const RESPAWN_CLEARANCE = 30;
 
+// Ships are equal mass, so a bounce exchanges velocity along the collision
+// normal. Below 1 sheds a little energy so a graze cannot ping forever.
+const SHIP_RESTITUTION = 0.85;
+
 export const BOARD_WIDTH = 800;
 export const BOARD_HEIGHT = 560;
 
@@ -84,14 +88,17 @@ export class AsteroidsModel {
     this.dragVelocityY = 0;
     this.computerMistake = false;
     this.computerMistakeClock = 5 + Math.random() * 4;
-    this.shipCollisionCooldown = 0;
     this.lastLifeLossOwner = null;
     // Which side the engine still owes a charge to, for losses that arrive
     // without passing through the bullet path (a rock collision).
     this.lastDuelLossOwner = null;
     if (this.side !== "rocks") for (let index = 0; index < 3; index += 1) this.spawnAsteroid();
   }
-  newShip(x, y) { return { x, y, angle: -Math.PI / 2, speed: 0, radius: 13, aiTarget: null, aiReaction: 0, aiError: 0, aiAim: 0 }; }
+  // Ships carry a knockback velocity separate from their own thrust speed.
+  // A bounce must survive the next frame even when a pilot is coasting, and
+  // steering recomputes speed from thrust every frame, so an impulse written
+  // straight into `speed` would be erased immediately.
+  newShip(x, y) { return { x, y, angle: -Math.PI / 2, speed: 0, knockX: 0, knockY: 0, radius: 13, aiTarget: null, aiReaction: 0, aiError: 0, aiAim: 0 }; }
   spawnAsteroid() {
     const edge = Math.floor(Math.random() * 4);
     let x = 0;
@@ -117,8 +124,8 @@ export class AsteroidsModel {
       ship.speed += thrust * 190 * dt;
       ship.speed *= Math.pow(0.98, dt * 60);
     }
-    ship.x = (ship.x + Math.cos(ship.angle) * ship.speed * dt + BOARD_WIDTH) % BOARD_WIDTH;
-    ship.y = (ship.y + Math.sin(ship.angle) * ship.speed * dt + BOARD_HEIGHT) % BOARD_HEIGHT;
+    ship.x = (ship.x + (Math.cos(ship.angle) * ship.speed + ship.knockX) * dt + BOARD_WIDTH) % BOARD_WIDTH;
+    ship.y = (ship.y + (Math.sin(ship.angle) * ship.speed + ship.knockY) * dt + BOARD_HEIGHT) % BOARD_HEIGHT;
   }
   aiShip(dt, ship = this.ship, target = null) {
     if (!target) target = this.asteroids.reduce((nearest, asteroid) => {
@@ -150,8 +157,8 @@ export class AsteroidsModel {
     while (difference < -Math.PI) difference += Math.PI * 2;
     ship.angle += clamp(difference, -3.6 * dt, 3.6 * dt);
     ship.speed = this.side === "versus" ? 105 : 165;
-    ship.x = (ship.x + Math.cos(ship.angle) * ship.speed * dt + BOARD_WIDTH) % BOARD_WIDTH;
-    ship.y = (ship.y + Math.sin(ship.angle) * ship.speed * dt + BOARD_HEIGHT) % BOARD_HEIGHT;
+    ship.x = (ship.x + (Math.cos(ship.angle) * ship.speed + ship.knockX) * dt + BOARD_WIDTH) % BOARD_WIDTH;
+    ship.y = (ship.y + (Math.sin(ship.angle) * ship.speed + ship.knockY) * dt + BOARD_HEIGHT) % BOARD_HEIGHT;
   }
   fire(owner = "human", ship = this.ship, aimError = 0, aimAngle = ship.angle) {
     if (owner === "human") this.asteroidSpeed = Math.min(1.8, this.asteroidSpeed + 0.012);
@@ -184,7 +191,14 @@ export class AsteroidsModel {
   }
   update(dt, input) {
     this.invulnerable = Math.max(0, this.invulnerable - dt);
-    this.shipCollisionCooldown = Math.max(0, this.shipCollisionCooldown - dt);
+    if (this.side === "versus") {
+      // Knockback bleeds off quickly so a bounce reads as a shove, not a drift.
+      const bleed = Math.pow(0.9, dt * 60);
+      for (const ship of [this.ship, this.computerShip]) {
+        ship.knockX *= bleed;
+        ship.knockY *= bleed;
+      }
+    }
     if (this.side === "rocks") {
       this.computerMistakeClock -= dt;
       if (this.computerMistakeClock <= 0) { this.computerMistake = Math.random() < 0.2; this.computerMistakeClock = 8 + Math.random() * 6; }
@@ -222,19 +236,43 @@ export class AsteroidsModel {
       const distance = Math.hypot(dx, dy);
       const minimumDistance = this.ship.radius + this.computerShip.radius;
       if (distance < minimumDistance) {
-        const angle = distance > 0 ? Math.atan2(dy, dx) : 0;
-        const separation = minimumDistance - distance;
-        const humanSpeed = this.ship.speed;
-        const computerSpeed = this.computerShip.speed;
-        this.ship.x = (this.ship.x - Math.cos(angle) * separation / 2 + BOARD_WIDTH) % BOARD_WIDTH;
-        this.ship.y = (this.ship.y - Math.sin(angle) * separation / 2 + BOARD_HEIGHT) % BOARD_HEIGHT;
-        this.computerShip.x = (this.computerShip.x + Math.cos(angle) * separation / 2 + BOARD_WIDTH) % BOARD_WIDTH;
-        this.computerShip.y = (this.computerShip.y + Math.sin(angle) * separation / 2 + BOARD_HEIGHT) % BOARD_HEIGHT;
-        this.ship.angle = angle + Math.PI;
-        this.computerShip.angle = angle;
-        this.ship.speed = Math.max(80, humanSpeed);
-        this.computerShip.speed = Math.max(80, computerSpeed);
-        this.shipCollisionCooldown = 0.75;
+        // Ships bounce. This used to point both ships away from each other and
+        // teleport them apart, which overwrote each pilot's own heading and made
+        // the computer look like it was dragging the human around. Now only the
+        // velocity along the collision normal is exchanged -- the equal-mass
+        // elastic result -- so a pilot who is not flying into the other ship is
+        // left alone.
+        const normalX = distance > 0 ? dx / distance : 1;
+        const normalY = distance > 0 ? dy / distance : 0;
+        // Relative velocity must include knockback already in flight. Measuring
+        // thrust alone re-applies a full impulse every frame to two ships that
+        // are already flying apart, which shakes them instead of bouncing them.
+        const humanThrustX = Math.cos(this.ship.angle) * this.ship.speed + this.ship.knockX;
+        const humanThrustY = Math.sin(this.ship.angle) * this.ship.speed + this.ship.knockY;
+        const computerThrustX = Math.cos(this.computerShip.angle) * this.computerShip.speed + this.computerShip.knockX;
+        const computerThrustY = Math.sin(this.computerShip.angle) * this.computerShip.speed + this.computerShip.knockY;
+        // The normal runs from the human to the computer, so the human closing on
+        // the computer is a positive projection: they are approaching when the
+        // relative velocity points along the normal.
+        const closingSpeed = (humanThrustX - computerThrustX) * normalX + (humanThrustY - computerThrustY) * normalY;
+        if (closingSpeed > 0) {
+          const impulse = (1 + SHIP_RESTITUTION) * closingSpeed / 2;
+          this.ship.knockX -= impulse * normalX;
+          this.ship.knockY -= impulse * normalY;
+          this.computerShip.knockX += impulse * normalX;
+          this.computerShip.knockY += impulse * normalY;
+        }
+        // Still nudge them out of each other so they cannot sit overlapped; this
+        // is a de-overlap, not the shove, and it never touches heading.
+        // The normal runs human -> computer, so each ship is pushed along it in
+        // the opposite direction. Adding it to the human drove both ships
+        // straight through each other, which is the same "drag" symptom from the
+        // other side.
+        const separation = (minimumDistance - distance) / 2;
+        this.ship.x = (this.ship.x - normalX * separation + BOARD_WIDTH) % BOARD_WIDTH;
+        this.ship.y = (this.ship.y - normalY * separation + BOARD_HEIGHT) % BOARD_HEIGHT;
+        this.computerShip.x = (this.computerShip.x + normalX * separation + BOARD_WIDTH) % BOARD_WIDTH;
+        this.computerShip.y = (this.computerShip.y + normalY * separation + BOARD_HEIGHT) % BOARD_HEIGHT;
       }
     }
     for (const bullet of this.bullets) {

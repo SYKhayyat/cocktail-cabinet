@@ -931,7 +931,7 @@ test("Asteroids versus gives both pilots scores and lives", () => {
   game.ship.y = game.computerShip.y;
   game.bullets = [];
   game.update(0, { pointer: null, fire: false });
-  assert.ok(game.shipCollisionCooldown > 0);
+  // Two ships overlapping are pushed apart, and a bounce does not cost a life.
   assert.ok(Math.hypot(game.computerShip.x - game.ship.x, game.computerShip.y - game.ship.y) >= game.ship.radius + game.computerShip.radius);
   game.lifeLost = false;
   game.playerLives.computer = 0;
@@ -1855,10 +1855,14 @@ test("Asteroids ships separate across the seam too", async () => {
   game.ship.y = 280;
   game.computerShip.x = 799;
   game.computerShip.y = 280;
-  game.shipCollisionCooldown = 0;
   game.update(0.016, { pointer: null, fire: false });
   game.update(0.016, { pointer: null, fire: false });
-  assert.ok(game.shipCollisionCooldown > 0, "ships meeting at the seam are recognised as colliding");
+  // Measured right after the bounce. Left running for long, the coasting human
+  // becomes a stationary obstacle the computer circles back into, which is a
+  // different property from the one under test here.
+  // No impulse is expected here: the computer's AI reads the human as a hazard
+  // this close and steers away, so the two are overlapping but not closing.
+  assert.ok(wrapDistance(game.ship.x, game.ship.y, game.computerShip.x, game.computerShip.y) >= game.ship.radius + game.computerShip.radius, "seam overlap is resolved, not ignored");
   assert.ok(game.ship.x >= 0 && game.ship.x < 800, "separation keeps the human on the board");
   assert.ok(game.computerShip.x >= 0 && game.computerShip.x < 800, "separation keeps the computer on the board");
   assert.ok(wrapDistance(game.ship.x, game.ship.y, game.computerShip.x, game.computerShip.y) >= game.ship.radius + game.computerShip.radius - 0.001);
@@ -2656,6 +2660,10 @@ test("Asteroids skips dead bullets in every collision phase", () => {
     game.asteroids = [];
     game.invulnerable = 0;
     game.computerShotClock = 99;
+    // Versus spawns a rock at a random edge whenever the spawn clock is due,
+    // and at reset it is. With dt=0 that rock landed on the ship about one run
+    // in forty and raised a life loss the test never caused.
+    game.spawnClock = 99;
     game.ship.x = 60;
     game.ship.y = 500;
     return game;
@@ -2738,12 +2746,21 @@ test("Missile level completion is decided by the live missile list, not a counte
   assert.equal(game.enemyTotal, 12);
   assert.equal(game.enemyResolved, undefined, "the unused counter is gone");
 
-  // Launch the whole wave, then clear it the way interception would. The
-  // cities are not defended here, so an undefended wave reaches the ground
-  // and ends the game -- the completion rule is what is under test.
-  while (game.enemySpawned < game.enemyTotal) game.update(1 / 60, { aim: null, launch: false });
+  // Launch the whole wave, clearing it every frame the way interception would.
+  // Nothing defends the cities here, so an undefended wave reaches the ground
+  // and ends the game. That matters here: the model only advances a level
+  // transition while the game is not over, so a wave that happened to wipe the
+  // last city before the field was emptied left the level stuck at 1. It cost
+  // roughly four runs in a hundred. The completion rule is what is under test.
+  let sawMissiles = false;
+  while (game.enemySpawned < game.enemyTotal) {
+    game.update(1 / 60, { aim: null, launch: false });
+    if (game.enemyMissiles.length > 0) sawMissiles = true;
+    game.enemyMissiles.length = 0;
+  }
   assert.equal(game.enemySpawned, game.enemyTotal, "the whole wave was launched");
-  assert.ok(game.enemyMissiles.length > 0, "with missiles in the air");
+  assert.ok(sawMissiles, "with missiles in the air");
+  assert.equal(game.gameOver, false, "no city was destroyed by the wave under test");
 
   // Emptying the field is what completes the level -- there is no counter to
   // consult, and the wave's own spawn budget is already spent.
@@ -2752,8 +2769,12 @@ test("Missile level completion is decided by the live missile list, not a counte
   assert.equal(game.levelComplete, true, "an empty field completes the level");
   assert.equal(game.levelTransition > 0, true, "a transition is scheduled before the next wave");
 
-  // And the next level restarts the wave budget from the live list again.
-  for (let frame = 0; frame < 400; frame += 1) game.update(1 / 60, { aim: null, launch: false });
+  // And the next level restarts the wave budget from the live list again, with
+  // the field cleared each frame for the same reason as above.
+  for (let frame = 0; frame < 400; frame += 1) {
+    game.enemyMissiles.length = 0;
+    game.update(1 / 60, { aim: null, launch: false });
+  }
   assert.equal(game.level, 2, "the next level begins");
   assert.ok(game.enemySpawned > 0, "the next wave is launched from the reset budget");
 });
@@ -3039,4 +3060,109 @@ test("Asteroids versus does not double-charge a bullet that already decremented"
   assert.equal(game.playerLives.human, 2, "the bullet charged once at impact");
   game.handleLifeLoss();
   assert.equal(game.playerLives.human, 2, "handleLifeLoss does not charge it again");
+});
+
+test("Asteroids versus ships bounce instead of shoving each other around", async () => {
+  const { wrapDistance } = await import("../src/games/asteroids/model.js");
+  const duel = () => {
+    const game = new AsteroidsModel();
+    game.setSide("versus");
+    game.reset();
+    game.asteroids = [];
+    game.computerShotClock = 99;
+    game.invulnerable = 5;
+    // The computer's AI re-steers every frame, which would make the bounce
+    // depend on rock placement. Stub it out so the only motion under test is
+    // the collision response.
+    game.aiShip = () => {};
+    game.ship.speed = 0;
+    game.computerShip.speed = 0;
+    return game;
+  };
+
+  // A graze: the human drifts into the computer while the computer is not
+  // closing. This is the reported defect -- the old code overwrote BOTH headings
+  // and pushed both ships apart, which read as the computer dragging the human
+  // around the board.
+  const graze = duel();
+  graze.ship.x = 300;
+  graze.ship.y = 300;
+  graze.ship.angle = 0;
+  graze.ship.speed = 100;
+  graze.computerShip.x = 312;
+  graze.computerShip.y = 300;
+  graze.computerShip.angle = Math.PI / 2;
+  const humanHeadingBefore = graze.ship.angle;
+  const computerHeadingBefore = graze.computerShip.angle;
+  graze.update(0.016, { pointer: null, fire: false });
+  assert.equal(graze.ship.angle, humanHeadingBefore, "the human keeps their own heading");
+  assert.equal(graze.computerShip.angle, computerHeadingBefore, "the computer keeps its own heading");
+  assert.ok(graze.ship.knockX < 0, "the human is pushed away from the computer");
+  assert.ok(graze.computerShip.knockX > 0, "the computer is pushed away from the human");
+
+  // Momentum is exchanged, not invented: equal masses bouncing head-on send
+  // each ship back the way it came.
+  const headOn = duel();
+  headOn.ship.x = 300;
+  headOn.ship.y = 300;
+  headOn.ship.angle = 0;
+  headOn.ship.speed = 120;
+  headOn.computerShip.x = 320;
+  headOn.computerShip.y = 300;
+  headOn.computerShip.angle = Math.PI;
+  headOn.computerShip.speed = 120;
+  headOn.update(0.016, { pointer: null, fire: false });
+  assert.ok(headOn.ship.knockX < 0, "the human is knocked away from the computer");
+  assert.ok(headOn.computerShip.knockX > 0, "the computer is knocked away from the human");
+  // Momentum is exchanged, not invented: each ship leaves travelling the other
+  // ship's way, at 120 * restitution = 102.
+  const humanNormalSpeed = Math.cos(headOn.ship.angle) * headOn.ship.speed + headOn.ship.knockX;
+  const computerNormalSpeed = Math.cos(headOn.computerShip.angle) * headOn.computerShip.speed + headOn.computerShip.knockX;
+  assert.ok(humanNormalSpeed < 0, "the human leaves travelling back the way it came");
+  assert.ok(computerNormalSpeed > 0, "the computer leaves travelling back the way it came");
+  assert.ok(Math.abs(humanNormalSpeed + 102) < 3, "the exchange loses a little energy rather than gaining any");
+  // Momentum is conserved: equal masses, so the two impulses are equal and
+  // opposite. Checking the impulses rather than the resulting speeds avoids
+  // comparing against speeds the steering pass has already decayed.
+  assert.ok(Math.abs(headOn.ship.knockX + headOn.computerShip.knockX) < 0.001, "the exchange is momentum-conserving");
+  assert.ok(Math.abs(headOn.ship.knockY + headOn.computerShip.knockY) < 0.001, "the exchange is momentum-conserving vertically");
+
+  // Knockback bleeds off, so a bounce reads as a shove and not a drift.
+  const settling = duel();
+  settling.ship.x = 300;
+  settling.ship.y = 300;
+  settling.ship.angle = 0;
+  settling.ship.speed = 100;
+  settling.computerShip.x = 312;
+  settling.computerShip.y = 300;
+  settling.computerShip.angle = Math.PI / 2;
+  settling.update(0.016, { pointer: null, fire: false });
+  const impulse = Math.abs(settling.ship.knockX);
+  assert.ok(impulse > 0, "the graze produced an impulse");
+  // Park them well clear before sampling the decay: left overlapping, the human
+  // keeps flying into the computer and every frame applies a fresh impulse, so
+  // this would measure re-collision rather than bleed-off.
+  for (let frame = 0; frame < 60; frame += 1) {
+    settling.ship.x = 100;
+    settling.computerShip.x = 600;
+    settling.update(0.016, { pointer: null, fire: false });
+  }
+  assert.ok(Math.abs(settling.ship.knockX) < impulse * 0.1, "knockback decays away");
+
+  // Neither ship may end up inside the other, and a bounce never costs a life.
+  const resting = duel();
+  resting.ship.x = 300;
+  resting.ship.y = 300;
+  resting.ship.angle = 0;
+  resting.ship.speed = 100;
+  resting.computerShip.x = 312;
+  resting.computerShip.y = 300;
+  resting.computerShip.angle = Math.PI / 2;
+  resting.update(0.016, { pointer: null, fire: false });
+  assert.ok(wrapDistance(resting.ship.x, resting.ship.y, resting.computerShip.x, resting.computerShip.y) >= 26 - 0.001, "ships end up side by side, not inside each other");
+  assert.equal(resting.lifeLost, false, "a bounce does not cost the human a life");
+  assert.deepEqual(resting.playerLives, { human: 3, computer: 3 }, "a bounce leaves the duel counters alone");
+
+  // The dead cooldown field is gone rather than left behind.
+  assert.equal(resting.shipCollisionCooldown, undefined, "the never-read cooldown field is removed");
 });
