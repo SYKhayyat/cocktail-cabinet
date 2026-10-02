@@ -128,13 +128,12 @@ test("Breakout: paddle movement, brick effects, life loss, and win state work", 
   assert.equal(game.won, true);
 });
 
-test("Breakout computer computes a centered target from the predicted ball", () => {
+test("Breakout computer holds when it is already under the ball", () => {
   const game = new BreakoutModel();
   game.setSide("blocks");
   game.reset();
   game.computerReaction = 0;
-  game.computerLastVy = -1;
-  game.computerTargetError = 0;
+  game.computerDwell = 0;
   game.balls[0] = game.newBall(400, 200, 0, 300);
   const originalRandom = Math.random;
   Math.random = () => 0.5;
@@ -143,7 +142,35 @@ test("Breakout computer computes a centered target from the predicted ball", () 
   } finally {
     Math.random = originalRandom;
   }
-  assert.equal(game.computer.targetX, 400 - game.computer.width / 2);
+  // The paddle is deciding a direction, not picking a coordinate. Already under
+  // the ball, the decision is to hold still.
+  assert.equal(game.lastDecision.intent, 0, "no reason to move when the ball is overhead");
+  assert.equal(game.computerIntent, 0);
+});
+
+test("Breakout computer commits to a direction and holds it", () => {
+  const game = new BreakoutModel();
+  game.setSide("blocks");
+  game.reset();
+  game.computerReaction = 0;
+  game.computerDwell = 0;
+  game.computer.x = 100;
+  game.balls[0] = game.newBall(600, 200, 0, 300);
+  const originalRandom = Math.random;
+  Math.random = () => 0.5;
+  try {
+    game.update(1 / 60, { mode: "mouse", keyDirection: 0, pointer: pointer() });
+    assert.equal(game.computerIntent, 1, "the ball is to the right, so the paddle commits right");
+    assert.ok(game.computer.x > 100, "and it moves that way");
+    // A dwell holds the decision even if the ball changes its mind mid-flight.
+    const xAfterDecision = game.computer.x;
+    game.balls[0].x = 200;
+    game.update(1 / 60, { mode: "mouse", keyDirection: 0, pointer: pointer() });
+    assert.equal(game.computerIntent, 1, "the committed decision is not revised on the very next frame");
+    assert.ok(game.computer.x > xAfterDecision, "so the paddle keeps going the wrong way briefly");
+  } finally {
+    Math.random = originalRandom;
+  }
 });
 
 test("Breakout inactive special bricks behave like normal bricks", () => {
@@ -163,24 +190,6 @@ test("Breakout inactive special bricks behave like normal bricks", () => {
   assert.equal(hazard.hits, 0);
   assert.equal(game.score, scoreBefore + 10);
   assert.equal(game.lifeLost, false);
-});
-
-test("Breakout computer can make an off-center correction", () => {
-  const game = new BreakoutModel();
-  game.setSide("blocks");
-  game.reset();
-  game.computerReaction = 0;
-  game.computerLastVy = -1;
-  game.computerTargetError = 0;
-  game.balls[0] = game.newBall(400, 200, 0, 300);
-  const originalRandom = Math.random;
-  Math.random = () => 0.4;
-  try {
-    game.update(1 / 60, { mode: "mouse", keyDirection: 0, pointer: pointer() });
-  } finally {
-    Math.random = originalRandom;
-  }
-  assert.ok(game.computer.targetX < 400 - game.computer.width / 2);
 });
 
 test("Breakout counts each ball that crosses the paddle plane as a miss", () => {
@@ -220,7 +229,7 @@ test("Breakout versus mirrors top-paddle collision for a rising computer ball", 
   assert.equal(ball.y, 125);
 });
 
-test("Breakout versus computer targets the most urgent rising ball", () => {
+test("Breakout versus computer heads for the most urgent rising ball", () => {
   const game = new BreakoutModel();
   game.setSide("versus");
   game.reset();
@@ -236,9 +245,11 @@ test("Breakout versus computer targets the most urgent rising ball", () => {
   computerBall.vy = 200;
   game.computerVersusTarget = humanBall;
   game.computerVersusReaction = 0;
-  game.computerVersusError = 0;
   game.update(0.016, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
-  assert.equal(game.computer.targetX, 600 - game.computer.width / 2);
+  // Direction, not a coordinate: the human ball is the one rising at it.
+  assert.equal(game.lastDecision.mode, "versus");
+  assert.equal(game.lastDecision.intent, 1, "it heads right, toward the rising ball");
+  assert.ok(game.computer.x > 344, "and moves that way from the centre");
 });
 
 test("Breakout versus AI reacts before correcting and difficulty speeds the ball", () => {
@@ -2971,6 +2982,10 @@ test("Asteroids versus resolves every loss source against the same counters", ()
     game.model.computerShip.y = 60;
     game.model.invulnerable = 0;
     game.model.computerShotClock = 99;
+    // Versus spawns a rock at a random edge when the spawn clock is due, and at
+    // reset it is, so a rock could land on a ship and raise a life loss the test
+    // never caused. Same guard as the other versus fixture.
+    game.model.spawnClock = 99;
     game.model.ship.x = 60;
     game.model.ship.y = 500;
     return game;
@@ -3024,6 +3039,10 @@ test("Asteroids versus ends at zero however the last life is lost", () => {
     game.model.computerShip.y = 60;
     game.model.invulnerable = 0;
     game.model.computerShotClock = 99;
+    // Versus spawns a rock at a random edge when the spawn clock is due, and at
+    // reset it is, so a rock could land on a ship and raise a life loss the test
+    // never caused. Same guard as the other versus fixture.
+    game.model.spawnClock = 99;
     game.model.ship.x = 60;
     game.model.ship.y = 500;
     return game;

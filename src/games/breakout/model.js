@@ -1,19 +1,27 @@
-import { clamp, circleHitsRect } from "../../engine.js";
+import { clamp, circleHitsRect, recordDecision } from "../../engine.js";
 
 export const BRICK_LABELS = { extraLife: "+1 LIFE", double: "2 BALLS", speed: "SPEED", shortBar: "SHORT", longBar: "LONG", hazard: "DANGER" };
 const BRICK_TYPES = ["normal", "extraLife", "shortBar", "double", "speed", "longBar", "hazard"];
+// Breakout computer factors. There is no chance of missing: the paddle misses
+// because it looks away for a moment, because it is bounded by a top speed, and
+// because it cannot see further than one wall bounce ahead.
 const COMPUTER_REACTION_MIN = 0.1;
 const COMPUTER_REACTION_MAX = 0.18;
-const COMPUTER_ERROR_CHANCE = 0.5;
-const COMPUTER_ERROR_RANGE = 180;
-const COMPUTER_MISTAKE_CHANCE = 0.3;
-const COMPUTER_MISTAKE_DELAY_MIN = 0.3;
-const COMPUTER_MISTAKE_DELAY_MAX = 0.5;
 const COMPUTER_SPEED = 600;
 const COMPUTER_VERSUS_REACTION_MIN = 0.14;
 const COMPUTER_VERSUS_REACTION_MAX = 0.24;
-const COMPUTER_VERSUS_ERROR_CHANCE = 0.65;
-const COMPUTER_VERSUS_ERROR_RANGE = 90;
+const COMPUTER_VERSUS_SPEED = 360;
+// How many wall bounces the paddle can foresee. It used to trace the ball's
+// whole path, however many bounces that took.
+const COMPUTER_LOOKAHEAD_BOUNCES = 1;
+// How near the ball counts as "under it", and therefore as a reason to stop.
+const COMPUTER_ARRIVE_TOLERANCE = 22;
+// Once it has decided, the paddle holds that decision for at least this long.
+// Without a dwell it re-reads the ball on every tick and corrects any bad read
+// before it costs anything, which is not how a person plays: a misjudged ball
+// is committed to for a beat before you can do anything about it.
+const COMPUTER_DWELL_MIN = 0.18;
+const COMPUTER_DWELL_MAX = 0.38;
 const BREAKOUT_DIFFICULTY_STEP = 10;
 const BREAKOUT_DIFFICULTY_FACTOR = 1.045;
 const BREAKOUT_MAX_DIFFICULTY_LEVEL = 8;
@@ -70,11 +78,13 @@ export class BreakoutModel {
       else this.createLayout();
     }
     this.computerReaction = 0.08;
-    this.computerLastVy = 0;
-    this.computerTargetError = 0;
+    this.computerDwell = 0;
+    this.computerIntent = 0;
     this.computerVersusReaction = 0;
     this.computerVersusTarget = null;
-    this.computerVersusError = 0;
+    this.computerVersusIntent = 0;
+    this.decisionLog = [];
+    this.lastDecision = null;
     this.difficultyLevel = 0;
     this.dragIndex = null;
     this.dragOffset = { x: 0, y: 0 };
@@ -101,11 +111,13 @@ export class BreakoutModel {
       this.balls = [this.newBall(400, 280, 180, 210)];
     }
     this.computerReaction = 0.08;
-    this.computerLastVy = 0;
-    this.computerTargetError = 0;
+    this.computerDwell = 0;
+    this.computerIntent = 0;
     this.computerVersusReaction = 0;
     this.computerVersusTarget = null;
-    this.computerVersusError = 0;
+    this.computerVersusIntent = 0;
+    this.decisionLog = [];
+    this.lastDecision = null;
     this.dragIndex = null;
     this.won = false;
   }
@@ -143,22 +155,33 @@ export class BreakoutModel {
     if (!incoming) {
       this.computerVersusTarget = null;
       this.computerVersusReaction = 0;
+      this.computerVersusIntent = 0;
       this.computer.targetX = this.computer.x;
-      this.computer.x = moveToward(this.computer.x, this.computer.targetX, 360 * dt);
+      this.computer.x = moveToward(this.computer.x, this.computer.targetX, COMPUTER_VERSUS_SPEED * dt);
       return;
     }
+    this.computerVersusReaction = Math.max(0, this.computerVersusReaction - dt);
     if (this.computerVersusTarget !== incoming.ball) {
       this.computerVersusTarget = incoming.ball;
       this.computerVersusReaction = COMPUTER_VERSUS_REACTION_MIN + Math.random() * (COMPUTER_VERSUS_REACTION_MAX - COMPUTER_VERSUS_REACTION_MIN);
-      const error = (Math.random() - 0.5) * COMPUTER_VERSUS_ERROR_RANGE;
-      this.computerVersusError = Math.random() < COMPUTER_VERSUS_ERROR_CHANCE ? error : error * 0.25;
     }
-    this.computerVersusReaction = Math.max(0, this.computerVersusReaction - dt);
     if (this.computerVersusReaction <= 0) {
-      const targetX = predictBallX(incoming.ball, incoming.timeToPaddle);
-      this.computer.targetX = clamp(targetX - this.computer.width / 2 + this.computerVersusError, 8, 792 - this.computer.width);
+      const landing = predictBallX(incoming.ball, incoming.timeToPaddle, COMPUTER_LOOKAHEAD_BOUNCES);
+      const offset = landing - this.computer.width / 2 - this.computer.x;
+      const intent = Math.abs(offset) < COMPUTER_ARRIVE_TOLERANCE ? 0 : Math.sign(offset);
+      recordDecision(this, {
+        mode: "versus",
+        intent,
+        previousIntent: this.computerVersusIntent,
+        offset: Math.round(offset),
+        ballX: Math.round(incoming.ball.x),
+        paddleX: Math.round(this.computer.x)
+      });
+      this.computerVersusIntent = intent;
+      this.computerVersusReaction = COMPUTER_VERSUS_REACTION_MIN + Math.random() * (COMPUTER_VERSUS_REACTION_MAX - COMPUTER_VERSUS_REACTION_MIN);
     }
-    this.computer.x = moveToward(this.computer.x, this.computer.targetX, 360 * dt);
+    this.computer.targetX = this.computer.x;
+    this.computer.x = clamp(this.computer.x + this.computerVersusIntent * COMPUTER_VERSUS_SPEED * dt, 8, 792 - this.computer.width);
   }
   difficultyScore() { return this.side === "versus" ? Math.max(this.scores.human, this.scores.computer) : this.score; }
   applyDifficulty() {
@@ -180,22 +203,34 @@ export class BreakoutModel {
     if (this.side === "blocks") {
       const leadBall = this.balls[0];
       this.computerReaction -= dt;
-      if (leadBall) {
-        const incoming = leadBall.vy > 0;
-        if (incoming && this.computerLastVy <= 0) {
-          const error = (Math.random() - 0.5) * COMPUTER_ERROR_RANGE;
-          this.computerTargetError = Math.random() < COMPUTER_ERROR_CHANCE ? error : error * 0.25;
-          if (Math.random() < COMPUTER_MISTAKE_CHANCE) this.computerReaction = COMPUTER_MISTAKE_DELAY_MIN + Math.random() * (COMPUTER_MISTAKE_DELAY_MAX - COMPUTER_MISTAKE_DELAY_MIN);
-        }
-        if (!incoming) this.computer.targetX = this.computer.x;
-        else if (this.computerReaction <= 0) {
-          const timeToPaddle = Math.max(0, (this.computer.y - leadBall.y) / leadBall.vy);
-          this.computer.targetX = clamp(predictBallX(leadBall, timeToPaddle) - this.computer.width / 2 + this.computerTargetError, 8, 800 - this.computer.width - 8);
-          this.computerReaction = COMPUTER_REACTION_MIN + Math.random() * (COMPUTER_REACTION_MAX - COMPUTER_REACTION_MIN);
-        }
-        this.computerLastVy = leadBall.vy;
+      this.computerDwell -= dt;
+      const incoming = leadBall && leadBall.vy > 0;
+      if (!leadBall || !incoming) {
+        // Nothing to chase, so drift back to the middle rather than sitting
+        // wherever it was left.
+        this.computerIntent = Math.abs(this.computer.x - 344) > 8 ? Math.sign(344 - this.computer.x) : 0;
+      } else if (this.computerReaction <= 0 && this.computerDwell <= 0) {
+        // It does not track the ball. On the reaction clock it looks, works out
+        // which way the ball is coming, and commits to that direction until the
+        // next look.
+        const timeToPaddle = Math.max(0, (this.computer.y - leadBall.y) / leadBall.vy);
+        const landing = predictBallX(leadBall, timeToPaddle, COMPUTER_LOOKAHEAD_BOUNCES);
+        const offset = landing - this.computer.width / 2 - this.computer.x;
+        const intent = Math.abs(offset) < COMPUTER_ARRIVE_TOLERANCE ? 0 : Math.sign(offset);
+        recordDecision(this, {
+          mode: "blocks",
+          intent,
+          previousIntent: this.computerIntent,
+          offset: Math.round(offset),
+          ballX: Math.round(leadBall.x),
+          paddleX: Math.round(this.computer.x)
+        });
+        this.computerIntent = intent;
+        this.computerReaction = COMPUTER_REACTION_MIN + Math.random() * (COMPUTER_REACTION_MAX - COMPUTER_REACTION_MIN);
+        this.computerDwell = COMPUTER_DWELL_MIN + Math.random() * (COMPUTER_DWELL_MAX - COMPUTER_DWELL_MIN);
       }
-      this.computer.x = moveToward(this.computer.x, this.computer.targetX, COMPUTER_SPEED * dt);
+      this.computer.x = clamp(this.computer.x + this.computerIntent * COMPUTER_SPEED * dt, 8, 800 - this.computer.width - 8);
+      this.computer.targetX = this.computer.x;
       return;
     }
     const keyDirection = input.keyDirection || 0;
@@ -383,10 +418,11 @@ export class BreakoutModel {
   publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "versus" && this.versusTie ? "The duel ended in a tie." : this.side === "versus" && this.winner ? `${this.winner === "human" ? "You win" : "Computer wins"} — highest score takes the duel.` : "Clear every brick to win. Special bricks change the round." }; }
 }
 
-function predictBallX(ball, seconds) {
+function predictBallX(ball, seconds, maxBounces = Infinity) {
   let x = ball.x;
   let velocity = ball.vx;
   let remaining = Math.max(0, seconds);
+  let bounces = 0;
   while (remaining > 0) {
     const edge = velocity < 0 ? ball.radius : 800 - ball.radius;
     const distance = Math.abs((edge - x) / velocity);
@@ -394,6 +430,10 @@ function predictBallX(ball, seconds) {
     x = edge;
     remaining -= distance;
     velocity *= -1;
+    bounces += 1;
+    // Out of foresight: carry the ball off in its current direction instead of
+    // tracing its whole path. This is the limit that lets it be beaten.
+    if (bounces > maxBounces) return x + velocity * remaining;
   }
   return x;
 }
