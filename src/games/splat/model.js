@@ -1,4 +1,4 @@
-import { clamp } from "../../engine.js";
+import { clamp, recordDecision } from "../../engine.js";
 
 const COLUMN_WIDTH = 30;
 const COLUMN_COUNT = 50;
@@ -8,8 +8,18 @@ const HORIZONTAL_SPEED = 120;
 const GRAVITY = 220;
 const DRIFT_SPEED = 260;
 const BOUNCE_DISTANCE = 18;
-const COMPUTER_MISTAKE_CHANCE = 0.002;
-const RACE_COMPUTER_MISTAKE_CHANCE = 0.02;
+// Ball computer factors. It does not roll for a crash: it looks for the next
+// gap on a reaction clock, it commits to that gap for a beat, and it accelerates
+// towards it rather than snapping to it.
+const COMPUTER_REACTION_MIN = 0.12;
+const COMPUTER_REACTION_MAX = 0.3;
+const COMPUTER_COMMIT_MIN = 0.18;
+const COMPUTER_COMMIT_MAX = 0.42;
+// How far ahead the ball looks for its next gap. It cannot plan a whole route.
+const COMPUTER_LOOKAHEAD = 260;
+// Vertical acceleration limit, px/s^2.
+const COMPUTER_THRUST = 620;
+const COMPUTER_MAX_FALL = 360;
 
 export const SPLAT_MODES = [
   { value: "climber", label: "Solo — steer the ball" },
@@ -75,8 +85,9 @@ export class SplatModel {
     this.draftGap = null;
     this.dragColumn = null;
     this.dragOffsetX = 0;
+    this.decisionLog = [];
+    this.lastDecision = null;
     this.aiClock = 0;
-    this.computerMistake = false;
     this.won = false;
     this.gameOver = false;
     this.winner = null;
@@ -95,7 +106,7 @@ export class SplatModel {
     }
     this.nextColumn = this.columns[0] || null;
   }
-  newPlayer() { return { x: 70, y: 280, radius: 12, vy: 0, columnsPassed: 0, passedColumns: new Set(), aiTargetY: null, aiReaction: 0, aiError: 0 }; }
+  newPlayer() { return { x: 70, y: 280, radius: 12, vy: 0, columnsPassed: 0, passedColumns: new Set(), aiTargetY: null, aiReaction: 0, aiCommit: 0 }; }
   update(dt, input) {
     if (this.side === "race") this.updateRace(dt, input);
     else if (this.side === "builder") this.updateBuilder(dt, input);
@@ -211,7 +222,6 @@ export class SplatModel {
           this.furthestColumns = Math.max(this.furthestColumns, this.score);
         }
         this.nextColumn = this.columns.find((candidate) => this.side === "race" ? !player.passedColumns.has(candidate) : !candidate.passed) || null;
-        if (!human) this.computerMistake = Math.random() < (this.side === "race" ? RACE_COMPUTER_MISTAKE_CHANCE : COMPUTER_MISTAKE_CHANCE);
         this.aiClock = 0;
       }
     }
@@ -247,23 +257,30 @@ export class SplatModel {
     if (!column) return;
     const targetY = column.gapY + column.gapHeight / 2;
     const computerSide = this.side === "race" || this.side === "builder";
+    let desiredY = targetY;
     if (computerSide) {
-      if (player.aiTargetY === null || Math.abs(targetY - player.aiTargetY) > 24) {
-        player.aiTargetY = targetY;
-        player.aiReaction = 0.12 + Math.random() * 0.18;
-        player.aiError = (Math.random() - 0.5) * 36;
-      }
       player.aiReaction = Math.max(0, player.aiReaction - dt);
+      player.aiCommit = Math.max(0, player.aiCommit - dt);
+      // It only starts lining up for a gap once that gap is close enough to be
+      // worth the reaction, and once it has committed it holds that gap rather
+      // than re-aiming every frame at whichever column happens to be nearest.
+      const engaged = player.x > column.x - COMPUTER_LOOKAHEAD;
+      if (engaged && player.aiCommit <= 0 && (player.aiTargetY === null || Math.abs(targetY - player.aiTargetY) > 24)) {
+        player.aiTargetY = targetY;
+        player.aiReaction = COMPUTER_REACTION_MIN + Math.random() * (COMPUTER_REACTION_MAX - COMPUTER_REACTION_MIN);
+        player.aiCommit = COMPUTER_COMMIT_MIN + Math.random() * (COMPUTER_COMMIT_MAX - COMPUTER_COMMIT_MIN);
+        recordDecision(this, { side: this.side, targetY: Math.round(targetY), engaged, columnX: Math.round(column.x), playerX: Math.round(player.x) });
+      }
+      // While reacting it is still steering for the gap it last saw, not the one
+      // it is looking at now.
+      desiredY = player.aiReaction > 0 && player.aiTargetY !== null ? player.aiTargetY : targetY;
     }
-    const desiredY = computerSide && player.aiReaction > 0 ? player.aiTargetY + player.aiError : targetY;
     const difference = desiredY - player.y;
-    if (this.computerMistake && player.x > column.x - 60) {
-      this.lifeLost = true;
-      if (this.side === "race") this.lostPlayers.push(player);
-      return;
-    }
-    const desiredVelocity = clamp(difference * 4, -360, 360);
-    player.vy += (desiredVelocity - player.vy) * Math.min(1, dt * 8);
+    // Acceleration rather than a velocity that snaps to the answer, so a late or
+    // committed decision costs the ball time it does not have.
+    const desiredVelocity = clamp(difference * 4, -COMPUTER_MAX_FALL, COMPUTER_MAX_FALL);
+    const change = clamp(desiredVelocity - player.vy, -COMPUTER_THRUST * dt, COMPUTER_THRUST * dt);
+    player.vy += change;
     this.aiClock += dt;
   }
   handleLifeLoss() {
@@ -303,7 +320,7 @@ export class SplatModel {
       player.passedColumns.clear();
       player.aiTargetY = null;
       player.aiReaction = 0;
-      player.aiError = 0;
+      player.aiCommit = 0;
     }
     if (this.side !== "race") {
       this.columns.forEach((column) => { column.passed = false; });
@@ -311,7 +328,6 @@ export class SplatModel {
       this.score = 0;
       this.cameraX = 0;
       this.builderCameraX = 0;
-      this.computerMistake = false;
       return;
     }
     this.score = this.player.columnsPassed;
