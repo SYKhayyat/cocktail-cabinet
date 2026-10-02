@@ -14,6 +14,6 @@ export class SplatController {
     const bounce = keyBounce || clickBounce;
     this.model.update(dt, { drift, bounce, pointer: input.pointer });
   }
-  handleReadyInput(input) { if (this.model.side === "builder" || this.model.side === "layout") this.model.handleBuilderInput(input); }
+  handleReadyInput(input) { if (this.model.side === "builder") this.model.handleBuilderInput(input); }
   handlePausedInput(input) { this.model.handlePausedInput(input); }
 }

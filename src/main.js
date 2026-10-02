@@ -192,7 +192,7 @@ function renderSideOptions(game) {
 
 function updateSplatTools() {
   const game = games.get("splat");
-  const show = activeId === "splat" && ["builder", "layout"].includes(game.side);
+  const show = activeId === "splat" && game.side === "builder";
   splatTools.hidden = !show;
   splatAddColumn.classList.toggle("active", game.tool === "column");
   splatAddGap.classList.toggle("active", game.tool === "gap");

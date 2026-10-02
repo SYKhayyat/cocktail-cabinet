@@ -14,11 +14,7 @@ const RACE_COMPUTER_MISTAKE_CHANCE = 0.02;
 export const SPLAT_MODES = [
   { value: "climber", label: "Solo — steer the ball" },
   { value: "race", label: "You vs computer — two-ball race" },
-  { value: "builder", label: "Computer navigates — place columns" },
-  // `layout` is a registered alias of `builder` kept for compatibility with
-  // existing saves and tests. It is not offered in the mode selector; see
-  // issue #1 for the decision on whether to remove it entirely.
-  { value: "layout", label: "Computer navigates — place columns", available: false }
+  { value: "builder", label: "Computer navigates — place columns" }
 ];
 
 export const SPLAT_SETTINGS = {
@@ -96,7 +92,7 @@ export class SplatModel {
   newPlayer() { return { x: 70, y: 280, radius: 12, vy: 0, columnsPassed: 0, passedColumns: new Set(), aiTargetY: null, aiReaction: 0, aiError: 0 }; }
   update(dt, input) {
     if (this.side === "race") this.updateRace(dt, input);
-    else if (this.side === "builder" || this.side === "layout") this.updateBuilder(dt, input);
+    else if (this.side === "builder") this.updateBuilder(dt, input);
     else this.updateClimber(dt, input);
   }
   updateClimber(dt, input) {
@@ -139,7 +135,7 @@ export class SplatModel {
     }
   }
   handleBuilderInput(input) { this.updateBuilderInput(input); }
-  handlePausedInput(input) { if (this.side === "builder" || this.side === "layout") this.updateBuilderInput(input); }
+  handlePausedInput(input) { if (this.side === "builder") this.updateBuilderInput(input); }
   updateBuilderInput(input) {
     const pointer = input.pointer;
     if (!pointer) return;
@@ -240,7 +236,7 @@ export class SplatModel {
     });
     if (!column) return;
     const targetY = column.gapY + column.gapHeight / 2;
-    const computerSide = this.side === "race" || this.side === "builder" || this.side === "layout";
+    const computerSide = this.side === "race" || this.side === "builder";
     if (computerSide) {
       if (player.aiTargetY === null || Math.abs(targetY - player.aiTargetY) > 24) {
         player.aiTargetY = targetY;
@@ -297,7 +293,7 @@ export class SplatModel {
     this.score = this.player.columnsPassed;
   }
   publicState() {
-    const status = this.side === "race" ? "Race the computer; the first ball to finish wins." : this.side === "builder" || this.side === "layout" ? "Place columns and draw gaps for the computer." : "Clear the gaps to score; reach the far right to win.";
+    const status = this.side === "race" ? "Race the computer; the first ball to finish wins." : this.side === "builder" ? "Place columns and draw gaps for the computer." : "Clear the gaps to score; reach the far right to win.";
     return { title: this.title, description: this.description, side: this.sideLabel(), status };
   }
 }

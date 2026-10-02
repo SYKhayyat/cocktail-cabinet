@@ -736,7 +736,7 @@ test("Splat builder computer has reaction and targeting error", () => {
 
 test("Splat computer can steer through a generated route", () => {
   const game = new SplatModel();
-  game.setSide("layout");
+  game.setSide("builder");
   game.reset();
   for (let step = 0; step < 1200 && !game.lifeLost && !game.won; step += 1) game.update(1 / 60, {});
   assert.ok(game.score > 0 || game.lifeLost);
@@ -1520,8 +1520,14 @@ test("mode descriptors offer every registered mode except explicitly hidden alia
       assert.ok(game.controlHint().length > 0, `${id} has control hints for mode ${side}`);
     }
   }
-  const hidden = games.splat.modes.filter((mode) => mode.available === false).map((mode) => mode.value);
-  assert.deepEqual(hidden, ["layout"], "the undocumented Splat alias stays hidden rather than silently offered");
+  // No game hides a registered mode any more. Splat's `layout` alias was the
+  // last one: it duplicated Builder exactly and no user could select it, so it
+  // added routing branches and a test fixture for a mode that did not exist.
+  for (const [id, game] of Object.entries(games)) {
+    const hidden = game.modes.filter((mode) => mode.available === false).map((mode) => mode.value);
+    assert.deepEqual(hidden, [], `${id} hides no registered mode`);
+  }
+  assert.equal(games.splat.sides.includes("layout"), false, "the Splat alias is gone, not merely hidden");
 });
 
 test("settings descriptors are the single source of bounds, labels, and validation", () => {

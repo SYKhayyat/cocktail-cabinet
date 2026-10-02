@@ -99,10 +99,10 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
       maximum: 14,
       result: runScenario(runs, 6500, () => {
         const game = new SplatModel();
-        game.setSide("layout");
+        game.setSide("builder");
         game.reset();
         return game;
-      }, (game) => game.update(1 / 60, {}), "layout"),
+      }, (game) => game.update(1 / 60, {}), "builder"),
     },
     asteroids: {
       minimum: 2,
