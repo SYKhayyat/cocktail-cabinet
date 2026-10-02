@@ -2844,3 +2844,54 @@ test("Breakout versus does not double-charge a loss the engine already reported"
   const second = game.handleLifeLoss();
   assert.equal(second.owners.length, 1, "the fallback path is still available");
 });
+
+test("Asteroids respawns the ship after a life loss in every mode", () => {
+  for (const side of ["ship", "rocks", "versus"]) {
+    const game = new AsteroidsModel();
+    game.setSide(side);
+    game.reset();
+    // Drive the ship into a rock and let the engine run its life-loss path.
+    game.invulnerable = 0;
+    game.asteroids = [{ x: 400, y: 280, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [1], tone: 0, generation: 0 }];
+    game.update(0, { pointer: null, fire: false });
+    assert.equal(game.lifeLost, true, `${side}: the collision raised a life loss`);
+
+    game.resetAfterLife();
+    assert.ok(game.invulnerable > 0, `${side}: a grace period is granted`);
+    const overlapping = game.asteroids.some((asteroid) => Math.hypot(asteroid.x - game.ship.x, asteroid.y - game.ship.y) < asteroid.radius + game.ship.radius);
+    assert.equal(overlapping, false, `${side}: the ship no longer overlaps a rock`);
+    assert.equal(game.ship.speed, 0, `${side}: the ship is stationary on respawn`);
+
+    // The grace period must actually protect against the immediate second hit.
+    game.asteroids = [{ x: game.ship.x, y: game.ship.y, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [1], tone: 0, generation: 0 }];
+    game.lifeLost = false;
+    game.update(1 / 60, { pointer: null, fire: false });
+    assert.equal(game.lifeLost, false, `${side}: the grace period absorbs the immediate re-collision`);
+  }
+});
+
+test("Asteroids rocks mode drops its stale targeting after a life loss", () => {
+  const game = new AsteroidsModel();
+  game.setSide("rocks");
+  game.reset();
+  const target = { x: 500, y: 300, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [1], tone: 0, generation: 0 };
+  game.asteroids = [target];
+  game.update(0.1, { pointer: null, fire: false });
+  assert.equal(game.ship.aiTarget, target, "the computer locked onto a rock");
+  game.resetAfterLife();
+  assert.equal(game.ship.aiTarget, null, "the stale target is dropped on respawn");
+  assert.equal(game.ship.aiReaction, 0, "the reaction delay is reset");
+});
+
+test("Asteroids versus restores both ships on a life loss", () => {
+  const game = new AsteroidsModel();
+  game.setSide("versus");
+  game.reset();
+  game.computerShip.x = 700;
+  game.computerShip.y = 60;
+  game.ship.x = 100;
+  game.ship.y = 500;
+  game.resetAfterLife();
+  assert.deepEqual({ x: game.ship.x, y: game.ship.y }, { x: 400, y: 280 }, "the human ship is restored");
+  assert.deepEqual({ x: game.computerShip.x, y: game.computerShip.y }, { x: 400, y: 160 }, "the computer ship is restored too");
+});

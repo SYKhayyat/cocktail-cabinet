@@ -1,5 +1,9 @@
 import { clamp } from "../../engine.js";
 
+// Extra radius cleared around the ship when it respawns, so the spawn point
+// is not still inside a rock once the grace period lapses.
+const RESPAWN_CLEARANCE = 30;
+
 export const BOARD_WIDTH = 800;
 export const BOARD_HEIGHT = 560;
 
@@ -310,13 +314,30 @@ export class AsteroidsModel {
     this.lifeLost = false;
     return { gameOver: false, message: "You lost a life." };
   }
+  // Every mode respawns. This used to return early outside versus, so in the
+  // solo modes a life lost left the ship exactly where it collided -- often
+  // still inside the rock -- and the next update consumed another life with no
+  // grace period to move away.
   resetAfterLife() {
-    if (this.side !== "versus") return;
     this.ship.x = 400;
     this.ship.y = 280;
     this.ship.angle = -Math.PI / 2;
     this.ship.speed = 0;
     this.invulnerable = 1.2;
+    // Clear the respawn area. Repositioning the ship alone is not enough: a
+    // rock can drift over the fixed spawn point, and once the grace period
+    // lapses -- which is sooner than the three-second countdown -- the same
+    // collision takes another life. The blast is small and reads as the
+    // respawn pushing the rocks off.
+    this.asteroids = this.asteroids.filter((asteroid) => !wrapHitsCircle(this.ship.x, this.ship.y, this.ship.radius + RESPAWN_CLEARANCE, asteroid.x, asteroid.y, asteroid.radius));
+    if (this.side === "rocks") {
+      // The computer steers the ship in rocks mode, so its targeting state has
+      // to be dropped too or it resumes aiming at the rock it just hit.
+      this.ship.aiTarget = null;
+      this.ship.aiReaction = 0;
+      this.computerMistake = false;
+    }
+    if (this.side !== "versus") return;
     // The computer's position is restored alongside the human's, so a life
     // lost does not leave the duel with the computer displaced or missing.
     this.computerShip = this.newShip(400, 160);
