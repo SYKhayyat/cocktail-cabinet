@@ -15,6 +15,10 @@ export class AsteroidsGame {
   set gameOver(value) { this.model.gameOver = value; }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
+  // The duel reads the cabinet's configured lives from the engine, so the
+  // facade has to pass the reference through to the model.
+  set engine(value) { this.model.engine = value; }
+  get engine() { return this.model.engine; }
   get modes() { return this.model.modes; }
   get sides() { return this.model.sides; }
   get settings() { return this.model.settings; }

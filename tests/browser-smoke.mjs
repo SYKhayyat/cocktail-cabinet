@@ -757,6 +757,31 @@ async function testNonRaceSplatSpendsEngineLives(page, step) {
   assertEqual(race.after.engineLives, race.before.engineLives, "race does not also spend the engine's lives");
 }
 
+async function testAsteroidsVersusLives(page, step) {
+  // Issue #40/#41: the duel counters ignored the cabinet's Lives setting, so
+  // the control and the on-screen duel could disagree.
+  await selectMode(page, 3, "versus");
+  const report = await page.evaluate(`(() => {
+    const engine = globalThis.__cocktailCabinet.engine;
+    const lives = document.querySelector('#livesInput');
+    const out = [];
+    for (const value of [1, 3, 5, 9]) {
+      lives.value = String(value);
+      lives.dispatchEvent(new Event('change', { bubbles: true }));
+      document.querySelector('#restartButton').click();
+      const game = globalThis.__cocktailCabinet.games.get('asteroids');
+      out.push({ value, engineLives: engine.lives, engineMax: engine.maxLives, duel: { ...game.model.playerLives } });
+    }
+    return out;
+  })()`);
+  for (const entry of report) {
+    assertEqual(entry.engineMax, entry.value, `Lives ${entry.value} reaches the engine`);
+    assertEqual(entry.duel.human, entry.value, `Lives ${entry.value} reaches the human duel counter`);
+    assertEqual(entry.duel.computer, entry.value, `Lives ${entry.value} reaches the computer duel counter`);
+  }
+  await step(200);
+}
+
 async function testNarrowLayout(page) {
   // 375x812 is the narrowest target in the issue; 320 is used as well so a
   // regression shows up before it reaches a real device.
@@ -867,6 +892,7 @@ async function main() {
       ["all twenty modes load and run", () => testEveryModeSurvivesPlay(first.page, step)],
       ["life loss, game over, and restart", () => testGameOverAndRestart(first.page, step)],
       ["Splat builder tools", () => testSplatBuilderTools(first.page, step)],
+      ["Asteroids versus honours the Lives setting", () => testAsteroidsVersusLives(first.page, step)],
       ["non-Race Splat spends engine lives", () => testNonRaceSplatSpendsEngineLives(first.page, step)],
       ["Imitation provider fallback without a model", () => testImitationProviderFallback(first.page)],
       ["narrow viewport layout", () => testNarrowLayout(first.page)]

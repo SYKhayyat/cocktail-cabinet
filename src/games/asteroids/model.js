@@ -61,7 +61,11 @@ export class AsteroidsModel {
   reset(keepScore = false) {
     if (!keepScore) this.score = 0;
     this.scores = { human: 0, computer: 0 };
-    this.playerLives = { human: 3, computer: 3 };
+    // The duel starts from the cabinet's configured lives, like Breakout and
+    // Splat do. This was hardcoded to 3, so the Lives control and the duel
+    // counters could disagree on the same screen.
+    const startingLives = this.engine?.maxLives ?? 3;
+    this.playerLives = { human: startingLives, computer: startingLives };
     this.ship = this.newShip(400, 280);
     this.computerShip = this.side === "versus" ? this.newShip(400, 160) : null;
     this.asteroids = [];
