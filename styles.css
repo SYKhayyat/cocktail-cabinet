@@ -92,7 +92,11 @@ canvas { display: block; width: min(100%, 68.57vh); height: auto; aspect-ratio: 
 .chat-message p { color: var(--ink); font-size: 0.85rem; line-height: 1.4; }
 .chat-message.waiting p::after { content: ""; animation: thinking-dots 1.2s steps(4, end) infinite; }
 @keyframes thinking-dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75%, 100% { content: "..."; } }
-.guess-controls { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding: 10px 12px; color: var(--muted); font-size: 0.8rem; }
+/* Wraps rather than overflowing. The panel has overflow: hidden, so a
+   non-wrapping row silently clipped Restart round on narrow screens with no
+   way to scroll to it. Wrapping alone is enough: measured at 320px and 375px,
+   the stats line already lands on its own row without a media query. */
+.guess-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding: 10px 12px; color: var(--muted); font-size: 0.8rem; }
 .guess-controls[hidden] { display: none; }
 .guess-controls button { border: 1px solid var(--line); border-radius: 8px; padding: 8px 16px; background: var(--panel-2); color: var(--ink); font: inherit; font-weight: 800; }
 .guess-controls #guessStats { margin-left: auto; color: var(--ink); }

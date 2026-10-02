@@ -688,22 +688,65 @@ async function testGuessProvideAcrossTabs(first, second, step) {
 }
 
 async function testNarrowLayout(page) {
-  await page.command("Emulation.setDeviceMetricsOverride", { width: 360, height: 720, deviceScaleFactor: 2, mobile: true });
-  const narrow = await page.evaluate(`(() => {
-    document.querySelectorAll('.game-card')[5].click();
-    const select = document.querySelector('#sideSelect');
-    select.value = 'guess';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-    const styles = getComputedStyle(document.querySelector('#guessControls'));
-    return {
-      guessVisible: !document.querySelector('#guessControls').hidden,
-      display: styles.display,
-      flexWrap: styles.flexWrap,
-      overflowX: document.documentElement.scrollWidth <= window.innerWidth + 1
-    };
-  })()`);
-  assertEqual(narrow.guessVisible, true, "the guess controls show in Guess mode");
-  assertNotOverflow(narrow, "Guess controls at 360px");
+  // 375x812 is the narrowest target in the issue; 320 is used as well so a
+  // regression shows up before it reaches a real device.
+  for (const width of [375, 320]) {
+    await page.command("Emulation.setDeviceMetricsOverride", { width, height: 812, deviceScaleFactor: 2, mobile: true });
+    const narrow = await page.evaluate(`(() => {
+      document.querySelectorAll('.game-card')[5].click();
+      const select = document.querySelector('#sideSelect');
+      select.value = 'guess';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      const panel = document.querySelector('.chat-panel');
+      const panelBox = panel.getBoundingClientRect();
+      const controls = [...document.querySelectorAll('#guessControls button, #guessStats')].map((node) => {
+        const box = node.getBoundingClientRect();
+        return {
+          id: node.id || node.dataset.guess || node.textContent.trim(),
+          right: Math.round(box.right),
+          left: Math.round(box.left),
+          top: Math.round(box.top),
+          width: Math.round(box.width),
+          height: Math.round(box.height),
+          isButton: node.tagName === 'BUTTON',
+          visible: box.width > 0 && box.height > 0
+        };
+      });
+      return {
+        guessVisible: !document.querySelector('#guessControls').hidden,
+        controls,
+        panelRight: Math.round(panelBox.right),
+        panelLeft: Math.round(panelBox.left),
+        wraps: getComputedStyle(document.querySelector('#guessControls')).flexWrap,
+        viewport: window.innerWidth,
+        overflowX: document.documentElement.scrollWidth <= window.innerWidth + 1
+      };
+    })()`);
+
+    assertEqual(narrow.guessVisible, true, `the guess controls show at ${width}px`);
+    assertEqual(narrow.overflowX, true, `nothing overflows horizontally at ${width}px`);
+    assertEqual(narrow.wraps, "wrap", `the controls wrap at ${width}px`);
+
+    for (const control of narrow.controls) {
+      assert(control.visible, `${control.id} is rendered at ${width}px`);
+      assert(control.right <= narrow.panelRight + 1, `${control.id} stays inside the panel at ${width}px (right ${control.right} vs panel ${narrow.panelRight})`);
+      assert(control.left >= narrow.panelLeft - 1, `${control.id} starts inside the panel at ${width}px`);
+      // Accessible click targets, for the buttons only: the stats line is a
+      // text label, not something to press.
+      if (control.isButton) assert(control.height >= 24, `${control.id} keeps a tappable height at ${width}px (got ${control.height})`);
+    }
+
+    // Every guess control must actually be clickable at this width, not merely
+    // present -- the issue is specifically about Restart round being unreadable.
+    const clickable = await page.evaluate(`(() => {
+      const button = document.querySelector('#guessRestart');
+      button.scrollIntoView({ block: 'center' });
+      const box = button.getBoundingClientRect();
+      const hit = document.elementFromPoint(Math.round(box.left + box.width / 2), Math.round(box.top + box.height / 2));
+      return { hitId: hit?.id || hit?.className || hit?.tagName, isRestart: hit === button || button.contains(hit) };
+    })()`);
+    assert(clickable.isRestart, `Restart round is hittable at its centre at ${width}px (got ${clickable.hitId})`);
+  }
   await page.command("Emulation.clearDeviceMetricsOverride");
 }
 
