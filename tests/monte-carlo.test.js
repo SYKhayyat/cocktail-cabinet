@@ -71,29 +71,21 @@ function assertHumanLikeRatio(name, result, minimum, maximum) {
   assert.ok(ratio >= minimum && ratio <= maximum, `${name} success ratio was ${ratio.toFixed(1)}:1, expected ${minimum}:1-${maximum}:1`);
 }
 
+// Legacy suite, being retired game by game.
+//
+// What is left here is only the games not yet converted. The metric these cases
+// use -- successes divided by failures, where a run that hit the step limit
+// without finishing or dying counts as a success -- is not a difficulty measure.
+// The number turns out to be roughly a linear function of how many steps the
+// case allows: doubling the budget roughly halves it, on every game. So it
+// encodes the step count rather than the computer.
+//
+// Snake, Breakout and Asteroids now have their own suites under tests/ai/, which
+// measure decisions instead of endurance and pin survival separately. This file
+// will be deleted when the remaining three are converted.
 test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
   const runs = 200;
   const scenarios = {
-    snake: {
-      minimum: 6,
-      maximum: 25,
-      result: runScenario(runs, 1000, () => {
-        const game = new SnakeModel();
-        game.setSide("apples");
-        game.reset();
-        return game;
-      }, (game) => game.update(0.05, { direction: null, steer: null, placeApple: null }), "apples"),
-    },
-    breakout: {
-      minimum: 4,
-      maximum: 15,
-      result: runContactScenario(runs, 5000, () => {
-        const game = new BreakoutModel();
-        game.setSide("blocks");
-        game.reset();
-        return game;
-      }, (game) => game.update(1 / 60, { mode: "mouse", keyDirection: 0, pointer: blankPointer() })),
-    },
     splat: {
       minimum: 4,
       maximum: 14,
@@ -103,19 +95,6 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
         game.reset();
         return game;
       }, (game) => game.update(1 / 60, {}), "builder"),
-    },
-    asteroids: {
-      minimum: 2,
-      maximum: 6,
-      result: runScenario(runs, 1200, () => {
-        const game = new AsteroidsModel();
-        game.setSide("rocks");
-        game.reset();
-        for (let index = 0; index < 3; index += 1) game.spawnAsteroid();
-        return game;
-      }, (game) => {
-        game.update(1 / 60, { attack: null, fire: false, spawnAsteroid: null });
-      }, "rocks"),
     },
     missile: {
       minimum: 1,
