@@ -688,9 +688,10 @@ async function testGuessProvideAcrossTabs(first, second, step) {
 }
 
 async function testNonRaceSplatSpendsEngineLives(page, step) {
-  // Issue #37: Climber/Builder/Layout return a custom handleLifeLoss response
-  // but the engine never spent a life for it, so a collision could repeat
-  // forever against a configured budget of one.
+  // Issue #37: Climber and Builder return a custom handleLifeLoss response but
+  // the engine never spent a life for it, so a collision could repeat forever
+  // against a configured budget of one. Climber spends the engine's budget;
+  // Builder spends its own, which the engine mirrors.
   for (const side of ["climber", "builder"]) {
     await selectMode(page, 2, side);
     await settle(page);
@@ -722,7 +723,13 @@ async function testNonRaceSplatSpendsEngineLives(page, step) {
         game.model.lostPlayers.push(game.model.player);
         game.model.lifeLost = true;
         globalThis.__tick(1);
-        return { lives: engine.lives, gameOver: Boolean(game.model.gameOver), stopped: engine.stopped, message: document.querySelector('#message').textContent };
+        // Read whichever counter is authoritative for this mode. Climber spends
+        // the engine's lives; Builder now owns its own budget so it can report
+        // the puzzle outcome, and the engine mirrors that instead of decrementing
+        // its own. Asserting engine.lives for both would have quietly passed on
+        // a mode whose counter had stopped moving.
+        const remaining = game.playerLives ? game.playerLives.human : engine.lives;
+        return { lives: remaining, gameOver: Boolean(game.model.gameOver), stopped: engine.stopped, message: document.querySelector('#message').textContent };
       })()`);
       losses.push(step);
       if (hit === 0) await settle(page);
@@ -733,7 +740,10 @@ async function testNonRaceSplatSpendsEngineLives(page, step) {
     assertEqual(losses[1].lives, 0, `splat/${side}: the second collision spends the last life`);
     assertEqual(losses[1].gameOver, true, `splat/${side}: the round ends at zero lives rather than repeating`);
     assertEqual(losses[1].stopped, true, `splat/${side}: the engine halts the round`);
-    assertMatch(losses[1].message, /Out of lives/i, `splat/${side}: the end of the round is reported`);
+    // Climber falls through to the engine's generic text. Builder names the
+    // outcome, because running the computer out of lives means the route is
+    // unsolvable rather than that the player lost.
+    assertMatch(losses[1].message, side === "builder" ? /Unsolved/i : /Out of lives/i, `splat/${side}: the end of the round is reported`);
   }
 
   // Race keeps its own per-player counter and must not spend the engine's.

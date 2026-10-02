@@ -35,7 +35,13 @@ export class SplatGame {
   handlePausedInput(input) { this.controller.handlePausedInput(input); }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }
-  winMessage() { if (this.model.side === "race") return this.model.winner === "computer" ? "Computer wins the race!" : "You win the race!"; return "You cleared the route!"; }
+  // Builder reports a puzzle outcome. It used to return "You cleared the route!"
+  // for every non-Race side, which contradicted the mode label saying the
+  // computer navigates and told the player nothing about a design that failed.
+  winMessage() {
+    if (this.model.side === "race") return this.model.winner === "computer" ? "Computer wins the race!" : "You win the race!";
+    return this.model.puzzleResult === "solved" ? "Solved — your route works." : "Solved";
+  }
   sideLabel() { return this.model.sideLabel(); }
 }
 

@@ -14,7 +14,7 @@ const RACE_COMPUTER_MISTAKE_CHANCE = 0.02;
 export const SPLAT_MODES = [
   { value: "climber", label: "Solo — steer the ball" },
   { value: "race", label: "You vs computer — two-ball race" },
-  { value: "builder", label: "Computer navigates — place columns" }
+  { value: "builder", label: "Puzzle — design a route the computer can clear" }
 ];
 
 export const SPLAT_SETTINGS = {
@@ -65,7 +65,9 @@ export class SplatModel {
     this.player = this.newPlayer();
     this.computerPlayer = this.side === "race" ? this.newPlayer() : null;
     const startingLives = this.engine?.maxLives ?? 3;
-    this.raceLives = this.side === "race" ? { human: startingLives, computer: startingLives } : null;
+    // Builder owns its life budget too, so the puzzle can report its own outcome
+    // instead of falling through to the engine's generic out-of-lives text.
+    this.raceLives = this.side === "race" || this.side === "builder" ? { human: startingLives, computer: startingLives } : null;
     this.lostPlayers = [];
     this.columns = [];
     this.cameraX = 0;
@@ -79,6 +81,10 @@ export class SplatModel {
     this.gameOver = false;
     this.winner = null;
     this.lifeLost = false;
+    // Builder is a puzzle, so it reports an outcome rather than a winner. The
+    // old copy called it a win for the human while the mode label said the
+    // computer navigates, which left the objective ambiguous.
+    this.puzzleResult = null;
     if (preservedColumns) this.columns.push(...preservedColumns);
     else {
       for (let index = 0; index < COLUMN_COUNT; index += 1) {
@@ -113,7 +119,11 @@ export class SplatModel {
     this.builderCameraX = clamp(this.player.x - 110, 0, Math.max(0, this.columns.at(-1).x - 650));
     this.cameraX = this.builderCameraX;
     this.resolvePlayer(this.player);
-    if (this.player.x >= this.columns.at(-1).x + 100) { this.won = true; this.winner = "human"; }
+    if (this.player.x >= this.columns.at(-1).x + 100) {
+      this.won = true;
+      this.winner = "human";
+      this.puzzleResult = "solved";
+    }
   }
   updateRace(dt, input) {
     this.player.vy += GRAVITY * dt;
@@ -259,7 +269,21 @@ export class SplatModel {
   handleLifeLoss() {
     const lostPlayers = [...this.lostPlayers];
     if (!lostPlayers.length) return null;
-    if (this.side !== "race") return { gameOver: false, message: "One life lost — starting again in 3…" };
+    if (this.side !== "race") {
+      if (this.side === "builder") {
+        const remaining = Math.max(0, this.raceLives.human - 1);
+        this.raceLives.human = remaining;
+        this.raceLives.computer = remaining;
+        // Running the computer out of lives means the route is not solvable as
+        // drawn. That is a failed puzzle, not a defeat, and the copy says so.
+        if (remaining === 0) {
+          this.puzzleResult = "unsolved";
+          this.gameOver = true;
+          return { gameOver: true, message: "Unsolved — the computer ran out of lives. Widen the gaps and try again." };
+        }
+      }
+      return { gameOver: false, message: "One life lost — starting again in 3…" };
+    }
     const owners = lostPlayers.map((player) => player === this.player ? "human" : "computer");
     for (const owner of owners) this.raceLives[owner] = Math.max(0, this.raceLives[owner] - 1);
     const eliminated = owners.find((owner) => this.raceLives[owner] === 0);
@@ -293,7 +317,7 @@ export class SplatModel {
     this.score = this.player.columnsPassed;
   }
   publicState() {
-    const status = this.side === "race" ? "Race the computer; the first ball to finish wins." : this.side === "builder" ? "Place columns and draw gaps for the computer." : "Clear the gaps to score; reach the far right to win.";
+    const status = this.side === "race" ? "Race the computer; the first ball to finish wins." : this.side === "builder" ? "Design a route the computer can clear: every column needs a gap it can reach." : "Clear the gaps to score; reach the far right to win.";
     return { title: this.title, description: this.description, side: this.sideLabel(), status };
   }
 }

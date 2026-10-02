@@ -3172,3 +3172,68 @@ test("Asteroids versus ships bounce instead of shoving each other around", async
   // The dead cooldown field is gone rather than left behind.
   assert.equal(resting.shipCollisionCooldown, undefined, "the never-read cooldown field is removed");
 });
+
+test("Splat Builder is a puzzle with an outcome, not a win for the navigating actor", () => {
+  const game = new SplatGame();
+  game.setSide("builder");
+  game.reset();
+  const model = game.model;
+
+  // The mode copy states the objective instead of implying the player navigates.
+  const mode = game.modes.find((entry) => entry.value === "builder");
+  assert.ok(/puzzle/i.test(mode.label), "the mode reads as a puzzle");
+  assert.ok(!/computer navigates/i.test(mode.label), "the label no longer implies the computer navigates it");
+  assert.ok(game.publicState().status.includes("the computer can clear"), "the status line states the goal");
+
+  // The computer clearing the route solves the puzzle. The human never
+  // navigates, so the copy credits their design rather than a win they did not
+  // personally score.
+  model.player.x = model.columns.at(-1).x + 100;
+  model.update(1 / 60, {});
+  assert.equal(game.won, true, "clearing the route ends the puzzle");
+  assert.equal(model.puzzleResult, "solved");
+  assert.equal(game.winMessage(), "Solved — your route works.", "the message credits the design, not the navigator");
+  assert.ok(!/you win/i.test(game.winMessage()), "the puzzle does not claim the human won");
+
+  // Running the computer out of lives is the failure state, and the copy says
+  // the route was unsolvable rather than that the player lost.
+  const failing = new SplatGame();
+  failing.setSide("builder");
+  failing.reset();
+  let result = null;
+  for (let attempt = 0; attempt < 12 && !(result && result.gameOver); attempt += 1) {
+    failing.model.lostPlayers.push(failing.model.player);
+    result = failing.handleLifeLoss();
+  }
+  assert.ok(result, "a life loss is reported");
+  assert.equal(result.gameOver, true, "the puzzle ends once the budget is spent");
+  assert.equal(failing.model.puzzleResult, "unsolved", "a route that cannot be cleared is unsolved");
+  assert.ok(/unsolved/i.test(result.message), "the failure is named as unsolved");
+  assert.ok(/widen the gaps/i.test(result.message), "and says what to change");
+  assert.ok(!/you lost/i.test(result.message), "the puzzle does not frame failure as the player losing");
+});
+
+test("Splat Builder spends lives from its own budget", () => {
+  const game = new SplatGame();
+  game.engine = { maxLives: 2 };
+  game.setSide("builder");
+  game.reset();
+  assert.deepEqual(game.playerLives, { human: 2, computer: 2 }, "Builder starts from the configured budget");
+
+  game.model.lostPlayers.push(game.model.player);
+  const first = game.handleLifeLoss();
+  assert.equal(first.gameOver, false, "one life is not terminal");
+  assert.equal(game.playerLives.human, 1, "the budget is charged once");
+
+  game.model.lostPlayers.push(game.model.player);
+  const second = game.handleLifeLoss();
+  assert.equal(second.gameOver, true, "the budget is spent");
+  assert.equal(game.playerLives.human, 0, "the budget reaches zero rather than going negative");
+
+  // Climber keeps spending the shared engine lives, so this change does not
+  // quietly give it its own budget.
+  const climber = new SplatGame();
+  climber.setSide("climber");
+  climber.reset();
+  assert.equal(climber.playerLives, null, "Climber still defers to the engine for lives");
+});
