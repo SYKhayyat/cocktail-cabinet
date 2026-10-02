@@ -86,6 +86,9 @@ export class AsteroidsModel {
     this.computerMistakeClock = 5 + Math.random() * 4;
     this.shipCollisionCooldown = 0;
     this.lastLifeLossOwner = null;
+    // Which side the engine still owes a charge to, for losses that arrive
+    // without passing through the bullet path (a rock collision).
+    this.lastDuelLossOwner = null;
     if (this.side !== "rocks") for (let index = 0; index < 3; index += 1) this.spawnAsteroid();
   }
   newShip(x, y) { return { x, y, angle: -Math.PI / 2, speed: 0, radius: 13, aiTarget: null, aiReaction: 0, aiError: 0, aiAim: 0 }; }
@@ -296,15 +299,24 @@ export class AsteroidsModel {
       if (bullet.life <= 0) continue;
       if (bullet.owner === "human" && this.computerShip && wrapHitsCircle(bullet.x, bullet.y, 3, this.computerShip.x, this.computerShip.y, this.computerShip.radius)) {
         bullet.life = 0;
-        this.playerLives.computer = Math.max(0, this.playerLives.computer - 1);
+        this.chargeLifeLoss("computer");
         continue;
       }
       if (bullet.owner === "computer" && wrapHitsCircle(bullet.x, bullet.y, 3, this.ship.x, this.ship.y, this.ship.radius)) {
         bullet.life = 0;
-        this.playerLives.human = Math.max(0, this.playerLives.human - 1);
-        this.lifeLost = true;
+        this.chargeLifeLoss("human");
       }
     }
+  }
+  // One authoritative resolution path for the duel. Every way a life can be lost
+  // -- a computer bullet, a rock, or reaching zero -- is charged here against
+  // the same playerLives counters the overlay reads. Bullets already decremented
+  // at the point of impact; rock collisions only raised the flag, so the duel
+  // counter never moved while the round still restarted.
+  chargeLifeLoss(owner) {
+    this.playerLives[owner] = Math.max(0, this.playerLives[owner] - 1);
+    this.lifeLost = true;
+    this.lastDuelLossOwner = owner;
   }
   handleLifeLoss() {
     if (this.side !== "versus") return null;
@@ -316,7 +328,21 @@ export class AsteroidsModel {
     }
     if (!this.lifeLost) return null;
     this.lifeLost = false;
-    return { gameOver: false, message: "You lost a life." };
+    // A rock collision reaches the engine without passing through the bullet
+    // path, so charge the human here. Bullets have already been charged.
+    if (this.lastDuelLossOwner === null) {
+      this.playerLives.human = Math.max(0, this.playerLives.human - 1);
+      this.lastDuelLossOwner = "human";
+      if (this.playerLives.human <= 0) {
+        this.gameOver = true;
+        this.won = true;
+        this.winner = "computer";
+        return { gameOver: true, message: "Computer wins the space duel!" };
+      }
+    }
+    const owner = this.lastDuelLossOwner;
+    this.lastDuelLossOwner = null;
+    return { gameOver: false, owner, message: owner === "computer" ? "The computer lost a life." : "You lost a life." };
   }
   // Every mode respawns. This used to return early outside versus, so in the
   // solo modes a life lost left the ship exactly where it collided -- often

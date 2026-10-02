@@ -2933,3 +2933,110 @@ test("Asteroids versus matches the engine's life budget end to end", () => {
   game.reset();
   assert.deepEqual(game.playerLives, { human: 8, computer: 8 }, "the duel reads the engine value at reset time");
 });
+
+test("Asteroids versus resolves every loss source against the same counters", () => {
+  const duel = (lives = 3) => {
+    const game = new AsteroidsGame();
+    game.engine = { maxLives: lives };
+    game.setSide("versus");
+    game.reset();
+    game.model.computerShip.x = 700;
+    game.model.computerShip.y = 60;
+    game.model.invulnerable = 0;
+    game.model.computerShotClock = 99;
+    game.model.ship.x = 60;
+    game.model.ship.y = 500;
+    return game;
+  };
+  const blank = input({ pointer: pointer({}) });
+  const rock = (x, y) => ({ x, y, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [1], tone: 0, generation: 0 });
+
+  // A rock on the human ship. This is the issue's reproduction: the engine saw
+  // a loss and restarted, but the duel counter never moved.
+  const humanRock = duel();
+  humanRock.model.asteroids = [rock(60, 500)];
+  humanRock.update(0, blank);
+  assert.equal(humanRock.model.lifeLost, true, "the rock collision raised a loss");
+  const humanResult = humanRock.handleLifeLoss();
+  assert.equal(humanResult.gameOver, false);
+  assert.equal(humanRock.playerLives.human, 2, "the duel counter reflects the rock collision");
+  assert.equal(humanRock.playerLives.computer, 3, "the other pilot is untouched");
+
+  // A computer bullet on the human ship: the same outcome by the same path.
+  const humanBullet = duel();
+  humanBullet.model.bullets = [{ x: humanBullet.model.ship.x, y: humanBullet.model.ship.y, vx: 0, vy: 0, life: 1, owner: "computer" }];
+  humanBullet.update(0, blank);
+  humanBullet.handleLifeLoss();
+  assert.equal(humanBullet.playerLives.human, 2, "a bullet costs the human a life");
+
+  // A human bullet on the computer ship.
+  const computerBullet = duel();
+  computerBullet.model.bullets = [{ x: computerBullet.model.computerShip.x, y: computerBullet.model.computerShip.y, vx: 0, vy: 0, life: 1, owner: "human" }];
+  computerBullet.update(0, blank);
+  const computerResult = computerBullet.handleLifeLoss();
+  assert.equal(computerResult.gameOver, false);
+  assert.equal(computerBullet.playerLives.computer, 2, "a bullet costs the computer a life");
+  assert.equal(computerBullet.playerLives.human, 3);
+
+  // A rock on the computer ship, charged in place.
+  const computerRock = duel();
+  computerRock.model.asteroids = [rock(700, 60)];
+  computerRock.update(0, blank);
+  assert.equal(computerRock.playerLives.computer, 2, "a rock costs the computer a life");
+});
+
+test("Asteroids versus ends at zero however the last life is lost", () => {
+  const duel = (humanLives, computerLives) => {
+    const game = new AsteroidsGame();
+    game.engine = { maxLives: Math.max(humanLives, computerLives) };
+    game.setSide("versus");
+    game.reset();
+    game.model.playerLives.human = humanLives;
+    game.model.playerLives.computer = computerLives;
+    game.model.computerShip.x = 700;
+    game.model.computerShip.y = 60;
+    game.model.invulnerable = 0;
+    game.model.computerShotClock = 99;
+    game.model.ship.x = 60;
+    game.model.ship.y = 500;
+    return game;
+  };
+  const blank = input({ pointer: pointer({}) });
+  const rock = (x, y) => ({ x, y, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [1], tone: 0, generation: 0 });
+
+  // The human's last life lost to a rock.
+  const humanOut = duel(1, 3);
+  humanOut.model.asteroids = [rock(60, 500)];
+  humanOut.update(0, blank);
+  const humanResult = humanOut.handleLifeLoss();
+  assert.equal(humanResult.gameOver, true, "the round ends when the human runs out");
+  assert.equal(humanOut.model.winner, "computer", "the computer wins");
+  assert.equal(humanOut.playerLives.human, 0, "the counter reaches zero");
+
+  // The computer's last life lost to a bullet.
+  const computerOut = duel(3, 1);
+  computerOut.model.bullets = [{ x: computerOut.model.computerShip.x, y: computerOut.model.computerShip.y, vx: 0, vy: 0, life: 1, owner: "human" }];
+  computerOut.update(0, blank);
+  const computerResult = computerOut.handleLifeLoss();
+  assert.equal(computerResult.gameOver, true, "the round ends when the computer runs out");
+  assert.equal(computerOut.model.winner, "human", "the human wins");
+  assert.equal(computerOut.playerLives.computer, 0);
+});
+
+test("Asteroids versus does not double-charge a bullet that already decremented", () => {
+  const game = new AsteroidsGame();
+  game.engine = { maxLives: 3 };
+  game.setSide("versus");
+  game.reset();
+  game.model.invulnerable = 0;
+  game.model.computerShotClock = 99;
+  game.model.computerShip.x = 700;
+  game.model.computerShip.y = 60;
+  game.model.ship.x = 60;
+  game.model.ship.y = 500;
+  game.model.bullets = [{ x: game.model.ship.x, y: game.model.ship.y, vx: 0, vy: 0, life: 1, owner: "computer" }];
+  game.update(0, input({ pointer: pointer({}) }));
+  assert.equal(game.playerLives.human, 2, "the bullet charged once at impact");
+  game.handleLifeLoss();
+  assert.equal(game.playerLives.human, 2, "handleLifeLoss does not charge it again");
+});
