@@ -1,4 +1,4 @@
-import { circleHitsCircle, clamp } from "../../engine.js";
+import { circleHitsCircle, clamp, recordDecision } from "../../engine.js";
 
 const BATTERY_X = [130, 400, 670];
 const CITY_X = [70, 200, 300, 500, 600, 730];
@@ -20,6 +20,13 @@ export const MISSILE_MODES = [
   { value: "defender", label: "You vs computer — defend cities" },
   { value: "attacker", label: "Computer vs you — attack cities" }
 ];
+
+// Battery factors. The battery does not roll for misses: it estimates the
+// intercept imperfectly, and it has a finite number of rounds between reloads.
+const INTERCEPTOR_SPEED = 245;
+const INTERCEPTOR_LEAD = 0.62;
+const INTERCEPTOR_RELOAD_MIN = 0.5;
+const INTERCEPTOR_RELOAD_MAX = 0.85;
 
 export class MissileModel {
   constructor() {
@@ -56,6 +63,8 @@ export class MissileModel {
     this.enemySpawned = 0;
     this.launchClock = 0.6;
     this.interceptorClock = 0;
+    this.decisionLog = [];
+    this.lastDecision = null;
     this.levelComplete = false;
     this.levelTransition = 0;
     this.lifeLost = false;
@@ -112,15 +121,50 @@ export class MissileModel {
     const interactive = "clicked" in pointer || "released" in pointer || "down" in pointer || "dragDistance" in pointer;
     if (pointer.clicked || pointer.released || pointer.down || pointer.x !== undefined) this.launchEnemy(interactive ? this.closestTarget(pointer.x) : this.closestBattery(pointer.x));
   }
+  // The most urgent missile: the one nearest to whatever it is going to hit.
+  // The battery used to shoot enemyMissiles[0], which is the oldest missile on
+  // screen -- often one that was already lost -- while a fast missile behind it
+  // walked past unopposed. Prioritising is something a player does; rolling for
+  // it is not.
+  mostUrgentEnemy() {
+    let best = null;
+    let bestRemaining = Infinity;
+    for (const enemy of this.enemyMissiles) {
+      if (enemy.dead || enemy.freeFlight) continue;
+      const remaining = Math.hypot(enemy.targetX - enemy.x, enemy.targetY - enemy.y);
+      if (remaining < bestRemaining) {
+        bestRemaining = remaining;
+        best = enemy;
+      }
+    }
+    return best;
+  }
   launchMachineInterceptor() {
     const base = this.bases.find((candidate) => candidate.alive);
-    const target = this.enemyMissiles[0];
+    const target = this.mostUrgentEnemy();
     if (!base || !target) return;
     const dx = target.targetX - target.x;
     const dy = target.targetY - target.y;
     const distance = Math.hypot(dx, dy);
-    const flightTime = Math.hypot(target.x - base.x, target.y - base.y) / 245;
-    this.interceptors.push({ x: base.x, y: base.y - 20, targetX: target.x + (distance ? dx / distance * target.speed * flightTime : 0) + (Math.random() - 0.5) * 55, targetY: target.y + (distance ? dy / distance * target.speed * flightTime : 0) + (Math.random() - 0.5) * 40, speed: 245, color: "#22d3ee", machine: true });
+    const flightTime = Math.hypot(target.x - base.x, target.y - base.y) / INTERCEPTOR_SPEED;
+    // The battery leads the target by its own estimate of the intercept, and
+    // that estimate is short. It used to add a random offset instead, which is
+    // the same idea with a dice on the end: a correct lead always connects here,
+    // because a missile flies a straight line to its target, so something has to
+    // be wrong with the estimate. Under-estimating costs accuracy in proportion
+    // to how fast and how far away the target is.
+    const lead = INTERCEPTOR_LEAD * flightTime;
+    const aimX = target.x + (distance ? dx / distance * target.speed * lead : 0);
+    const aimY = target.y + (distance ? dy / distance * target.speed * lead : 0);
+    this.interceptors.push({ x: base.x, y: base.y - 20, targetX: aimX, targetY: aimY, speed: INTERCEPTOR_SPEED, color: "#22d3ee", machine: true });
+    recordDecision(this, {
+      mode: "attacker",
+      targetX: Math.round(target.x),
+      targetY: Math.round(target.y),
+      aimX: Math.round(aimX),
+      aimY: Math.round(aimY),
+      idealX: Math.round(target.x + (distance ? dx / distance * target.speed * flightTime : 0))
+    });
   }
   update(dt, input) {
     if (this.side === "defender") this.updateDefender(dt, input);
@@ -149,8 +193,10 @@ export class MissileModel {
     if (input.attack) this.launchPlayerEnemy(input.attack);
     this.interceptorClock -= dt;
     if (this.interceptorClock <= 0) {
-      if (Math.random() < 0.7) this.launchMachineInterceptor();
-      this.interceptorClock = 0.45 + Math.random() * 0.25;
+      // Fires whenever it is loaded. The 30% chance of not firing is gone: the
+      // reload interval is the limit, not a roll.
+      this.launchMachineInterceptor();
+      this.interceptorClock = INTERCEPTOR_RELOAD_MIN + Math.random() * (INTERCEPTOR_RELOAD_MAX - INTERCEPTOR_RELOAD_MIN);
     }
     for (const missile of this.enemyMissiles) this.moveEnemy(missile, dt);
     for (const missile of this.interceptors) if (this.moveInterceptor(missile, dt)) missile.dead = true;

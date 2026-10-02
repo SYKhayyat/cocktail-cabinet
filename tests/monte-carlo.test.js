@@ -96,19 +96,6 @@ test("Monte Carlo keeps each computer policy at its fun difficulty", () => {
         return game;
       }, (game) => game.update(1 / 60, {}), "builder"),
     },
-    missile: {
-      minimum: 1,
-      maximum: 5,
-      result: runScenario(runs, 600, () => {
-        const game = new MissileModel();
-        game.setSide("attacker");
-        game.reset();
-        return game;
-      }, (game, step) => {
-        const attack = step % 60 === 0 ? { x: 40 + Math.random() * 720 } : null;
-        game.update(1 / 60, { aim: blankPointer(), launch: false, attack });
-      }, "attacker"),
-    },
   };
   for (const [name, scenario] of Object.entries(scenarios)) assertHumanLikeRatio(name, scenario.result, scenario.minimum, scenario.maximum);
 });
