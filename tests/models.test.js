@@ -2707,3 +2707,49 @@ test("a bullet resolves against at most one target per update", () => {
   assert.equal(game.asteroids.length, 1, "a bullet destroys exactly one rock");
   assert.equal(game.scores.human, 10, "and scores exactly once");
 });
+
+test("Missile level completion is decided by the live missile list, not a counter", () => {
+  const game = new MissileModel();
+  game.setSide("defender");
+  game.reset();
+  assert.equal(game.enemyTotal, 12);
+  assert.equal(game.enemyResolved, undefined, "the unused counter is gone");
+
+  // Launch the whole wave, then clear it the way interception would. The
+  // cities are not defended here, so an undefended wave reaches the ground
+  // and ends the game -- the completion rule is what is under test.
+  while (game.enemySpawned < game.enemyTotal) game.update(1 / 60, { aim: null, launch: false });
+  assert.equal(game.enemySpawned, game.enemyTotal, "the whole wave was launched");
+  assert.ok(game.enemyMissiles.length > 0, "with missiles in the air");
+
+  // Emptying the field is what completes the level -- there is no counter to
+  // consult, and the wave's own spawn budget is already spent.
+  game.enemyMissiles.length = 0;
+  game.update(1 / 60, { aim: null, launch: false });
+  assert.equal(game.levelComplete, true, "an empty field completes the level");
+  assert.equal(game.levelTransition > 0, true, "a transition is scheduled before the next wave");
+
+  // And the next level restarts the wave budget from the live list again.
+  for (let frame = 0; frame < 400; frame += 1) game.update(1 / 60, { aim: null, launch: false });
+  assert.equal(game.level, 2, "the next level begins");
+  assert.ok(game.enemySpawned > 0, "the next wave is launched from the reset budget");
+});
+
+test("Missile collision geometry uses the shared named constants", async () => {
+  // The radii are internal, so assert on behaviour instead: an interceptor
+  // within the combined radii connects, and one beyond them does not.
+  const hit = (dx, dy) => {
+    const game = new MissileModel();
+    game.setSide("attacker");
+    game.reset();
+    game.interceptorClock = 999;
+    game.enemyMissiles = [{ x: 400, y: 280, targetX: 400, targetY: 500, speed: 0, color: "#fb7185", kind: "city", targetObject: game.cities[0], dead: false }];
+    game.interceptors = [{ x: 400 + dx, y: 280 + dy, targetX: 500, targetY: 500, speed: 0, color: "#22d3ee", machine: true }];
+    game.update(0, { aim: null, launch: false, attack: null });
+    return game.score;
+  };
+
+  assert.equal(hit(0, 0), 15, "a centred interceptor connects");
+  assert.equal(hit(8, 0), 15, "a hit just inside 4+5 connects");
+  assert.equal(hit(12, 0), 0, "a miss beyond 4+5 does not");
+});

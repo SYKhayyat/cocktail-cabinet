@@ -4,9 +4,16 @@ const BATTERY_X = [130, 400, 670];
 const CITY_X = [70, 200, 300, 500, 600, 730];
 const BATTERY_MISSILES = 10;
 const BASE_Y = 510;
-const INTERCEPTOR_RADIUS = 8;
-const ENEMY_RADIUS = 11;
+// Collision geometry, named once. These previously lived as a mix of constants
+// and bare literals, so the attacker path used radii that silently disagreed
+// with the defender path and with the radii the shapes are drawn at.
+const INTERCEPTOR_RADIUS = 4;
+const ENEMY_RADIUS = 5;
 const FIREBALL_RADIUS = 46;
+// A fireball is an explosion, so it catches a slightly wider target than a
+// direct interceptor hit.
+const FIREBALL_ENEMY_BONUS = 4;
+const IMPACT_MARGIN = 8;
 const FIREBALL_LIFE = 4;
 
 export const MISSILE_MODES = [
@@ -47,7 +54,6 @@ export class MissileModel {
     this.target = { x: 400, y: 250 };
     this.enemyTotal = 12;
     this.enemySpawned = 0;
-    this.enemyResolved = 0;
     this.launchClock = 0.6;
     this.interceptorClock = 0;
     this.levelComplete = false;
@@ -156,14 +162,14 @@ export class MissileModel {
       if (interceptor.dead) continue;
       for (const enemy of this.enemyMissiles) {
         if (enemy.dead) continue;
-        if (!circleHitsCircle(interceptor.x, interceptor.y, 4, enemy.x, enemy.y, 5)) continue;
+        if (!circleHitsCircle(interceptor.x, interceptor.y, INTERCEPTOR_RADIUS, enemy.x, enemy.y, ENEMY_RADIUS)) continue;
         interceptor.dead = true;
         enemy.dead = true;
         this.score += 15;
         break;
       }
     }
-    for (const enemy of this.enemyMissiles) if (enemy.targetObject?.alive && enemy.y >= enemy.targetY - enemy.targetObject.radius - 8) { enemy.targetObject.alive = false; enemy.dead = true; }
+    for (const enemy of this.enemyMissiles) if (enemy.targetObject?.alive && enemy.y >= enemy.targetY - enemy.targetObject.radius - IMPACT_MARGIN) { enemy.targetObject.alive = false; enemy.dead = true; }
     this.enemyMissiles = this.enemyMissiles.filter((missile) => !missile.dead && missile.y < 560);
     this.interceptors = this.interceptors.filter((missile) => !missile.dead);
     // The attacker's objective is the cities, so losing all batteries is losing
@@ -195,7 +201,7 @@ export class MissileModel {
     for (const fireball of this.fireballs) {
       fireball.life -= dt;
       for (const enemy of this.enemyMissiles) {
-        if (!enemy.dead && circleHitsCircle(fireball.x, fireball.y, fireball.radius, enemy.x, enemy.y, ENEMY_RADIUS + 4)) {
+        if (!enemy.dead && circleHitsCircle(fireball.x, fireball.y, fireball.radius, enemy.x, enemy.y, ENEMY_RADIUS + FIREBALL_ENEMY_BONUS)) {
           enemy.dead = true;
           this.score += enemy.smart ? 35 : 15;
           if (enemy.splitCount > 0) this.splitEnemy(enemy);
@@ -205,7 +211,7 @@ export class MissileModel {
     for (const enemy of this.enemyMissiles) this.moveEnemy(enemy, dt);
     for (const enemy of this.enemyMissiles) {
       if (enemy.dead || enemy.aircraft) continue;
-      if (enemy.y >= enemy.targetY - (enemy.targetObject?.radius || 0) - 8) this.impactEnemy(enemy);
+      if (enemy.y >= enemy.targetY - (enemy.targetObject?.radius || 0) - IMPACT_MARGIN) this.impactEnemy(enemy);
     }
     this.fireballs = this.fireballs.filter((fireball) => fireball.life > 0);
     this.enemyMissiles = this.enemyMissiles.filter((missile) => !missile.dead);
@@ -255,7 +261,6 @@ export class MissileModel {
     enemy.dead = true;
     const target = enemy.targetObject || enemy.targetBase;
     if (target) target.alive = false;
-    if (!enemy.isSplit) this.enemyResolved += 1;
   }
   splitEnemy(enemy) {
     const childTargets = [...this.cities.filter((city) => city.alive), ...this.bases.filter((base) => base.alive)];
@@ -281,7 +286,6 @@ export class MissileModel {
     this.multiplier = Math.min(6, 1 + Math.floor((this.level - 1) / 2));
     this.enemyTotal = 12 + this.level * 4;
     this.enemySpawned = 0;
-    this.enemyResolved = 0;
     this.launchClock = 0.5;
     this.levelComplete = false;
     this.levelTransition = 0;
