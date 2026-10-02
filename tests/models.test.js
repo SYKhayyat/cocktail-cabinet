@@ -17,6 +17,20 @@ import { ImitationController, CHANNEL_NAME } from "../src/games/imitation/contro
 import { StarfallGame } from "../src/games/starfall.js";
 import { StarfallController } from "../src/games/starfall/controller.js";
 
+// Several models roll Math.random during reset or on spawn, which makes any
+// assertion about their contents flaky. Tests that assert on random output
+// install a seed first so a failure means a real regression rather than an
+// unlucky roll.
+function withSeededRandom(seed, run) {
+  const original = Math.random;
+  let state = seed >>> 0;
+  Math.random = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+  try { return run(); } finally { Math.random = original; }
+}
+
 const pointer = (values = {}) => ({ x: 0, y: 0, moved: false, clicked: false, down: false, ...values });
 const input = (values = {}) => ({ keys: new Set(), pressed: new Set(), pointer: pointer(), ...values });
 
@@ -905,12 +919,16 @@ test("Asteroids versus gives both pilots scores and lives", () => {
 });
 
 test("Missile Command varies enemy targets across a salvo", () => {
-  const game = new MissileModel();
-  game.reset();
-  for (let index = 0; index < 10; index += 1) game.launchEnemy();
-  const targets = game.enemyMissiles.filter((missile) => !missile.aircraft).map((missile) => missile.targetX);
-  assert.ok(targets.length >= 5);
-  assert.ok(new Set(targets).size > 1);
+  // Seeded: launchEnemy() rolls for aircraft (~12%), so an unseeded salvo
+  // occasionally produced six or more aircrafts and failed the floor below.
+  withSeededRandom(20260101, () => {
+    const game = new MissileModel();
+    game.reset();
+    for (let index = 0; index < 10; index += 1) game.launchEnemy();
+    const targets = game.enemyMissiles.filter((missile) => !missile.aircraft).map((missile) => missile.targetX);
+    assert.ok(targets.length >= 5);
+    assert.ok(new Set(targets).size > 1);
+  });
 });
 
 test("Missile Command misses continue off-screen without a fireball", () => {
@@ -1203,135 +1221,139 @@ test("Guess uses the local AI after a prompt receives no human response", async 
 });
 
 test("Starfall: movement, gem collection, star spawning, and collision loss", () => {
-  const game = new StarfallModel();
-  game.reset();
-  const startX = game.runner.x;
-  game.update(0.2, { mode: "keyboard", keyDirection: 1, pointerX: 0, spawnStar: undefined });
-  assert.ok(game.runner.x > startX);
-   const gemStartY = game.gems[0].y;
-   assert.ok(game.gems.every((gem) => Number.isFinite(gem.vx) && Number.isFinite(gem.vy)));
-   game.update(0.5, { mode: "keyboard", keyDirection: 0, pointerX: 0, spawnStar: undefined });
-  assert.ok(game.gems[0].y > gemStartY);
-  const spreadGems = new StarfallModel();
-  spreadGems.reset();
-  spreadGems.spawnClock = 999;
-  for (let index = 0; index < 180; index += 1) spreadGems.update(0.016, input());
-  for (let first = 0; first < spreadGems.gems.length; first += 1) for (let second = first + 1; second < spreadGems.gems.length; second += 1) {
-    assert.ok(Math.abs(spreadGems.gems[first].x - spreadGems.gems[second].x) >= 90 || Math.abs(spreadGems.gems[first].y - spreadGems.gems[second].y) >= 45);
-  }
-  game.gems = [{ x: game.runner.x, y: game.runner.y, collected: false }];
-  game.update(0.016, { keyDirection: 0, pointerX: 0, spawnStar: undefined });
-  assert.equal(game.score, 50);
-  assert.equal(game.gems[0].collected, true);
-  game.stars = [{ x: game.runner.x, y: game.runner.y, vy: 100, radius: 10 }];
-  game.update(0.016, { keyDirection: 0, pointerX: 0, spawnStar: undefined });
-  assert.equal(game.lifeLost, true);
-  const computer = new StarfallModel();
-  computer.setSide("stars");
-  computer.reset();
-  computer.update(0.016, { keyDirection: 0, pointerX: 0, spawnStar: { x: 100, y: 0 } });
-  assert.equal(computer.stars.length, 1);
-  assert.equal(computer.stars[0].x, 100);
-  for (let index = 0; index < 1000; index += 1) computer.update(0.016, { keyDirection: 0, pointerX: 0, spawnStar: undefined });
-  assert.ok(computer.runner.x >= 20 && computer.runner.x <= 780);
-  computer.stars = [];
-  const dragged = new StarfallController(computer);
-  dragged.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, y: 0, released: true, dragDistance: 24 }) }));
-  assert.equal(computer.stars.at(-1).x, 240);
-  const mouseRunner = new StarfallModel();
-  mouseRunner.reset();
-  const mouseController = new StarfallController(mouseRunner);
-  let previousMouseX = mouseRunner.runner.x;
-  for (let index = 0; index < 20; index += 1) {
-    mouseController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 700 }) }));
-    assert.ok(mouseRunner.runner.x > previousMouseX);
-    previousMouseX = mouseRunner.runner.x;
-  }
-  const doubleClick = new StarfallModel();
-  doubleClick.setSide("stars");
-  doubleClick.reset();
-  const doubleClickController = new StarfallController(doubleClick);
-  doubleClickController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, released: true }) }));
-  assert.equal(doubleClick.stars.length, 1);
-  doubleClickController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, doubleClicked: true, released: true }) }));
-  doubleClickController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, doubleClicked: true, released: true }) }));
-  assert.equal(doubleClick.stars.length, 0);
-  assert.equal(doubleClick.gems.length, 1);
-  const userLaunchMode = new StarfallModel();
-  userLaunchMode.setSide("stars");
-  userLaunchMode.reset();
-  for (let index = 0; index < 60; index += 1) userLaunchMode.update(0.016, input());
-  assert.equal(userLaunchMode.gems.length, 0);
-  const droppedUserGem = new StarfallModel();
-  droppedUserGem.setSide("stars");
-  droppedUserGem.reset();
-  droppedUserGem.update(0.016, { spawnGem: { x: 300 } });
-  droppedUserGem.gems[0].vy = 100;
-  for (let index = 0; index < 400; index += 1) droppedUserGem.update(0.016, input());
-  assert.equal(droppedUserGem.gems.length, 0);
-  const angled = new StarfallModel();
-  angled.setSide("stars");
-  angled.reset();
-  const angledController = new StarfallController(angled);
-  angledController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 300, released: true, dragDistance: 80, dragDeltaX: 60, dragDeltaY: -60 }) }));
-  assert.ok(angled.stars[0].vx > 0);
-  const held = new StarfallModel();
-  held.setSide("stars");
-  held.reset();
-  const heldController = new StarfallController(held);
-  for (let index = 0; index < 30; index += 1) heldController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 300, down: true }) }));
-  heldController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 300, released: true }) }));
-  assert.equal(held.gems.length, 1);
-  assert.equal(held.stars.length, 0);
-  const stableComputer = new StarfallModel();
-  stableComputer.setSide("stars");
-  stableComputer.reset();
-  const idleX = stableComputer.runner.x;
-  stableComputer.update(0.016, input());
-  assert.equal(stableComputer.runner.x, idleX);
-  const seekingComputer = new StarfallModel();
-  seekingComputer.setSide("stars");
-  seekingComputer.reset();
-  seekingComputer.gems = [{ x: 700, y: 400, vx: 0, vy: 0, collected: false }];
-  seekingComputer.update(0.016, input());
-  assert.ok(seekingComputer.aiTargetX > 400);
-  const twoGemComputer = new StarfallModel();
-  twoGemComputer.setSide("stars");
-  twoGemComputer.reset();
-  twoGemComputer.gems = [{ x: 150, y: 400, vx: 0, vy: 0, collected: false }, { x: 700, y: 400, vx: 0, vy: 0, collected: false }];
-  twoGemComputer.update(0.016, input());
-  const chosenTarget = twoGemComputer.aiTargetX;
-  let targetChanges = 0;
-  let previousTarget = chosenTarget;
-  for (let index = 0; index < 120; index += 1) {
+  // Seeded: gems spawn at random positions, so an unseeded run could
+  // collect the tracked gem and compare a different one against itself.
+  withSeededRandom(20260102, () => {
+    const game = new StarfallModel();
+    game.reset();
+    const startX = game.runner.x;
+    game.update(0.2, { mode: "keyboard", keyDirection: 1, pointerX: 0, spawnStar: undefined });
+    assert.ok(game.runner.x > startX);
+     const gemStartY = game.gems[0].y;
+     assert.ok(game.gems.every((gem) => Number.isFinite(gem.vx) && Number.isFinite(gem.vy)));
+     game.update(0.5, { mode: "keyboard", keyDirection: 0, pointerX: 0, spawnStar: undefined });
+    assert.ok(game.gems[0].y > gemStartY);
+    const spreadGems = new StarfallModel();
+    spreadGems.reset();
+    spreadGems.spawnClock = 999;
+    for (let index = 0; index < 180; index += 1) spreadGems.update(0.016, input());
+    for (let first = 0; first < spreadGems.gems.length; first += 1) for (let second = first + 1; second < spreadGems.gems.length; second += 1) {
+      assert.ok(Math.abs(spreadGems.gems[first].x - spreadGems.gems[second].x) >= 90 || Math.abs(spreadGems.gems[first].y - spreadGems.gems[second].y) >= 45);
+    }
+    game.gems = [{ x: game.runner.x, y: game.runner.y, collected: false }];
+    game.update(0.016, { keyDirection: 0, pointerX: 0, spawnStar: undefined });
+    assert.equal(game.score, 50);
+    assert.equal(game.gems[0].collected, true);
+    game.stars = [{ x: game.runner.x, y: game.runner.y, vy: 100, radius: 10 }];
+    game.update(0.016, { keyDirection: 0, pointerX: 0, spawnStar: undefined });
+    assert.equal(game.lifeLost, true);
+    const computer = new StarfallModel();
+    computer.setSide("stars");
+    computer.reset();
+    computer.update(0.016, { keyDirection: 0, pointerX: 0, spawnStar: { x: 100, y: 0 } });
+    assert.equal(computer.stars.length, 1);
+    assert.equal(computer.stars[0].x, 100);
+    for (let index = 0; index < 1000; index += 1) computer.update(0.016, { keyDirection: 0, pointerX: 0, spawnStar: undefined });
+    assert.ok(computer.runner.x >= 20 && computer.runner.x <= 780);
+    computer.stars = [];
+    const dragged = new StarfallController(computer);
+    dragged.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, y: 0, released: true, dragDistance: 24 }) }));
+    assert.equal(computer.stars.at(-1).x, 240);
+    const mouseRunner = new StarfallModel();
+    mouseRunner.reset();
+    const mouseController = new StarfallController(mouseRunner);
+    let previousMouseX = mouseRunner.runner.x;
+    for (let index = 0; index < 20; index += 1) {
+      mouseController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 700 }) }));
+      assert.ok(mouseRunner.runner.x > previousMouseX);
+      previousMouseX = mouseRunner.runner.x;
+    }
+    const doubleClick = new StarfallModel();
+    doubleClick.setSide("stars");
+    doubleClick.reset();
+    const doubleClickController = new StarfallController(doubleClick);
+    doubleClickController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, released: true }) }));
+    assert.equal(doubleClick.stars.length, 1);
+    doubleClickController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, doubleClicked: true, released: true }) }));
+    doubleClickController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 240, doubleClicked: true, released: true }) }));
+    assert.equal(doubleClick.stars.length, 0);
+    assert.equal(doubleClick.gems.length, 1);
+    const userLaunchMode = new StarfallModel();
+    userLaunchMode.setSide("stars");
+    userLaunchMode.reset();
+    for (let index = 0; index < 60; index += 1) userLaunchMode.update(0.016, input());
+    assert.equal(userLaunchMode.gems.length, 0);
+    const droppedUserGem = new StarfallModel();
+    droppedUserGem.setSide("stars");
+    droppedUserGem.reset();
+    droppedUserGem.update(0.016, { spawnGem: { x: 300 } });
+    droppedUserGem.gems[0].vy = 100;
+    for (let index = 0; index < 400; index += 1) droppedUserGem.update(0.016, input());
+    assert.equal(droppedUserGem.gems.length, 0);
+    const angled = new StarfallModel();
+    angled.setSide("stars");
+    angled.reset();
+    const angledController = new StarfallController(angled);
+    angledController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 300, released: true, dragDistance: 80, dragDeltaX: 60, dragDeltaY: -60 }) }));
+    assert.ok(angled.stars[0].vx > 0);
+    const held = new StarfallModel();
+    held.setSide("stars");
+    held.reset();
+    const heldController = new StarfallController(held);
+    for (let index = 0; index < 30; index += 1) heldController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 300, down: true }) }));
+    heldController.update(0.016, input({ mode: "mouse", pointer: pointer({ x: 300, released: true }) }));
+    assert.equal(held.gems.length, 1);
+    assert.equal(held.stars.length, 0);
+    const stableComputer = new StarfallModel();
+    stableComputer.setSide("stars");
+    stableComputer.reset();
+    const idleX = stableComputer.runner.x;
+    stableComputer.update(0.016, input());
+    assert.equal(stableComputer.runner.x, idleX);
+    const seekingComputer = new StarfallModel();
+    seekingComputer.setSide("stars");
+    seekingComputer.reset();
+    seekingComputer.gems = [{ x: 700, y: 400, vx: 0, vy: 0, collected: false }];
+    seekingComputer.update(0.016, input());
+    assert.ok(seekingComputer.aiTargetX > 400);
+    const twoGemComputer = new StarfallModel();
+    twoGemComputer.setSide("stars");
+    twoGemComputer.reset();
+    twoGemComputer.gems = [{ x: 150, y: 400, vx: 0, vy: 0, collected: false }, { x: 700, y: 400, vx: 0, vy: 0, collected: false }];
     twoGemComputer.update(0.016, input());
-    if (twoGemComputer.aiTargetX !== previousTarget) { targetChanges += 1; previousTarget = twoGemComputer.aiTargetX; }
-  }
-  assert.ok(twoGemComputer.runner.x < 400);
-  assert.ok(targetChanges <= 1);
-  const weightedComputer = new StarfallModel();
-  weightedComputer.setSide("stars");
-  weightedComputer.reset();
-  weightedComputer.gems = [{ x: 150, y: 400, vx: 0, vy: 0, collected: false }, { x: 400, y: 400, vx: 0, vy: 0, collected: false }, { x: 700, y: 400, vx: 0, vy: 0, collected: false }];
-  weightedComputer.aiTargetGem = weightedComputer.gems[2];
-  weightedComputer.aiTargetX = 720;
-  weightedComputer.aiTargetLock = 0;
-  const originalRandom = Math.random;
-  try {
-    Math.random = () => 0;
-    weightedComputer.update(0.016, input());
-    assert.equal(weightedComputer.aiTargetGem, weightedComputer.gems[1]);
-    Math.random = () => 0.99;
-    for (let index = 0; index < 10; index += 1) weightedComputer.update(0.016, input());
-    assert.equal(weightedComputer.aiTargetGem, weightedComputer.gems[1]);
-  } finally {
-    Math.random = originalRandom;
-  }
-  stableComputer.stars = [{ x: 440, y: 20, vy: 0, radius: 10 }];
-  stableComputer.update(0.016, input());
-  const stableTarget = stableComputer.aiTargetX;
-  for (let index = 0; index < 20; index += 1) stableComputer.update(0.016, input());
-  assert.equal(stableComputer.aiTargetX, stableTarget);
+    const chosenTarget = twoGemComputer.aiTargetX;
+    let targetChanges = 0;
+    let previousTarget = chosenTarget;
+    for (let index = 0; index < 120; index += 1) {
+      twoGemComputer.update(0.016, input());
+      if (twoGemComputer.aiTargetX !== previousTarget) { targetChanges += 1; previousTarget = twoGemComputer.aiTargetX; }
+    }
+    assert.ok(twoGemComputer.runner.x < 400);
+    assert.ok(targetChanges <= 1);
+    const weightedComputer = new StarfallModel();
+    weightedComputer.setSide("stars");
+    weightedComputer.reset();
+    weightedComputer.gems = [{ x: 150, y: 400, vx: 0, vy: 0, collected: false }, { x: 400, y: 400, vx: 0, vy: 0, collected: false }, { x: 700, y: 400, vx: 0, vy: 0, collected: false }];
+    weightedComputer.aiTargetGem = weightedComputer.gems[2];
+    weightedComputer.aiTargetX = 720;
+    weightedComputer.aiTargetLock = 0;
+    const originalRandom = Math.random;
+    try {
+      Math.random = () => 0;
+      weightedComputer.update(0.016, input());
+      assert.equal(weightedComputer.aiTargetGem, weightedComputer.gems[1]);
+      Math.random = () => 0.99;
+      for (let index = 0; index < 10; index += 1) weightedComputer.update(0.016, input());
+      assert.equal(weightedComputer.aiTargetGem, weightedComputer.gems[1]);
+    } finally {
+      Math.random = originalRandom;
+    }
+    stableComputer.stars = [{ x: 440, y: 20, vy: 0, radius: 10 }];
+    stableComputer.update(0.016, input());
+    const stableTarget = stableComputer.aiTargetX;
+    for (let index = 0; index < 20; index += 1) stableComputer.update(0.016, input());
+    assert.equal(stableComputer.aiTargetX, stableTarget);
+  });
 });
 
 test("all game facades reset, update, and expose public state", () => {

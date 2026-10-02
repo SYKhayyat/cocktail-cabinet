@@ -356,3 +356,68 @@ test("the ready overlay shows a versus life line only for two-owner games", asyn
     assertMatch(lifeLine(duel), /^You: .*Computer: /, "versus uses the two-owner life line");
   });
 });
+
+test("Pause freezes the countdown and Continue resumes it from there", () => {
+  const messages = [];
+  withEngine((engine) => {
+    engine.onMessage = (value) => messages.push(value);
+    const game = fakeGame();
+    engine.load(game);
+    engine.ready = false;
+    engine.restart();
+    assert.ok(engine.countdown > 0, "New game starts a countdown");
+
+    engine.pauseGame();
+    assert.equal(engine.paused, true, "Pause pauses during the countdown");
+    assert.equal(engine.stopped, true);
+    assert.ok(messages.some((text) => /Paused/.test(text)), "Pause reports itself");
+
+    // Frames while paused must not advance the countdown. This is the core of
+    // the fix: the countdown used to keep running, so Continue was a no-op
+    // while the message still said to press it.
+    const frozen = engine.countdown;
+    let time = performance.now() + 1000;
+    for (let frame = 0; frame < 30; frame += 1) engine.frame((time += 1000 / 60));
+    assert.equal(engine.countdown, frozen, "the countdown is frozen while paused");
+
+    // Continue is always actionable when paused, and resumes the same countdown.
+    engine.continueGame();
+    assert.equal(engine.paused, false, "Continue resumes");
+    assert.ok(Math.abs(engine.countdown - frozen) < 0.05, "the countdown continues from where it stopped");
+    assert.ok(messages.some((text) => /Continuing in/.test(text)), "Continue reports resuming");
+
+    engine.frame((time += 1000 / 60));
+    assert.ok(engine.countdown < frozen, "the countdown advances again after resuming");
+  });
+});
+
+test("Continue is a no-op unless the round is paused", () => {
+  withEngine((engine) => {
+    const game = fakeGame();
+    engine.load(game);
+    engine.ready = false;
+    const countdownBefore = engine.countdown;
+    engine.continueGame();
+    assert.equal(engine.paused, false, "Continue without a pause does nothing");
+    assert.equal(engine.countdown, countdownBefore, "and does not invent a countdown");
+
+    engine.continueGame();
+    assert.equal(engine.paused, false, "repeated Continue calls stay inert");
+  });
+});
+
+test("Pause is idempotent and does not fight Continue", () => {
+  withEngine((engine) => {
+    const game = fakeGame();
+    engine.load(game);
+    engine.ready = false;
+    engine.restart();
+    engine.pauseGame();
+    engine.pauseGame();
+    assert.equal(engine.paused, true, "pausing twice is harmless");
+    const frozen = engine.countdown;
+    engine.continueGame();
+    assert.equal(engine.paused, false);
+    assert.ok(Math.abs(engine.countdown - frozen) < 0.05, "a second pause did not restart the countdown");
+  });
+});

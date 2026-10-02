@@ -166,20 +166,26 @@ export class GameEngine {
     cancelAnimationFrame(this.animationFrame);
   }
 
+  // Pause freezes whatever is happening, including the countdown. Previously the
+  // countdown kept advancing while stopped, so pressing Continue during it was
+  // a no-op -- yet the message still said to press Continue. That is the race
+  // this contract removes: Continue is always actionable whenever Pause was.
   pauseGame() {
-    if (!this.running || this.ready || this.game?.gameOver) return;
+    if (!this.running || this.ready || this.paused || this.game?.gameOver) return;
     this.stopped = true;
     this.paused = true;
     this.onMessage?.("Paused — press Continue when you are ready.");
   }
 
   continueGame() {
-    if (!this.running || this.ready || this.game?.gameOver || this.countdown > 0) return;
+    // No countdown guard: pausing freezes the countdown, so resuming continues
+    // it from exactly where it stopped rather than restarting it.
+    if (!this.running || this.ready || this.game?.gameOver || !this.paused) return;
     this.stopped = false;
     this.paused = false;
-    this.countdown = 3;
     this.lastTime = performance.now();
-    this.onMessage?.("Continuing in 3…");
+    if (this.countdown > 0) this.onMessage?.(`Continuing in ${Math.ceil(this.countdown)}…`);
+    else this.onMessage?.("Continuing.");
   }
 
   setLives(value) {
@@ -220,7 +226,7 @@ export class GameEngine {
     if (!this.running) return;
     const delta = Math.min((time - this.lastTime) / 1000, 0.05);
     this.lastTime = time;
-    if (this.countdown > 0) {
+    if (this.countdown > 0 && !this.paused) {
       this.countdown -= delta;
       if (this.countdown <= 0) this.onMessage?.("Go!");
     } else if (!this.ready && !this.stopped) {
