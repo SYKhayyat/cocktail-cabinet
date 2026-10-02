@@ -2624,3 +2624,86 @@ test("a facade exposes lifeLost consistently with its model after reset", () => 
     assert.equal(game.lifeLost, false, `${id} reset clears the flag through the facade too`);
   }
 });
+
+test("Asteroids skips dead bullets in every collision phase", () => {
+  const duel = () => {
+    const game = new AsteroidsModel();
+    game.setSide("versus");
+    game.reset();
+    game.asteroids = [];
+    game.invulnerable = 0;
+    game.computerShotClock = 99;
+    game.ship.x = 60;
+    game.ship.y = 500;
+    return game;
+  };
+
+  // A bullet that already expired cannot damage the computer ship.
+  const dead = duel();
+  dead.playerLives.computer = 3;
+  dead.bullets = [{ x: dead.computerShip.x, y: dead.computerShip.y, vx: 0, vy: 0, life: 0, owner: "human" }];
+  dead.update(0, { pointer: null, fire: false });
+  assert.equal(dead.playerLives.computer, 3, "an expired bullet does not damage the computer");
+
+  // Nor the human ship.
+  const deadAtHuman = duel();
+  deadAtHuman.playerLives.human = 3;
+  deadAtHuman.bullets = [{ x: deadAtHuman.ship.x, y: deadAtHuman.ship.y, vx: 0, vy: 0, life: -1, owner: "computer" }];
+  deadAtHuman.update(0, { pointer: null, fire: false });
+  assert.equal(deadAtHuman.playerLives.human, 3, "an expired bullet does not damage the human");
+  assert.equal(deadAtHuman.lifeLost, false, "and raises no life loss");
+
+  // Nor does an expired bullet score against an asteroid.
+  const deadAtRock = duel();
+  const before = deadAtRock.scores.human;
+  deadAtRock.asteroids = [{ x: 400, y: 280, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [1], tone: 0, generation: 1 }];
+  deadAtRock.bullets = [{ x: 400, y: 280, vx: 0, vy: 0, life: 0, owner: "human" }];
+  deadAtRock.update(0, { pointer: null, fire: false });
+  assert.equal(deadAtRock.scores.human, before, "an expired bullet scores nothing");
+  assert.equal(deadAtRock.asteroids.length, 1, "the rock survives an expired bullet");
+});
+
+test("a bullet that hits a rock cannot also hit a ship in the same update", () => {
+  const game = new AsteroidsModel();
+  game.setSide("versus");
+  game.reset();
+  game.asteroids = [];
+  game.invulnerable = 0;
+  game.computerShotClock = 99;
+  game.ship.x = 60;
+  game.ship.y = 500;
+  game.playerLives.computer = 3;
+  // One bullet overlapping the computer ship and a rock at the same spot.
+  game.computerShip.x = 400;
+  game.computerShip.y = 280;
+  game.asteroids = [{ x: 400, y: 280, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [1], tone: 0, generation: 1 }];
+  game.bullets = [{ x: 400, y: 280, vx: 0, vy: 0, life: 1, owner: "human" }];
+  game.update(0, { pointer: null, fire: false });
+
+  assert.equal(game.playerLives.computer, 3, "a bullet consumed by a rock does not also damage the ship");
+  assert.equal(game.scores.human, 10, "the bullet scored against the rock");
+  // The destroyed rock is filtered out and the model immediately spawns a
+  // replacement, so the seeded one is gone rather than the array being empty.
+  assert.ok(!game.asteroids.some((asteroid) => asteroid.x === 400 && asteroid.y === 280 && asteroid.radius > 0), "the rock that was hit is gone");
+  assert.equal(game.bullets.length, 0, "the bullet was consumed once");
+});
+
+test("a bullet resolves against at most one target per update", () => {
+  const game = new AsteroidsModel();
+  game.setSide("versus");
+  game.reset();
+  game.asteroids = [];
+  game.invulnerable = 0;
+  game.computerShotClock = 99;
+  game.playerLives.computer = 3;
+  // Sitting exactly on the computer ship, a bullet that also overlaps two rocks
+  // must break one rock and stop -- it cannot carry through to the ship.
+  game.asteroids = [
+    { x: 400, y: 280, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [1], tone: 0, generation: 1 },
+    { x: 401, y: 281, vx: 0, vy: 0, radius: 20, rotation: 0, spin: 0, shape: [1], tone: 0, generation: 1 }
+  ];
+  game.bullets = [{ x: 400, y: 280, vx: 0, vy: 0, life: 1, owner: "human" }];
+  game.update(0, { pointer: null, fire: false });
+  assert.equal(game.asteroids.length, 1, "a bullet destroys exactly one rock");
+  assert.equal(game.scores.human, 10, "and scores exactly once");
+});
