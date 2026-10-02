@@ -348,6 +348,24 @@ export class GameEngine {
   }
 }
 
+// Observability seam for computer decisions.
+//
+// Models own their own decisions, but a test that cannot see them has to
+// monkey-patch the model from outside, which couples the test to internals and
+// breaks the moment a method is renamed. Every model therefore records what it
+// decided here, and the AI tests read model.decisionLog instead of patching.
+//
+// The log is bounded: games run indefinitely, so it drops the oldest quarter in
+// one splice rather than shifting per entry, which keeps recording O(1).
+export const DECISION_LOG_LIMIT = 4096;
+
+export function recordDecision(model, entry) {
+  model.lastDecision = entry;
+  model.decisionLog.push(entry);
+  const limit = model.decisionLogLimit ?? DECISION_LOG_LIMIT;
+  if (model.decisionLog.length > limit) model.decisionLog.splice(0, limit >> 2);
+}
+
 export function clamp(value, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, value));
 }

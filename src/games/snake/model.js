@@ -1,8 +1,13 @@
-import { clamp } from "../../engine.js";
+import { clamp, recordDecision } from "../../engine.js";
 
 const BOARD_WIDTH = 800;
 const BOARD_HEIGHT = 560;
-const AI_MISTAKE_CHANCE = 0.0001;
+
+// Snake computer factors. There is deliberately no chance of a wrong turn: the
+// snake goes wrong because it has not looked at the board yet, or because it is
+// already committed to a heading. Both are limits, not dice.
+const AI_PERCEPTION_INTERVAL = 0.26;
+const AI_COMMIT_MOVES = 3;
 
 export const SNAKE_MODES = [
   { value: "snake", label: "Solo — steer the snake" },
@@ -36,6 +41,8 @@ export class SnakeModel {
     this.roundSettings = { ...this.pendingSettings };
     this.gameOver = false;
     this.lifeLost = false;
+    this.decisionLog = [];
+    this.lastDecision = null;
   }
   get modes() { return SNAKE_MODES; }
   get sides() { return SNAKE_MODES.map((mode) => mode.value); }
@@ -103,6 +110,16 @@ export class SnakeModel {
     this.direction = { x: 1, y: 0 };
     this.nextDirection = { x: 1, y: 0 };
     this.aiClock = 0;
+    // The factors are fields, not module constants, so a test can dial
+    // perception to zero and prove the snake's mistakes come from the reaction
+    // delay rather than from a dice roll.
+    this.aiPerceptionInterval = AI_PERCEPTION_INTERVAL;
+    this.aiCommitMoves = AI_COMMIT_MOVES;
+    this.aiPerceptionClock = 0;
+    this.aiPerceivedApple = null;
+    this.aiCommitLeft = 0;
+    this.decisionLog = [];
+    this.lastDecision = null;
     this.won = false;
     this.rebuildOccupied();
     const placed = this.side === "apples" ? { x: Math.min(this.cols - 3, headX + 6), y: Math.max(2, startY - 6) } : this.freeApple();
@@ -172,7 +189,12 @@ cellKey(x, y) { return y * this.cols + x; }
       if (input.steer) this.steerToward(input.steer.x, input.steer.y);
     }
     this.aiClock += dt;
-    if (this.side !== "snake" && this.aiClock >= interval) this.chooseDirection();
+    if (this.side !== "snake") {
+      // Perception is refreshed on a clock rather than every frame, so the
+      // apple can move out from under the snake between looks.
+      this.refreshPerception(dt);
+      if (this.aiClock >= interval) this.chooseDirection();
+    }
     if (this.nextDirection.x + this.direction.x !== 0 || this.nextDirection.y + this.direction.y !== 0) this.direction = this.nextDirection;
     if (this.aiClock < interval) return;
     this.aiClock = 0;
@@ -220,15 +242,82 @@ cellKey(x, y) { return y * this.cols + x; }
     const direction = Math.abs(dx) > Math.abs(dy) ? { x: Math.sign(dx), y: 0 } : { x: 0, y: Math.sign(dy) };
     if (direction.x + this.direction.x || direction.y + this.direction.y) this.nextDirection = direction;
   }
+  // The snake only re-reads the board every AI_PERCEPTION_INTERVAL seconds. When
+  // the apple is placed somewhere new it keeps steering toward where the apple
+  // used to be, which is where its mistakes come from: it is not thinking badly,
+  // it has not noticed yet.
+  refreshPerception(dt) {
+    // Seconds, not frames. Subtracting 1 per frame drove the clock negative on
+    // the first frame at any normal timestep, so the snake re-read the board
+    // every frame and the reaction delay did not exist.
+    this.aiPerceptionClock -= dt;
+    if (this.aiPerceptionClock > 0 || !this.apple) return;
+    this.aiPerceptionClock = this.aiPerceptionInterval;
+    this.aiPerceivedApple = { x: this.apple.x, y: this.apple.y };
+  }
   chooseDirection() {
     const head = this.snake[0];
-    const apple = this.apple;
-    if (!apple) return;
+    const believed = this.aiPerceivedApple;
+    if (!believed) return;
     const choices = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }].filter((direction) => !(direction.x + this.direction.x === 0 && direction.y + this.direction.y === 0));
-    choices.sort((a, b) => this.routeScore(head, a, apple) - this.routeScore(head, b, apple));
-    const safeChoices = choices.filter((direction) => this.routeScore(head, direction, apple) < 10000);
-    const candidates = safeChoices.length ? safeChoices : choices;
-    this.nextDirection = Math.random() < AI_MISTAKE_CHANCE ? candidates[Math.min(candidates.length - 1, 1 + Math.floor(Math.random() * Math.max(1, candidates.length - 1)))] : candidates[0];
+    if (!choices.length) return;
+    // Scored against what the snake believes, not against the true apple.
+    choices.sort((a, b) => this.routeScore(head, a, believed) - this.routeScore(head, b, believed));
+    // Safety is decided by whether the cell is actually enterable, not by the
+    // route score. Filtering on the score treated a cell inside the snake's own
+    // body as safe, because that scores 5000 and the wall scores 10000 -- so the
+    // snake would plan into its own tail and never once find itself with no
+    // legal move.
+    const safeChoices = choices.filter((direction) => this.canEnter(head, direction));
+    const forced = safeChoices.length === 0;
+    const candidates = forced ? choices : safeChoices;
+
+    // Momentum: while a commitment is running the snake holds its heading unless
+    // that heading is about to kill it. Without this it re-plans every move and
+    // plays like a machine that can see the whole board.
+    let chosen;
+    let held = false;
+    // Counted in moves, not frames: a commitment is about how many turns the
+    // snake holds, and the snake only turns on a move.
+    if (this.aiCommitLeft > 0) this.aiCommitLeft -= 1;
+    if (this.aiCommitLeft > 0 && candidates.some((direction) => direction.x === this.direction.x && direction.y === this.direction.y)) {
+      chosen = this.direction;
+      held = true;
+    } else {
+      chosen = candidates[0];
+      if (chosen.x !== this.direction.x || chosen.y !== this.direction.y) this.aiCommitLeft = this.aiCommitMoves;
+    }
+    this.nextDirection = chosen;
+    // The true apple position is recorded so a test can score the decision after
+    // the fact. Nothing in this function branches on it.
+    // The legal cells at the moment of the decision are recorded so a test can
+    // judge the choice against what was actually on offer, rather than against
+    // every adjacent cell including the ones inside the snake's body.
+    const headCell = { x: head.x, y: head.y };
+    const safeCells = safeChoices.map((direction) => {
+      const next = { x: headCell.x + direction.x, y: headCell.y + direction.y };
+      return { x: this.wrap ? (next.x + this.cols) % this.cols : next.x, y: this.wrap ? (next.y + this.rows) % this.rows : next.y };
+    });
+    const chosenNext = { x: headCell.x + chosen.x, y: headCell.y + chosen.y };
+    recordDecision(this, {
+      chose: { x: chosen.x, y: chosen.y },
+      choseCell: { x: this.wrap ? (chosenNext.x + this.cols) % this.cols : chosenNext.x, y: this.wrap ? (chosenNext.y + this.rows) % this.rows : chosenNext.y },
+      head: headCell,
+      safeCells,
+      held,
+      forced,
+      safeOptions: safeChoices.length,
+      believed: { x: believed.x, y: believed.y },
+      actual: this.apple ? { x: this.apple.x, y: this.apple.y } : null
+    });
+  }
+  canEnter(head, direction) {
+    const next = { x: head.x + direction.x, y: head.y + direction.y };
+    const x = this.wrap ? (next.x + this.cols) % this.cols : next.x;
+    const y = this.wrap ? (next.y + this.rows) % this.rows : next.y;
+    if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return false;
+    if (this.snake.some((part) => part.x === x && part.y === y)) return false;
+    return true;
   }
   routeScore(head, direction, apple) {
     const next = { x: head.x + direction.x, y: head.y + direction.y };
