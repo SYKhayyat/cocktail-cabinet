@@ -596,6 +596,137 @@ async function testImitationProviderFallback(page) {
   assertEqual(report.downloadVisible, true, "the model download control is available in write mode");
 }
 
+async function testImitationPublicControls(page, step) {
+  // Rename the real descriptor, rather than the already-rendered option: the
+  // shell must use the public mode value even when the display copy changes.
+  await page.evaluate(`(() => {
+    const game = globalThis.__cocktailCabinet.games.get('imitation');
+    const mode = game.modes.find(({ value }) => value === 'guess');
+    globalThis.__guessOriginalLabel = mode.label;
+    mode.label = 'Who wrote this?';
+  })()`);
+  try {
+    await selectMode(page, 5, "guess");
+    const renamed = await page.evaluate(`(() => {
+      const game = globalThis.__cocktailCabinet.games.get('imitation');
+      game.sendMessage('A browser fixture prompt');
+      game.model.receive({ type: 'hello', from: 'fixture-provider', mode: 'provide' });
+      game.model.receive({ type: 'guess-response', from: 'fixture-provider', text: 'A browser fixture reply' });
+      return {
+        label: document.querySelector('#sideSelect option:checked').textContent,
+        controlsVisible: !document.querySelector('#guessControls').hidden,
+        enabled: [...document.querySelectorAll('[data-guess]')].every((button) => !button.disabled),
+        promptDisabled: document.querySelector('#chatInput').disabled
+      };
+    })()`);
+    assertEqual(renamed.label, "Who wrote this?", "the mode descriptor really is renamed");
+    assertEqual(renamed.controlsVisible, true, "renaming Guess does not hide its controls");
+    assertEqual(renamed.enabled, true, "renaming Guess does not disable source choices");
+    assertEqual(renamed.promptDisabled, true, "a renamed Guess mode still protects an unresolved mystery");
+    await page.evaluate("document.querySelector('[data-guess=human]').click()");
+    const guessed = await page.evaluate("globalThis.__cocktailCabinet.games.get('imitation').publicState().guessStats.right");
+    assertEqual(guessed, 1, "the renamed Guess UI still submits a real source choice");
+
+    // Do not download an external model for a controls test. Install a public
+    // state fixture whose provider values contradict the model, proving the
+    // shell renders the facade's contract rather than reading model internals.
+    for (const mode of ["ai", "human", "guess", "provide", "write"]) {
+      await selectMode(page, 5, mode);
+      for (const provider of [
+        { aiReady: false, modelLoading: false, modelCached: false, modelStatus: '', text: 'Download AI model' },
+        { aiReady: false, modelLoading: false, modelCached: true, modelStatus: '', text: 'Load cached model' },
+        { aiReady: false, modelLoading: true, modelCached: false, modelStatus: 'Loading fixture — 50%', text: 'Loading fixture — 50%' },
+        { aiReady: true, modelLoading: false, modelCached: true, modelStatus: '', text: 'AI model ready' }
+      ]) {
+        await page.evaluate(`(() => {
+          const game = globalThis.__cocktailCabinet.games.get('imitation');
+          const original = game.publicState.bind(game);
+          globalThis.__originalPublicState = original;
+          game.publicState = () => ({ ...original(), ...${JSON.stringify(provider)} });
+          // State-listener rendering must work without an animation frame too.
+          game.model.notifyState();
+        })()`);
+        const controls = await page.evaluate(`(() => ({
+          hidden: document.querySelector('#downloadModelButton').hidden,
+          disabled: document.querySelector('#downloadModelButton').disabled,
+          text: document.querySelector('#downloadModelButton').textContent,
+          manual: !document.querySelector('#manualConnect').hidden
+        }))()`);
+        assertEqual(controls.hidden, mode === "provide", `${mode} provider visibility uses the stable mode`);
+        assertEqual(controls.disabled, provider.aiReady || provider.modelLoading, `${mode} readiness/loading controls the provider button`);
+        assertEqual(controls.text, provider.text, `${mode} provider button renders public progress/cache/readiness`);
+        assertEqual(controls.manual, ["human", "guess", "provide"].includes(mode), `${mode} manual panel visibility uses public state`);
+        await step(1);
+        assertEqual(await page.evaluate("document.querySelector('#downloadModelButton').textContent"), provider.text, "per-frame rendering also consumes public provider state");
+        await page.evaluate(`(() => {
+          const game = globalThis.__cocktailCabinet.games.get('imitation');
+          game.publicState = globalThis.__originalPublicState;
+          delete globalThis.__originalPublicState;
+        })()`);
+      }
+    }
+  } finally {
+    await page.evaluate(`(() => {
+      const game = globalThis.__cocktailCabinet.games.get('imitation');
+      if (globalThis.__originalPublicState) game.publicState = globalThis.__originalPublicState;
+      game.modes.find(({ value }) => value === 'guess').label = globalThis.__guessOriginalLabel;
+      delete globalThis.__guessOriginalLabel;
+      delete globalThis.__originalPublicState;
+    })()`);
+  }
+}
+
+async function testImitationProviderLoadFlow(page) {
+  await selectMode(page, 5, "ai");
+  await page.evaluate(`(() => {
+    globalThis.__originalLanguageModel = Object.getOwnPropertyDescriptor(globalThis, 'LanguageModel');
+    globalThis.__originalLocalCache = [...Array(localStorage.length)].map((_, index) => localStorage.key(index)).filter((key) => key.startsWith('cocktail-cabinet-local-ai-ready-')).map((key) => [key, localStorage.getItem(key)]);
+    Object.defineProperty(globalThis, 'LanguageModel', { configurable: true, value: {
+      availability: async () => 'downloadable',
+      create: () => new Promise((resolve) => {
+        globalThis.__finishProviderFixture = () => resolve({ prompt: async (messages) => {
+          globalThis.__providerPrompt = messages.at(-1).content;
+          return 'The provider fixture replied.';
+        } });
+      })
+    } });
+    document.querySelector('#downloadModelButton').click();
+  })()`);
+  try {
+    await waitFor(page, "Boolean(globalThis.__finishProviderFixture)", "the provider fixture enters its real loading flow");
+    const loading = await page.evaluate(`({
+      disabled: document.querySelector('#downloadModelButton').disabled,
+      text: document.querySelector('#downloadModelButton').textContent,
+      loading: globalThis.__cocktailCabinet.games.get('imitation').publicState().modelLoading
+    })`);
+    assertEqual(loading.disabled, true, "the real download click disables the button while loading");
+    assertEqual(loading.loading, true, "the real provider flow exposes loading via public state");
+    assertMatch(loading.text, /Downloading Chrome built-in AI/, "provider progress reaches the shell without a frame");
+    await page.evaluate("globalThis.__finishProviderFixture(); true");
+    await waitFor(page, "globalThis.__cocktailCabinet.games.get('imitation').publicState().aiReady", "the provider fixture loads");
+    assertEqual(await page.evaluate("document.querySelector('#downloadModelButton').textContent"), "AI model ready", "provider completion updates the actual button");
+    assertEqual(await page.evaluate("document.querySelector('#downloadModelButton').disabled"), true, "the loaded model cannot be downloaded twice");
+    await page.evaluate(`(() => {
+      document.querySelector('#chatInput').value = 'A real UI prompt';
+      document.querySelector('#chatForm').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    })()`);
+    await waitFor(page, "globalThis.__cocktailCabinet.games.get('imitation').chatLog.some(({ sender, text }) => sender === 'AI' && text === 'The provider fixture replied.')", "the real provider response appears in chat");
+    assertEqual(await page.evaluate("globalThis.__providerPrompt"), "A real UI prompt", "the chat form reaches the provider rather than a canned fallback");
+    assertMatch(await page.evaluate("document.querySelector('#chatMessages').textContent"), /The provider fixture replied\./, "the shell renders the provider's reply");
+  } finally {
+    await page.evaluate(`(() => {
+      if (globalThis.__originalLanguageModel) Object.defineProperty(globalThis, 'LanguageModel', globalThis.__originalLanguageModel);
+      else delete globalThis.LanguageModel;
+      [...Array(localStorage.length)].map((_, index) => localStorage.key(index)).filter((key) => key.startsWith('cocktail-cabinet-local-ai-ready-')).forEach((key) => localStorage.removeItem(key));
+      globalThis.__originalLocalCache.forEach(([key, value]) => localStorage.setItem(key, value));
+      delete globalThis.__originalLanguageModel;
+      delete globalThis.__originalLocalCache;
+      delete globalThis.__finishProviderFixture;
+      delete globalThis.__providerPrompt;
+    })()`);
+  }
+}
+
 async function testGuessProvideAcrossTabs(first, second, step) {
   for (const page of [first, second]) {
     await page.evaluate(`(() => {
@@ -905,6 +1036,8 @@ async function main() {
       ["Asteroids versus honours the Lives setting", () => testAsteroidsVersusLives(first.page, step)],
       ["non-Race Splat spends engine lives", () => testNonRaceSplatSpendsEngineLives(first.page, step)],
       ["Imitation provider fallback without a model", () => testImitationProviderFallback(first.page)],
+      ["Imitation public provider controls and renamed Guess label", () => testImitationPublicControls(first.page, step)],
+      ["Imitation provider load and chat form flow with a local fixture", () => testImitationProviderLoadFlow(first.page)],
       ["narrow viewport layout", () => testNarrowLayout(first.page)]
     ];
 

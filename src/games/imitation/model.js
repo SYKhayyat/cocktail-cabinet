@@ -115,9 +115,11 @@ export class ImitationModel {
   async prepareProvider() {
     if (this.aiReady || this.modelLoading) return;
     this.modelLoading = true;
+    this.notifyState();
     try {
-      await loadLocalModel((report) => { this.modelDevice = report.device || this.modelDevice; this.lastModelStatus = modelProgressText(report); });
+      await loadLocalModel((report) => { this.modelDevice = report.device || this.modelDevice; this.lastModelStatus = modelProgressText(report); this.notifyState(); });
       this.aiReady = true;
+      this.modelCached = hasCachedModel();
       this.aiUnavailable = false;
       if (this.side === "guess" && this.phase === "guess-waiting") this.guessFallbackStarted = false;
     } catch (error) {
@@ -126,6 +128,7 @@ export class ImitationModel {
       console.error("[Imitation] Local AI model preparation failed:", error);
     } finally {
       this.modelLoading = false;
+      this.notifyState();
     }
   }
   async downloadModel() {
@@ -259,8 +262,8 @@ export class ImitationModel {
       this.mystery = { source: "human", text: message.text };
       this.guessResult = null;
       this.guessFallbackStarted = false;
-      this.addMessage("Mystery", message.text);
       this.phase = "guess";
+      this.addMessage("Mystery", message.text);
     }
   }
   addMessage(sender, text) {
@@ -307,8 +310,8 @@ export class ImitationModel {
     this.guessStats[correct ? "right" : "wrong"] += 1;
     this.guessResult = { choice: value, correct };
     this.score += correct ? 10 : 0;
-    this.addMessage("System", `${correct ? "Correct" : "Not quite"} — the response was ${this.mystery.source.toUpperCase()}.`);
     this.phase = "result";
+    this.addMessage("System", `${correct ? "Correct" : "Not quite"} — the response was ${this.mystery.source.toUpperCase()}.`);
     this.restartTimer = setTimeout(() => this.startNextRound(), 1800);
     return true;
   }
@@ -381,8 +384,8 @@ export class ImitationModel {
       return;
     }
     this.mystery = { source: "ai", text: response };
-    this.addMessage("Mystery", response);
     this.phase = "guess";
+    this.addMessage("Mystery", response);
   }
   async classifyText(text) {
     if (!this.aiReady && !this.modelLoading) {
@@ -424,7 +427,17 @@ export class ImitationModel {
       }
     }
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "ai" ? this.modelLoading ? "Loading the local AI model" : this.aiReady ? `AI companion ready${this.modelDevice === "chrome" ? " via Chrome AI" : this.modelDevice === "ollama" ? " via Ollama" : this.modelDevice === "webgpu" ? " via WebGPU" : ""}` : this.modelError ? "The AI model needs attention" : this.modelCached ? "Load the cached AI model" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two players are connected" : "Open another player connection to join" : this.side === "guess" ? this.modelLoading ? "Downloading the AI model" : this.aiReady ? "Guess AI or human" : "Download the AI model to play" : this.side === "provide" ? this.peerId ? "Guess player connected" : "Waiting for a Guess player" : "Submit text for AI classification", chatRevision: this.chatRevision, modelCached: this.modelCached, modelDevice: this.modelDevice, modelStatus: this.lastModelStatus, phase: this.phase, guessResult: this.guessResult, guessStats: this.guessStats }; }
+  publicState() {
+    return {
+      title: this.title, description: this.description,
+      side: this.sideLabel(), mode: this.side,
+      aiReady: Boolean(this.aiReady), modelLoading: Boolean(this.modelLoading),
+      modelCached: Boolean(this.modelCached), modelError: this.modelError,
+      status: this.side === "ai" ? this.modelLoading ? "Loading the local AI model" : this.aiReady ? `AI companion ready${this.modelDevice === "chrome" ? " via Chrome AI" : this.modelDevice === "ollama" ? " via Ollama" : this.modelDevice === "webgpu" ? " via WebGPU" : ""}` : this.modelError ? "The AI model needs attention" : this.modelCached ? "Load the cached AI model" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two players are connected" : "Open another player connection to join" : this.side === "guess" ? this.modelLoading ? "Downloading the AI model" : this.aiReady ? "Guess AI or human" : "Download the AI model to play" : this.side === "provide" ? this.peerId ? "Guess player connected" : "Waiting for a Guess player" : "Submit text for AI classification",
+      chatRevision: this.chatRevision, modelDevice: this.modelDevice, modelStatus: this.lastModelStatus,
+      phase: this.phase, guessResult: this.guessResult, guessStats: this.guessStats
+    };
+  }
 }
 
 function modelProgressText(report = {}) {

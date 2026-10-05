@@ -144,7 +144,7 @@ function renderChat(game) {
 }
 
 function renderGuessControls(state) {
-  const isGuess = state.side === "Guess AI or human";
+  const isGuess = state.mode === "guess";
   guessControls.hidden = !isGuess;
   const stats = state.guessStats || { right: 0, wrong: 0 };
   guessStats.textContent = `Right ${stats.right} · Wrong ${stats.wrong}`;
@@ -199,8 +199,16 @@ function updateSplatTools() {
 }
 
 function updateImitationTools() {
-  const game = games.get("imitation");
-  manualConnect.hidden = activeId !== "imitation" || !["human", "guess", "provide"].includes(game.side);
+  renderImitationControls(games.get("imitation").publicState());
+}
+
+function renderImitationControls(state) {
+  const isImitation = activeId === "imitation";
+  manualConnect.hidden = !isImitation || !["human", "guess", "provide"].includes(state.mode);
+  downloadModelButton.hidden = !isImitation || state.mode === "provide";
+  downloadModelButton.disabled = state.aiReady || state.modelLoading;
+  downloadModelButton.textContent = state.modelLoading ? state.modelStatus || "Loading…" : state.aiReady ? "AI model ready" : state.modelCached ? "Load cached model" : "Download AI model";
+  if (isImitation) renderGuessControls(state);
 }
 
 function renderControlHint(game) {
@@ -243,7 +251,7 @@ function loadGame(id) {
     if (activeId !== "imitation") return;
     const state = game.publicState();
     status.textContent = state.status;
-    renderGuessControls(state);
+    renderImitationControls(state);
     if (state.chatRevision !== lastChatRevision) {
       lastChatRevision = state.chatRevision;
       renderChat(game);
@@ -262,10 +270,7 @@ const engine = new GameEngine(canvas, {
     description.textContent = state.description;
     status.textContent = activeId === "imitation" ? state.status : engine.ready ? "Press New game to start" : engine.countdown > 0 ? "Get ready…" : state.status;
     if (activeId === "imitation") {
-      renderGuessControls(state);
-      downloadModelButton.hidden = state.side === "Provide a guessing message";
-      downloadModelButton.disabled = Boolean(engine.game.model?.aiReady || engine.game.model?.modelLoading);
-      downloadModelButton.textContent = engine.game.model?.modelLoading ? state.modelStatus || "Loading…" : engine.game.model?.aiReady ? "AI model ready" : engine.game.model?.modelCached ? "Load cached model" : "Download AI model";
+      renderImitationControls(state);
     }
     if (state.chatRevision !== undefined && state.chatRevision !== lastChatRevision) {
       lastChatRevision = state.chatRevision;

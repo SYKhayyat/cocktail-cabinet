@@ -54,6 +54,47 @@ function transportFixture(t) {
   };
 }
 
+test("Imitation public state keeps the stable mode when its display label is renamed", (t) => {
+  const descriptor = IMITATION_MODES.find(({ value }) => value === "guess");
+  const originalLabel = descriptor.label;
+  t.after(() => { descriptor.label = originalLabel; });
+  descriptor.label = "Who wrote this?";
+  const model = new ImitationModel();
+  model.setSide("guess");
+  model.reset();
+  const observedPhases = [];
+  model.setStateListener(() => observedPhases.push(model.publicState().phase));
+  const state = model.publicState();
+  assert.equal(state.side, "Who wrote this?");
+  assert.equal(state.mode, "guess");
+  model.sendMessage("A question");
+  model.receive({ type: "hello", from: "provider", mode: "provide" });
+  model.receive({ type: "guess-response", from: "provider", text: "A human reply" });
+  assert.equal(model.publicState().phase, "guess");
+  assert.equal(observedPhases.at(-1), "guess", "notifications expose the final phase without waiting for a frame");
+  assert.equal(model.chooseGuess("human"), true);
+  assert.equal(observedPhases.at(-1), "result");
+  model.destroy();
+});
+
+test("Imitation public state exports explicit provider flags, not display-label inference", () => {
+  const model = new ImitationModel();
+  model.reset();
+  assert.equal(model.publicState().aiReady, false);
+  assert.equal(model.publicState().modelLoading, false);
+  assert.equal(typeof model.publicState().modelCached, "boolean");
+  model.aiReady = true;
+  model.modelLoading = true;
+  model.modelCached = true;
+  model.lastModelStatus = "Loading fixture";
+  const state = model.publicState();
+  assert.equal(state.aiReady, true);
+  assert.equal(state.modelLoading, true);
+  assert.equal(state.modelCached, true);
+  assert.equal(state.modelStatus, "Loading fixture");
+  model.destroy();
+});
+
 for (const side of ["provide", "guess"]) {
   for (const departure of ["bye", "timeout"]) {
     test(`Imitation ${side} releases and re-pairs after peer ${departure}`, async (t) => {
