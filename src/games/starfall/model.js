@@ -1,17 +1,23 @@
 import { clamp, circleHitsCircle } from "../../geometry.js";
 import { recordDecision } from "../../decisions.js";
 
-export // Runner factors. The runner does not roll for mistakes: it can only see stars
+// Runner factors. The runner does not roll for mistakes: it can only see stars
 // that have fallen past a certain height, it re-reads them on a clock, and once
 // it commits to a lane it holds that lane for a beat.
-const RUNNER_PERCEPTION_MIN = 0.1;
-const RUNNER_PERCEPTION_MAX = 0.24;
-const RUNNER_VISION_HEIGHT = 300;
-const RUNNER_LANE_COMMIT_MIN = 0.55;
-const RUNNER_LANE_COMMIT_MAX = 0.95;
-const RUNNER_LANE_WIDTH = 45;
-const RUNNER_SPEED = 220;
-
+// Seconds, pixels and px/s. Lane width is policy clearance, not collision
+// geometry. Outcome accounting keeps its fixed 0.95s threat horizon, so tuning
+// commitment cannot silently change the measurement denominator.
+// See tests/ai/TUNING.md.
+export const STARFALL_AI_DEFAULTS = Object.freeze({
+  perceptionMin: 0.1, perceptionMax: 0.24, visionHeight: 300,
+  laneCommitMin: 0.55, laneCommitMax: 0.95, laneWidth: 45, speed: 220,
+  targetLock: 0.45, gemPastMargin: 50, gemVerticalWeight: 0.15,
+  gemSwitchAdvantage: 25, gemSwitchFirstChance: 0.5,
+  gemSwitchSecondChance: 0.8, gemSwitchThirdChance: 0.9,
+  lanes: Object.freeze([20, 160, 300, 440, 580, 720, 780]), arriveTolerance: 4
+});
+// Preserve the existing public constant as a default alias, not live tuning.
+export const RUNNER_PERCEPTION_MIN = STARFALL_AI_DEFAULTS.perceptionMin;
 const THREAT_HORIZON = 0.95;
 
 const STARFALL_MODES = [
@@ -20,7 +26,8 @@ const STARFALL_MODES = [
 ];
 
 export class StarfallModel {
-  constructor() {
+  constructor({ aiTuning = {} } = {}) {
+    this.aiTuning = { ...STARFALL_AI_DEFAULTS, ...aiTuning, lanes: [...(aiTuning.lanes || STARFALL_AI_DEFAULTS.lanes)] };
     this.id = "starfall";
     this.title = "Starfall";
     this.description = "Guide the runner with the mouse or keyboard, collect falling blue gems, and avoid red stars. In flipped play, click or drag to send stars.";
@@ -212,7 +219,7 @@ export class StarfallModel {
   // long enough to have registered, which is why it used to look invulnerable:
   // it was checking every star on the board against every candidate lane.
   visibleStars() {
-    return this.stars.filter((star) => star.y >= RUNNER_VISION_HEIGHT);
+    return this.stars.filter((star) => star.y >= this.aiTuning.visionHeight);
   }
   aiRunner(dt) {
     const visible = this.visibleStars();
@@ -222,29 +229,29 @@ export class StarfallModel {
     // Re-read the lanes on a clock rather than continuously.
     if (this.aiPerceptionClock <= 0) {
       this.aiSeenStars = visible.map((star) => ({ x: star.x, vx: star.vx || 0 }));
-      this.aiPerceptionClock = RUNNER_PERCEPTION_MIN + Math.random() * (RUNNER_PERCEPTION_MAX - RUNNER_PERCEPTION_MIN);
+      this.aiPerceptionClock = this.aiTuning.perceptionMin + Math.random() * (this.aiTuning.perceptionMax - this.aiTuning.perceptionMin);
     }
     const seen = this.aiSeenStars || [];
-    const activeGems = this.gems.filter((gem) => !gem.collected && gem.y <= this.runner.y + 50);
+    const activeGems = this.gems.filter((gem) => !gem.collected && gem.y <= this.runner.y + this.aiTuning.gemPastMargin);
     if (!seen.length && !activeGems.length) return;
-    const gemCost = (gem) => Math.abs(gem.x - this.runner.x) + Math.abs(this.runner.y - gem.y) * 0.15;
+    const gemCost = (gem) => Math.abs(gem.x - this.runner.x) + Math.abs(this.runner.y - gem.y) * this.aiTuning.gemVerticalWeight;
     const rankedGems = [...activeGems].sort((first, second) => gemCost(first) - gemCost(second));
     let targetGem = rankedGems.find((gem) => gem === this.aiTargetGem);
-    const targetIsSafe = this.aiTargetX === null || seen.every((star) => Math.abs(this.aiTargetX - star.x) > RUNNER_LANE_WIDTH);
+    const targetIsSafe = this.aiTargetX === null || seen.every((star) => Math.abs(this.aiTargetX - star.x) > this.aiTuning.laneWidth);
     if (!targetGem || !targetIsSafe) {
       targetGem = rankedGems[0] || null;
-      this.aiTargetLock = 0.45;
+      this.aiTargetLock = this.aiTuning.targetLock;
     } else if (!this.aiTargetLock) {
       const currentCost = gemCost(targetGem);
-      const betterGems = rankedGems.filter((gem) => gem !== targetGem && gemCost(gem) < currentCost - 25);
+      const betterGems = rankedGems.filter((gem) => gem !== targetGem && gemCost(gem) < currentCost - this.aiTuning.gemSwitchAdvantage);
       const roll = Math.random();
-      if (betterGems[0] && roll < 0.5) targetGem = betterGems[0];
-      else if (betterGems[1] && roll < 0.8) targetGem = betterGems[1];
-      else if (betterGems[2] && roll < 0.9) targetGem = betterGems[2];
-      this.aiTargetLock = 0.45;
+      if (betterGems[0] && roll < this.aiTuning.gemSwitchFirstChance) targetGem = betterGems[0];
+      else if (betterGems[1] && roll < this.aiTuning.gemSwitchSecondChance) targetGem = betterGems[1];
+      else if (betterGems[2] && roll < this.aiTuning.gemSwitchThirdChance) targetGem = betterGems[2];
+      this.aiTargetLock = this.aiTuning.targetLock;
     }
-    const candidates = [20, 160, 300, 440, 580, 720, 780];
-    const safe = candidates.filter((candidate) => seen.every((star) => Math.abs(candidate - star.x) > RUNNER_LANE_WIDTH));
+    const candidates = this.aiTuning.lanes;
+    const safe = candidates.filter((candidate) => seen.every((star) => Math.abs(candidate - star.x) > this.aiTuning.laneWidth));
     const pool = safe.length ? safe : [this.runner.x < 400 ? 20 : 780];
     const target = pool.reduce((best, candidate) => {
       const distance = targetGem ? Math.abs(candidate - targetGem.x) : Math.abs(candidate - this.runner.x);
@@ -255,11 +262,11 @@ export class StarfallModel {
     // lane every frame, so a star that moves into its path is never a problem --
     // there was never a decision to get wrong.
     let replanned = false;
-    const laneUnsafe = this.aiTargetX !== null && !seen.every((star) => Math.abs(this.aiTargetX - star.x) > RUNNER_LANE_WIDTH);
+    const laneUnsafe = this.aiTargetX !== null && !seen.every((star) => Math.abs(this.aiTargetX - star.x) > this.aiTuning.laneWidth);
     if (this.aiTargetX === null || this.aiLaneCommit <= 0 && (laneUnsafe || this.aiTargetGem !== targetGem)) {
       this.aiTargetX = target.x;
       this.aiTargetGem = targetGem;
-      this.aiLaneCommit = RUNNER_LANE_COMMIT_MIN + Math.random() * (RUNNER_LANE_COMMIT_MAX - RUNNER_LANE_COMMIT_MIN);
+      this.aiLaneCommit = this.aiTuning.laneCommitMin + Math.random() * (this.aiTuning.laneCommitMax - this.aiTuning.laneCommitMin);
       replanned = true;
     } else if (this.aiTargetGem !== targetGem) {
       this.aiTargetGem = targetGem;
@@ -272,8 +279,8 @@ export class StarfallModel {
       starsOnBoard: this.stars.length,
       targetGemX: targetGem ? Math.round(targetGem.x) : null
     });
-    if (Math.abs(this.aiTargetX - this.runner.x) <= 4) this.runner.x = this.aiTargetX;
-    else this.runner.x = clamp(this.runner.x + clamp(this.aiTargetX - this.runner.x, -1, 1) * RUNNER_SPEED * dt, 20, 780);
+    if (Math.abs(this.aiTargetX - this.runner.x) <= this.aiTuning.arriveTolerance) this.runner.x = this.aiTargetX;
+    else this.runner.x = clamp(this.runner.x + clamp(this.aiTargetX - this.runner.x, -1, 1) * this.aiTuning.speed * dt, 20, 780);
   }
   handleLifeLoss() {
     if (!this.lifeLost && !this.pendingLifeLoss) return null;

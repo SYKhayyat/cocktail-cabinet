@@ -24,13 +24,14 @@ export const MISSILE_MODES = [
 
 // Battery factors. The battery does not roll for misses: it estimates the
 // intercept imperfectly, and it has a finite number of rounds between reloads.
-const INTERCEPTOR_SPEED = 245;
-const INTERCEPTOR_LEAD = 0.62;
-const INTERCEPTOR_RELOAD_MIN = 0.5;
-const INTERCEPTOR_RELOAD_MAX = 0.85;
+// Speed is px/s; lead is a fraction of estimated flight time; reload is seconds.
+// These govern the computer battery, not the human's interceptor physics.
+// See tests/ai/TUNING.md.
+export const MISSILE_AI_DEFAULTS = Object.freeze({ interceptorSpeed: 245, lead: 0.62, reloadMin: 0.5, reloadMax: 0.85 });
 
 export class MissileModel {
-  constructor() {
+  constructor({ aiTuning = {} } = {}) {
+    this.aiTuning = { ...MISSILE_AI_DEFAULTS, ...aiTuning };
     this.id = "missile";
     this.title = "Missile Command";
     this.description = "Defend: aim the crosshair, choose a battery with Left/Right, then press Space or click to launch. Attack: click or drag to fire a red missile at a city. Both modes are about the six cities.";
@@ -162,17 +163,17 @@ export class MissileModel {
     const dx = target.targetX - target.x;
     const dy = target.targetY - target.y;
     const distance = Math.hypot(dx, dy);
-    const flightTime = Math.hypot(target.x - base.x, target.y - base.y) / INTERCEPTOR_SPEED;
+    const flightTime = Math.hypot(target.x - base.x, target.y - base.y) / this.aiTuning.interceptorSpeed;
     // The battery leads the target by its own estimate of the intercept, and
     // that estimate is short. It used to add a random offset instead, which is
     // the same idea with a dice on the end: a correct lead always connects here,
     // because a missile flies a straight line to its target, so something has to
     // be wrong with the estimate. Under-estimating costs accuracy in proportion
     // to how fast and how far away the target is.
-    const lead = INTERCEPTOR_LEAD * flightTime;
+    const lead = this.aiTuning.lead * flightTime;
     const aimX = target.x + (distance ? dx / distance * target.speed * lead : 0);
     const aimY = target.y + (distance ? dy / distance * target.speed * lead : 0);
-    this.interceptors.push({ x: base.x, y: base.y - 20, targetX: aimX, targetY: aimY, speed: INTERCEPTOR_SPEED, color: "#22d3ee", machine: true });
+    this.interceptors.push({ x: base.x, y: base.y - 20, targetX: aimX, targetY: aimY, speed: this.aiTuning.interceptorSpeed, color: "#22d3ee", machine: true });
     this.recordEvent("interceptor-fired", { machine: true });
     recordDecision(this, {
       mode: "attacker",
@@ -213,7 +214,7 @@ export class MissileModel {
       // Fires whenever it is loaded. The 30% chance of not firing is gone: the
       // reload interval is the limit, not a roll.
       this.launchMachineInterceptor();
-      this.interceptorClock = INTERCEPTOR_RELOAD_MIN + Math.random() * (INTERCEPTOR_RELOAD_MAX - INTERCEPTOR_RELOAD_MIN);
+      this.interceptorClock = this.aiTuning.reloadMin + Math.random() * (this.aiTuning.reloadMax - this.aiTuning.reloadMin);
     }
     for (const missile of this.enemyMissiles) this.moveEnemy(missile, dt);
     for (const missile of this.interceptors) if (this.moveInterceptor(missile, dt)) missile.dead = true;

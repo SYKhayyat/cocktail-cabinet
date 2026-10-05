@@ -7,8 +7,9 @@ const BOARD_HEIGHT = 560;
 // Snake computer factors. There is deliberately no chance of a wrong turn: the
 // snake goes wrong because it has not looked at the board yet, or because it is
 // already committed to a heading. Both are limits, not dice.
-const AI_PERCEPTION_INTERVAL = 0.26;
-const AI_COMMIT_MOVES = 3;
+// Seconds, moves, and a computer-only movement interval multiplier. See
+// tests/ai/TUNING.md. Each instance copies these defaults; reset keeps overrides.
+export const SNAKE_AI_DEFAULTS = Object.freeze({ perceptionInterval: 0.26, commitMoves: 3, moveIntervalScale: 1 });
 
 export const SNAKE_MODES = [
   { value: "snake", label: "Solo — steer the snake" },
@@ -23,7 +24,8 @@ export const SNAKE_SETTINGS = {
 };
 
 export class SnakeModel {
-  constructor() {
+  constructor({ aiTuning = {} } = {}) {
+    this.aiTuning = { ...SNAKE_AI_DEFAULTS, ...aiTuning };
     this.id = "snake";
     this.title = "Snake";
     this.description = "Guide the snake with the mouse or keyboard. The computer places apples in the flipped mode.";
@@ -48,6 +50,11 @@ export class SnakeModel {
   get modes() { return SNAKE_MODES; }
   get sides() { return SNAKE_MODES.map((mode) => mode.value); }
   get settings() { return SNAKE_SETTINGS; }
+  // Compatibility aliases for older callers; policy has one source of truth.
+  get aiPerceptionInterval() { return this.aiTuning.perceptionInterval; }
+  set aiPerceptionInterval(value) { this.aiTuning.perceptionInterval = value; }
+  get aiCommitMoves() { return this.aiTuning.commitMoves; }
+  set aiCommitMoves(value) { this.aiTuning.commitMoves = value; }
   sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || SNAKE_MODES[0].label; }
   setSide(side) { if (this.sides.includes(side)) this.side = side; }
   validateSettings(values) {
@@ -111,8 +118,6 @@ export class SnakeModel {
     this.direction = { x: 1, y: 0 };
     this.nextDirection = { x: 1, y: 0 };
     this.aiClock = 0;
-    this.aiPerceptionInterval = AI_PERCEPTION_INTERVAL;
-    this.aiCommitMoves = AI_COMMIT_MOVES;
     this.aiPerceptionClock = 0;
     this.aiPerceivedApple = null;
     this.aiCommitLeft = 0;
@@ -181,7 +186,7 @@ cellKey(x, y) { return y * this.cols + x; }
       const cell = this.cellFromPointer(input.placeApple);
       if (!this.isOccupiedCell(cell.x, cell.y)) this.apple = cell;
     }
-    const interval = this.moveInterval() * (this.side === "snake" ? 1 : 1);
+    const interval = this.moveInterval() * (this.side === "snake" ? 1 : this.aiTuning.moveIntervalScale);
     if (this.side === "snake") {
       if (input.direction) this.nextDirection = input.direction;
       if (input.steer) this.steerToward(input.steer.x, input.steer.y);
@@ -250,7 +255,7 @@ cellKey(x, y) { return y * this.cols + x; }
     // every frame and the reaction delay did not exist.
     this.aiPerceptionClock -= dt;
     if (this.aiPerceptionClock > 0 || !this.apple) return;
-    this.aiPerceptionClock = this.aiPerceptionInterval;
+    this.aiPerceptionClock = this.aiTuning.perceptionInterval;
     this.aiPerceivedApple = { x: this.apple.x, y: this.apple.y };
   }
   chooseDirection() {
@@ -283,7 +288,7 @@ cellKey(x, y) { return y * this.cols + x; }
       held = true;
     } else {
       chosen = candidates[0];
-      if (chosen.x !== this.direction.x || chosen.y !== this.direction.y) this.aiCommitLeft = this.aiCommitMoves;
+      if (chosen.x !== this.direction.x || chosen.y !== this.direction.y) this.aiCommitLeft = this.aiTuning.commitMoves;
     }
     this.nextDirection = chosen;
     // The true apple position is recorded so a test can score the decision after

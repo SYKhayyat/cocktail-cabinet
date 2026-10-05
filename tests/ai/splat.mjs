@@ -10,7 +10,7 @@ import { SplatModel } from "../../src/games/splat/model.js";
 import { seeded, rate } from "./snake.mjs";
 import { lifecycle } from "./lifecycle.mjs";
 
-export function measureSplat({ runs = 100, steps = 6500, dt = 1 / 60, step = 130, gapHeight = 50, lives = 3 } = {}) {
+export function measureSplat({ runs = 100, steps = 6500, dt = 1 / 60, step = 130, gapHeight = 50, lives = 3, aiTuning = {} } = {}) {
   const originalRandom = Math.random;
   let cleared = 0;
   let deaths = 0;
@@ -19,7 +19,7 @@ export function measureSplat({ runs = 100, steps = 6500, dt = 1 / 60, step = 130
   try {
     for (let run = 0; run < runs; run += 1) {
       Math.random = seeded(1000 + run * 7919);
-      const game = new SplatModel();
+      const game = new SplatModel({ aiTuning });
       game.setSide("builder");
       game.reset(false, false, { startingLives: lives });
       const round = lifecycle(game, { lives, modelOwnsLives: true });

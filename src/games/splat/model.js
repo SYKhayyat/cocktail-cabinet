@@ -12,15 +12,14 @@ const BOUNCE_DISTANCE = 18;
 // Ball computer factors. It does not roll for a crash: it looks for the next
 // gap on a reaction clock, it commits to that gap for a beat, and it accelerates
 // towards it rather than snapping to it.
-const COMPUTER_REACTION_MIN = 0.12;
-const COMPUTER_REACTION_MAX = 0.3;
-const COMPUTER_COMMIT_MIN = 0.18;
-const COMPUTER_COMMIT_MAX = 0.42;
-// How far ahead the ball looks for its next gap. It cannot plan a whole route.
-const COMPUTER_LOOKAHEAD = 260;
-// Vertical acceleration limit, px/s^2.
-const COMPUTER_THRUST = 620;
-const COMPUTER_MAX_FALL = 360;
+// Lookahead engages one gap, not a plan for the whole route.
+// Seconds, pixels, px/s and px/s²; velocityGain converts position error to
+// desired velocity. Overrides only affect the computer. See tests/ai/TUNING.md.
+export const SPLAT_AI_DEFAULTS = Object.freeze({
+  reactionMin: 0.12, reactionMax: 0.3, commitMin: 0.18, commitMax: 0.42,
+  lookahead: 260, thrust: 620, maxFall: 360, velocityGain: 4,
+  targetTolerance: 24, horizontalSpeed: HORIZONTAL_SPEED
+});
 
 export const SPLAT_MODES = [
   { value: "climber", label: "Solo — steer the ball" },
@@ -33,7 +32,8 @@ export const SPLAT_SETTINGS = {
 };
 
 export class SplatModel {
-  constructor() {
+  constructor({ aiTuning = {} } = {}) {
+    this.aiTuning = { ...SPLAT_AI_DEFAULTS, ...aiTuning };
     this.id = "splat";
     this.title = "Splat";
     this.description = "Hold Up/Down to drift and tap/click the upper or lower half to bounce through the gaps.";
@@ -139,7 +139,7 @@ export class SplatModel {
     this.updateBuilderInput(input);
     this.player.vy += GRAVITY * dt;
     this.moveComputer(this.player, dt);
-    this.player.x += HORIZONTAL_SPEED * dt;
+    this.player.x += this.aiTuning.horizontalSpeed * dt;
     this.player.y = clamp(this.player.y + this.player.vy * dt, 18, 542);
     this.builderCameraX = clamp(this.player.x - 110, 0, Math.max(0, this.columns.at(-1).x - 650));
     this.cameraX = this.builderCameraX;
@@ -156,7 +156,7 @@ export class SplatModel {
     this.computerPlayer.vy += GRAVITY * dt;
     this.moveComputer(this.computerPlayer, dt);
     this.player.x += HORIZONTAL_SPEED * dt;
-    this.computerPlayer.x += HORIZONTAL_SPEED * dt;
+    this.computerPlayer.x += this.aiTuning.horizontalSpeed * dt;
     this.player.y = clamp(this.player.y + this.player.vy * dt, 18, 542);
     this.computerPlayer.y = clamp(this.computerPlayer.y + this.computerPlayer.vy * dt, 18, 542);
     this.resolvePlayer(this.player, true);
@@ -283,11 +283,11 @@ export class SplatModel {
       // It only starts lining up for a gap once that gap is close enough to be
       // worth the reaction, and once it has committed it holds that gap rather
       // than re-aiming every frame at whichever column happens to be nearest.
-      const engaged = player.x > column.x - COMPUTER_LOOKAHEAD;
-      if (engaged && player.aiCommit <= 0 && (player.aiTargetY === null || Math.abs(targetY - player.aiTargetY) > 24)) {
+      const engaged = player.x > column.x - this.aiTuning.lookahead;
+      if (engaged && player.aiCommit <= 0 && (player.aiTargetY === null || Math.abs(targetY - player.aiTargetY) > this.aiTuning.targetTolerance)) {
         player.aiTargetY = targetY;
-        player.aiReaction = COMPUTER_REACTION_MIN + Math.random() * (COMPUTER_REACTION_MAX - COMPUTER_REACTION_MIN);
-        player.aiCommit = COMPUTER_COMMIT_MIN + Math.random() * (COMPUTER_COMMIT_MAX - COMPUTER_COMMIT_MIN);
+        player.aiReaction = this.aiTuning.reactionMin + Math.random() * (this.aiTuning.reactionMax - this.aiTuning.reactionMin);
+        player.aiCommit = this.aiTuning.commitMin + Math.random() * (this.aiTuning.commitMax - this.aiTuning.commitMin);
         recordDecision(this, { side: this.side, targetY: Math.round(targetY), engaged, columnX: Math.round(column.x), playerX: Math.round(player.x) });
       }
       // While reacting or committed it is still steering for the gap it last
@@ -298,8 +298,8 @@ export class SplatModel {
     const difference = desiredY - player.y;
     // Acceleration rather than a velocity that snaps to the answer, so a late or
     // committed decision costs the ball time it does not have.
-    const desiredVelocity = clamp(difference * 4, -COMPUTER_MAX_FALL, COMPUTER_MAX_FALL);
-    const change = clamp(desiredVelocity - player.vy, -COMPUTER_THRUST * dt, COMPUTER_THRUST * dt);
+    const desiredVelocity = clamp(difference * this.aiTuning.velocityGain, -this.aiTuning.maxFall, this.aiTuning.maxFall);
+    const change = clamp(desiredVelocity - player.vy, -this.aiTuning.thrust * dt, this.aiTuning.thrust * dt);
     player.vy += change;
     this.aiClock += dt;
   }

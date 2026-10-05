@@ -8,7 +8,7 @@ import { SnakeModel } from "../../src/games/snake/model.js";
 // greedy stepping is what walks them into their own tail -- so the absolute
 // number is not a quality score. What it does establish is that the snake is
 // neither perfect nor random.
-export function measureSnake({ runs = 200, steps = 1000, settings = {}, dt = 0.05, perfectPerception = false, noMomentum = false, placeApples = false } = {}) {
+export function measureSnake({ runs = 200, steps = 1000, settings = {}, dt = 0.05, perfectPerception = false, noMomentum = false, placeApples = false, aiTuning = {} } = {}) {
   const originalRandom = Math.random;
   const decisions = [];
   let deaths = 0;
@@ -17,15 +17,14 @@ export function measureSnake({ runs = 200, steps = 1000, settings = {}, dt = 0.0
   try {
     for (let run = 0; run < runs; run += 1) {
       Math.random = seeded(1000 + run * 7919);
-      const game = new SnakeModel();
+      // Old experiment flags remain compatible, but now use the shared seam.
+      const game = new SnakeModel({ aiTuning: { ...(perfectPerception ? { perceptionInterval: 0 } : {}), ...(noMomentum ? { commitMoves: 0 } : {}), ...aiTuning } });
       game.setSide("apples");
       if (settings && Object.keys(settings).length) {
         game.setSettings(settings);
         game.applyPendingSettings();
       }
       game.reset();
-      if (perfectPerception) game.aiPerceptionInterval = 0;
-      if (noMomentum) game.aiCommitMoves = 0;
       let firstDeath = null;
       for (let step = 0; step < steps; step += 1) {
         // In the real apples mode the player is the one moving the apple, which

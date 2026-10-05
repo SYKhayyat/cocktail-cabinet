@@ -12,15 +12,16 @@ const SHIP_RESTITUTION = 0.85;
 // Ship computer factors. It does not roll for mistakes: it turns at a bounded
 // rate, it keeps aiming where it last decided until its reaction runs out, and
 // once it commits to a swerve it holds that swerve for a beat.
-const SHIP_AI_TURN_RATE = 3.6;
-const SHIP_AI_REACTION_MIN = 0.18;
-const SHIP_AI_REACTION_MAX = 0.38;
-const SHIP_AI_DODGE_RANGE = 105;
-const SHIP_AI_DODGE_COMMIT_MIN = 0.14;
-const SHIP_AI_DODGE_COMMIT_MAX = 0.3;
 // The escape heading is picked from a coarse set rather than computed exactly.
 // A player swerves; it does not solve for the precise tangent of a circle.
-const SHIP_AI_ESCAPE_CHOICES = 8;
+// Seconds, radians/s, pixels and px/s. Cadence jitter preserves the original
+// random arithmetic as well as its draw order. See tests/ai/TUNING.md.
+export const ASTEROIDS_AI_DEFAULTS = Object.freeze({
+  turnRate: 3.6, reactionMin: 0.18, reactionMax: 0.38, dodgeRange: 105,
+  dodgeCommitMin: 0.14, dodgeCommitMax: 0.3, escapeChoices: 8,
+  speed: 165, versusSpeed: 105, initialShotDelay: 1.3,
+  shotInterval: 1.3, versusShotInterval: 1.1, shotJitter: 0.3, noTargetShotDelay: 0.5
+});
 
 export const BOARD_WIDTH = 800;
 export const BOARD_HEIGHT = 560;
@@ -60,7 +61,8 @@ export const ASTEROIDS_MODES = [
 ];
 
 export class AsteroidsModel {
-  constructor() {
+  constructor({ aiTuning = {} } = {}) {
+    this.aiTuning = { ...ASTEROIDS_AI_DEFAULTS, ...aiTuning };
     this.id = "asteroids";
     this.title = "Asteroids";
     this.description = "Fly with the mouse or WASD, click or hold to shoot, and break rocks into pieces. Versus mode gives both pilots a ship.";
@@ -90,7 +92,7 @@ export class AsteroidsModel {
     this.bullets = [];
     this.spawnClock = 1.2;
     this.shotClock = 0;
-    this.computerShotClock = 1.3;
+    this.computerShotClock = this.aiTuning.initialShotDelay;
     this.invulnerable = 1;
     this.decisionLog = [];
     this.lastDecision = null;
@@ -159,7 +161,7 @@ export class AsteroidsModel {
     }
     if (ship.aiTarget !== target) {
       ship.aiTarget = target;
-      ship.aiReaction = SHIP_AI_REACTION_MIN + Math.random() * (SHIP_AI_REACTION_MAX - SHIP_AI_REACTION_MIN);
+      ship.aiReaction = this.aiTuning.reactionMin + Math.random() * (this.aiTuning.reactionMax - this.aiTuning.reactionMin);
       ship.aiAim = Math.atan2(wrapDeltaY(target.y, ship.y), wrapDeltaX(target.x, ship.x));
     }
     ship.aiReaction = Math.max(0, ship.aiReaction - dt);
@@ -169,7 +171,7 @@ export class AsteroidsModel {
     const hazard = hazards.reduce((nearest, candidate) => !nearest || wrapDistance(candidate.x, candidate.y, ship.x, ship.y) < wrapDistance(nearest.x, nearest.y, ship.x, ship.y) ? candidate : nearest, null);
     const hazardDistance = hazard ? wrapDistance(hazard.x, hazard.y, ship.x, ship.y) : Infinity;
     const hazardAngle = hazard ? Math.atan2(wrapDeltaY(hazard.y, ship.y), wrapDeltaX(hazard.x, ship.x)) : targetAngle;
-    const dodging = this.side === "versus" ? hazardDistance < SHIP_AI_DODGE_RANGE : targetDistance < SHIP_AI_DODGE_RANGE;
+    const dodging = this.side === "versus" ? hazardDistance < this.aiTuning.dodgeRange : targetDistance < this.aiTuning.dodgeRange;
     ship.aiDodgeCommit = Math.max(0, (ship.aiDodgeCommit || 0) - dt);
 
     let desiredAngle;
@@ -182,9 +184,9 @@ export class AsteroidsModel {
       replanned = ship.aiDodgeCommit <= 0;
       if (replanned) {
         const escape = hazardAngle + Math.PI;
-        const step = (Math.PI * 2) / SHIP_AI_ESCAPE_CHOICES;
+        const step = (Math.PI * 2) / this.aiTuning.escapeChoices;
         ship.aiEscape = Math.round(escape / step) * step;
-        ship.aiDodgeCommit = SHIP_AI_DODGE_COMMIT_MIN + Math.random() * (SHIP_AI_DODGE_COMMIT_MAX - SHIP_AI_DODGE_COMMIT_MIN);
+        ship.aiDodgeCommit = this.aiTuning.dodgeCommitMin + Math.random() * (this.aiTuning.dodgeCommitMax - this.aiTuning.dodgeCommitMin);
       }
       desiredAngle = ship.aiEscape ?? hazardAngle + Math.PI;
     } else {
@@ -201,8 +203,8 @@ export class AsteroidsModel {
     let difference = desiredAngle - ship.angle;
     while (difference > Math.PI) difference -= Math.PI * 2;
     while (difference < -Math.PI) difference += Math.PI * 2;
-    ship.angle += clamp(difference, -SHIP_AI_TURN_RATE * dt, SHIP_AI_TURN_RATE * dt);
-    ship.speed = this.side === "versus" ? 105 : 165;
+    ship.angle += clamp(difference, -this.aiTuning.turnRate * dt, this.aiTuning.turnRate * dt);
+    ship.speed = this.side === "versus" ? this.aiTuning.versusSpeed : this.aiTuning.speed;
     ship.x = (ship.x + (Math.cos(ship.angle) * ship.speed + ship.knockX) * dt + BOARD_WIDTH) % BOARD_WIDTH;
     ship.y = (ship.y + (Math.sin(ship.angle) * ship.speed + ship.knockY) * dt + BOARD_HEIGHT) % BOARD_HEIGHT;
   }
@@ -259,8 +261,8 @@ export class AsteroidsModel {
       const computerTarget = this.side === "versus" ? this.computerShip.aiTarget : this.asteroids.reduce((nearest, asteroid) => !nearest || wrapDistance(asteroid.x, asteroid.y, this.ship.x, this.ship.y) < wrapDistance(nearest.x, nearest.y, this.ship.x, this.ship.y) ? asteroid : nearest, null);
       if (computerTarget) {
         this.fire("computer", computerShip, 0, computerShip.angle);
-        this.computerShotClock = (this.side === "versus" ? 1.1 : 1.3) + Math.random() * 0.3;
-      } else this.computerShotClock = 0.5;
+        this.computerShotClock = (this.side === "versus" ? this.aiTuning.versusShotInterval : this.aiTuning.shotInterval) + Math.random() * this.aiTuning.shotJitter;
+      } else this.computerShotClock = this.aiTuning.noTargetShotDelay;
     }
     if (this.side === "rocks") {
       if (input.spawnAsteroid && this.asteroids.length < 8) this.spawnAsteroidAt(input.spawnAsteroid.x, input.spawnAsteroid.y, this.ship);

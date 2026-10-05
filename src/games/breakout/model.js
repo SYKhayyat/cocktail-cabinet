@@ -6,23 +6,15 @@ const BRICK_TYPES = ["normal", "extraLife", "shortBar", "double", "speed", "long
 // Breakout computer factors. There is no chance of missing: the paddle misses
 // because it looks away for a moment, because it is bounded by a top speed, and
 // because it cannot see further than one wall bounce ahead.
-const COMPUTER_REACTION_MIN = 0.1;
-const COMPUTER_REACTION_MAX = 0.18;
-const COMPUTER_SPEED = 600;
-const COMPUTER_VERSUS_REACTION_MIN = 0.14;
-const COMPUTER_VERSUS_REACTION_MAX = 0.24;
-const COMPUTER_VERSUS_SPEED = 360;
-// How many wall bounces the paddle can foresee. It used to trace the ball's
-// whole path, however many bounces that took.
-const COMPUTER_LOOKAHEAD_BOUNCES = 1;
-// How near the ball counts as "under it", and therefore as a reason to stop.
-const COMPUTER_ARRIVE_TOLERANCE = 22;
-// Once it has decided, the paddle holds that decision for at least this long.
-// Without a dwell it re-reads the ball on every tick and corrects any bad read
-// before it costs anything, which is not how a person plays: a misjudged ball
-// is committed to for a beat before you can do anything about it.
-const COMPUTER_DWELL_MIN = 0.18;
-const COMPUTER_DWELL_MAX = 0.38;
+// Arrival tolerance supplies a stopping dead zone; dwell holds a misjudged
+// direction for a beat instead of correcting it immediately on every tick.
+// Times are seconds, speed is px/s, tolerances are pixels. See tests/ai/TUNING.md.
+export const BREAKOUT_AI_DEFAULTS = Object.freeze({
+  reactionMin: 0.1, reactionMax: 0.18, speed: 600,
+  versusReactionMin: 0.14, versusReactionMax: 0.24, versusSpeed: 360,
+  lookaheadBounces: 1, arriveTolerance: 22, dwellMin: 0.18, dwellMax: 0.38,
+  initialReaction: 0.08, idleCenterX: 344, idleTolerance: 8
+});
 const BREAKOUT_DIFFICULTY_STEP = 10;
 const BREAKOUT_DIFFICULTY_FACTOR = 1.045;
 const BREAKOUT_MAX_DIFFICULTY_LEVEL = 8;
@@ -34,7 +26,8 @@ export const BREAKOUT_MODES = [
 ];
 
 export class BreakoutModel {
-  constructor() {
+  constructor({ aiTuning = {} } = {}) {
+    this.aiTuning = { ...BREAKOUT_AI_DEFAULTS, ...aiTuning };
     this.id = "breakout";
     this.title = "Breakout";
     this.description = "Normal play: move the bottom paddle and keep the ball alive. Setup play: drag the blocks while the computer controls the paddle. Versus play: two paddles and two balls fight over the central bricks.";
@@ -78,7 +71,7 @@ export class BreakoutModel {
       if (this.layout) this.bricks = this.layout.map((brick) => ({ ...brick, hits: 1, active: true }));
       else this.createLayout();
     }
-    this.computerReaction = 0.08;
+    this.computerReaction = this.aiTuning.initialReaction;
     this.computerDwell = 0;
     this.computerIntent = 0;
     this.computerVersusReaction = 0;
@@ -111,7 +104,7 @@ export class BreakoutModel {
       this.computer = { x: 350, targetX: 350, y: 500, width: 112, height: 16 };
       this.balls = [this.newBall(400, 280, 180, 210)];
     }
-    this.computerReaction = 0.08;
+    this.computerReaction = this.aiTuning.initialReaction;
     this.computerDwell = 0;
     this.computerIntent = 0;
     this.computerVersusReaction = 0;
@@ -158,18 +151,18 @@ export class BreakoutModel {
       this.computerVersusReaction = 0;
       this.computerVersusIntent = 0;
       this.computer.targetX = this.computer.x;
-      this.computer.x = moveToward(this.computer.x, this.computer.targetX, COMPUTER_VERSUS_SPEED * dt);
+      this.computer.x = moveToward(this.computer.x, this.computer.targetX, this.aiTuning.versusSpeed * dt);
       return;
     }
     this.computerVersusReaction = Math.max(0, this.computerVersusReaction - dt);
     if (this.computerVersusTarget !== incoming.ball) {
       this.computerVersusTarget = incoming.ball;
-      this.computerVersusReaction = COMPUTER_VERSUS_REACTION_MIN + Math.random() * (COMPUTER_VERSUS_REACTION_MAX - COMPUTER_VERSUS_REACTION_MIN);
+      this.computerVersusReaction = this.aiTuning.versusReactionMin + Math.random() * (this.aiTuning.versusReactionMax - this.aiTuning.versusReactionMin);
     }
     if (this.computerVersusReaction <= 0) {
-      const landing = predictBallX(incoming.ball, incoming.timeToPaddle, COMPUTER_LOOKAHEAD_BOUNCES);
+      const landing = predictBallX(incoming.ball, incoming.timeToPaddle, this.aiTuning.lookaheadBounces);
       const offset = landing - this.computer.width / 2 - this.computer.x;
-      const intent = Math.abs(offset) < COMPUTER_ARRIVE_TOLERANCE ? 0 : Math.sign(offset);
+      const intent = Math.abs(offset) < this.aiTuning.arriveTolerance ? 0 : Math.sign(offset);
       recordDecision(this, {
         mode: "versus",
         intent,
@@ -179,10 +172,10 @@ export class BreakoutModel {
         paddleX: Math.round(this.computer.x)
       });
       this.computerVersusIntent = intent;
-      this.computerVersusReaction = COMPUTER_VERSUS_REACTION_MIN + Math.random() * (COMPUTER_VERSUS_REACTION_MAX - COMPUTER_VERSUS_REACTION_MIN);
+      this.computerVersusReaction = this.aiTuning.versusReactionMin + Math.random() * (this.aiTuning.versusReactionMax - this.aiTuning.versusReactionMin);
     }
     this.computer.targetX = this.computer.x;
-    this.computer.x = clamp(this.computer.x + this.computerVersusIntent * COMPUTER_VERSUS_SPEED * dt, 8, 792 - this.computer.width);
+    this.computer.x = clamp(this.computer.x + this.computerVersusIntent * this.aiTuning.versusSpeed * dt, 8, 792 - this.computer.width);
   }
   difficultyScore() { return this.side === "versus" ? Math.max(this.scores.human, this.scores.computer) : this.score; }
   applyDifficulty() {
@@ -209,15 +202,15 @@ export class BreakoutModel {
       if (!leadBall || !incoming) {
         // Nothing to chase, so drift back to the middle rather than sitting
         // wherever it was left.
-        this.computerIntent = Math.abs(this.computer.x - 344) > 8 ? Math.sign(344 - this.computer.x) : 0;
+        this.computerIntent = Math.abs(this.computer.x - this.aiTuning.idleCenterX) > this.aiTuning.idleTolerance ? Math.sign(this.aiTuning.idleCenterX - this.computer.x) : 0;
       } else if (this.computerReaction <= 0 && this.computerDwell <= 0) {
         // It does not track the ball. On the reaction clock it looks, works out
         // which way the ball is coming, and commits to that direction until the
         // next look.
         const timeToPaddle = Math.max(0, (this.computer.y - leadBall.y) / leadBall.vy);
-        const landing = predictBallX(leadBall, timeToPaddle, COMPUTER_LOOKAHEAD_BOUNCES);
+        const landing = predictBallX(leadBall, timeToPaddle, this.aiTuning.lookaheadBounces);
         const offset = landing - this.computer.width / 2 - this.computer.x;
-        const intent = Math.abs(offset) < COMPUTER_ARRIVE_TOLERANCE ? 0 : Math.sign(offset);
+        const intent = Math.abs(offset) < this.aiTuning.arriveTolerance ? 0 : Math.sign(offset);
         recordDecision(this, {
           mode: "blocks",
           intent,
@@ -227,10 +220,10 @@ export class BreakoutModel {
           paddleX: Math.round(this.computer.x)
         });
         this.computerIntent = intent;
-        this.computerReaction = COMPUTER_REACTION_MIN + Math.random() * (COMPUTER_REACTION_MAX - COMPUTER_REACTION_MIN);
-        this.computerDwell = COMPUTER_DWELL_MIN + Math.random() * (COMPUTER_DWELL_MAX - COMPUTER_DWELL_MIN);
+        this.computerReaction = this.aiTuning.reactionMin + Math.random() * (this.aiTuning.reactionMax - this.aiTuning.reactionMin);
+        this.computerDwell = this.aiTuning.dwellMin + Math.random() * (this.aiTuning.dwellMax - this.aiTuning.dwellMin);
       }
-      this.computer.x = clamp(this.computer.x + this.computerIntent * COMPUTER_SPEED * dt, 8, 800 - this.computer.width - 8);
+      this.computer.x = clamp(this.computer.x + this.computerIntent * this.aiTuning.speed * dt, 8, 800 - this.computer.width - 8);
       this.computer.targetX = this.computer.x;
       return;
     }

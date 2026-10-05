@@ -7,7 +7,7 @@ import { AsteroidsModel, wrapDistance } from "../../src/games/asteroids/model.js
 import { seeded, rate } from "./snake.mjs";
 import { lifecycle } from "./lifecycle.mjs";
 
-export function measureAsteroids({ runs = 200, steps = 1200, dt = 1 / 60, dodgeRange = 105, lives = 3 } = {}) {
+export function measureAsteroids({ runs = 200, steps = 1200, dt = 1 / 60, dodgeRange = 105, lives = 3, aiTuning = {} } = {}) {
   const originalRandom = Math.random;
   let hits = 0;
   let resets = 0;
@@ -18,7 +18,7 @@ export function measureAsteroids({ runs = 200, steps = 1200, dt = 1 / 60, dodgeR
   try {
     for (let run = 0; run < runs; run += 1) {
       Math.random = seeded(1000 + run * 7919);
-      const game = new AsteroidsModel();
+      const game = new AsteroidsModel({ aiTuning });
       game.setSide("rocks");
       game.reset();
       const round = lifecycle(game, { lives });

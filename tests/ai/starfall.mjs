@@ -5,7 +5,7 @@ import { StarfallModel } from "../../src/games/starfall/model.js";
 import { seeded, rate } from "./snake.mjs";
 import { lifecycle } from "./lifecycle.mjs";
 
-export function measureStarfall({ runs = 200, steps = 600, dt = 1 / 60, lives = 3 } = {}) {
+export function measureStarfall({ runs = 200, steps = 600, dt = 1 / 60, lives = 3, aiTuning = {} } = {}) {
   const originalRandom = Math.random;
   let hits = 0;
   let starsRemoved = 0;
@@ -23,7 +23,7 @@ export function measureStarfall({ runs = 200, steps = 600, dt = 1 / 60, lives = 
   try {
     for (let run = 0; run < runs; run += 1) {
       Math.random = seeded(1000 + run * 7919);
-      const game = new StarfallModel();
+      const game = new StarfallModel({ aiTuning });
       game.setSide("stars");
       game.reset();
       const round = lifecycle(game, { lives });

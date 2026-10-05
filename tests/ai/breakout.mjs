@@ -5,7 +5,7 @@
 import { BreakoutModel } from "../../src/games/breakout/model.js";
 import { seeded, rate } from "./snake.mjs";
 
-export function measureBreakout({ runs = 200, steps = 5000, dt = 1 / 60, side = "blocks" } = {}) {
+export function measureBreakout({ runs = 200, steps = 5000, dt = 1 / 60, side = "blocks", aiTuning = {} } = {}) {
   const originalRandom = Math.random;
   let hits = 0;
   let misses = 0;
@@ -17,7 +17,7 @@ export function measureBreakout({ runs = 200, steps = 5000, dt = 1 / 60, side = 
   try {
     for (let run = 0; run < runs; run += 1) {
       Math.random = seeded(1000 + run * 7919);
-      const game = new BreakoutModel();
+      const game = new BreakoutModel({ aiTuning });
       game.setSide(side);
       game.reset();
       let seenMiss = false;

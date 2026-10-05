@@ -8,7 +8,7 @@
 import { MissileModel } from "../../src/games/missile/model.js";
 import { seeded, rate } from "./snake.mjs";
 
-export function measureMissile({ runs = 200, steps = 600, dt = 1 / 60 } = {}) {
+export function measureMissile({ runs = 200, steps = 600, dt = 1 / 60, aiTuning = {} } = {}) {
   const originalRandom = Math.random;
   let fired = 0;
   let connected = 0;
@@ -19,7 +19,7 @@ export function measureMissile({ runs = 200, steps = 600, dt = 1 / 60 } = {}) {
   try {
     for (let run = 0; run < runs; run += 1) {
       Math.random = seeded(1000 + run * 7919);
-      const game = new MissileModel();
+      const game = new MissileModel({ aiTuning });
       game.setSide("attacker");
       game.reset();
       for (let step = 0; step < steps && !game.gameOver && !game.won; step += 1) {
