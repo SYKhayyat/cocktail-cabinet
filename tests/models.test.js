@@ -5,7 +5,7 @@ import { BreakoutModel } from "../src/games/breakout/model.js";
 import { SplatModel } from "../src/games/splat/model.js";
 import { AsteroidsModel } from "../src/games/asteroids/model.js";
 import { MissileModel } from "../src/games/missile/model.js";
-import { ImitationModel } from "../src/games/imitation/model.js";
+import { ImitationModel, PEER_LIVENESS_TIMEOUT } from "../src/games/imitation/model.js";
 import { StarfallModel } from "../src/games/starfall/model.js";
 import { SnakeGame } from "../src/games/snake.js";
 import { BreakoutGame } from "../src/games/breakout.js";
@@ -1176,9 +1176,11 @@ test("Imitation controllers acknowledge each other across two pages", async () =
     close() { channels.delete(this); }
   }
   globalThis.BroadcastChannel = TestBroadcastChannel;
+  let first;
+  let second;
   try {
-    const first = new ImitationController(new ImitationModel());
-    const second = new ImitationController(new ImitationModel());
+    first = new ImitationController(new ImitationModel());
+    second = new ImitationController(new ImitationModel());
     first.model.setSide("human");
     second.model.setSide("human");
     first.reset();
@@ -1188,6 +1190,8 @@ test("Imitation controllers acknowledge each other across two pages", async () =
     assert.equal(second.model.peerId, first.model.matchId);
     assert.equal(first.channel.name, CHANNEL_NAME);
   } finally {
+    first?.destroy();
+    second?.destroy();
     globalThis.BroadcastChannel = OriginalBroadcastChannel;
   }
 });
@@ -1201,6 +1205,100 @@ test("Imitation returns to matchmaking when a peer leaves", () => {
   game.receive({ type: "bye", from: "peer" });
   assert.equal(game.peerId, null);
   assert.equal(game.phase, "searching");
+});
+
+test("Imitation announces a peer departure during pagehide", async () => {
+  const OriginalBroadcastChannel = globalThis.BroadcastChannel;
+  const channels = new Set();
+  class TestBroadcastChannel {
+    constructor(name) { this.name = name; channels.add(this); }
+    postMessage(data) {
+      for (const channel of channels) {
+        if (channel !== this && channel.name === this.name) queueMicrotask(() => channel.onmessage?.({ data }));
+      }
+    }
+    close() { channels.delete(this); }
+  }
+  globalThis.BroadcastChannel = TestBroadcastChannel;
+  let first;
+  let second;
+  try {
+    first = new ImitationController(new ImitationModel());
+    second = new ImitationController(new ImitationModel());
+    first.model.setSide("human");
+    second.model.setSide("human");
+    first.reset();
+    second.reset();
+    await new Promise((resolve) => setImmediate(resolve));
+    second.handlePageHide();
+    assert.equal(second.channel, null, "pagehide closes the transport");
+    assert.equal(second.heartbeatTimer, null, "pagehide stops presence");
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(first.model.peerId, null, "the remaining tab releases the peer immediately");
+    assert.equal(first.model.phase, "searching");
+  } finally {
+    first?.destroy();
+    second?.destroy();
+    globalThis.BroadcastChannel = OriginalBroadcastChannel;
+  }
+});
+
+test("Imitation drops a silent peer after the heartbeat timeout", () => {
+  const game = new ImitationModel();
+  game.setSide("human");
+  game.reset();
+  game.peerId = "peer";
+  game.peerLivenessEnabled = true;
+  game.update(PEER_LIVENESS_TIMEOUT + 0.1);
+  assert.equal(game.peerId, null, "a peer that stops heartbeating no longer owns the slot");
+  assert.equal(game.phase, "searching");
+});
+
+test("Imitation reconnects after an unclean tab disappearance", async () => {
+  const OriginalBroadcastChannel = globalThis.BroadcastChannel;
+  const channels = new Set();
+  class TestBroadcastChannel {
+    constructor(name) { this.name = name; channels.add(this); }
+    postMessage(data) {
+      for (const channel of channels) {
+        if (channel !== this && channel.name === this.name) queueMicrotask(() => channel.onmessage?.({ data }));
+      }
+    }
+    close() { channels.delete(this); }
+  }
+  globalThis.BroadcastChannel = TestBroadcastChannel;
+  let first;
+  let vanished;
+  let replacement;
+  try {
+    first = new ImitationController(new ImitationModel());
+    vanished = new ImitationController(new ImitationModel());
+    first.model.setSide("human");
+    vanished.model.setSide("human");
+    first.reset();
+    vanished.reset();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(first.model.peerId, vanished.model.matchId);
+
+    // Simulate a tab being killed: no destroy(), bye, or reset runs. The
+    // surviving tab must evict it from the slot using heartbeat liveness.
+    vanished.channel.close();
+    clearInterval(vanished.heartbeatTimer);
+    vanished.heartbeatTimer = null;
+    first.update(PEER_LIVENESS_TIMEOUT + 0.1);
+    assert.equal(first.model.peerId, null);
+
+    replacement = new ImitationController(new ImitationModel());
+    replacement.model.setSide("human");
+    replacement.reset();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(first.model.peerId, replacement.model.matchId, "the released slot accepts a later player");
+  } finally {
+    first?.destroy();
+    vanished?.destroy();
+    replacement?.destroy();
+    globalThis.BroadcastChannel = OriginalBroadcastChannel;
+  }
 });
 
 test("Imitation exposes five provider-neutral modes", () => {
@@ -1453,9 +1551,11 @@ test("a disposed Imitation controller drops its channel and stops mutating the m
     close() { this.closed = true; channels.delete(this); }
   }
   globalThis.BroadcastChannel = TestBroadcastChannel;
+  let leaving;
+  let staying;
   try {
-    const leaving = new ImitationController(new ImitationModel());
-    const staying = new ImitationController(new ImitationModel());
+    leaving = new ImitationController(new ImitationModel());
+    staying = new ImitationController(new ImitationModel());
     leaving.model.setSide("human");
     staying.model.setSide("human");
     leaving.reset();
@@ -1479,6 +1579,7 @@ test("a disposed Imitation controller drops its channel and stops mutating the m
     assert.equal(leaving.model.sendMessage("hi"), null, "a disposed model refuses to send");
     assert.equal(leaving.model.chooseGuess("ai"), false);
   } finally {
+    staying?.destroy();
     globalThis.BroadcastChannel = OriginalBroadcastChannel;
   }
 });

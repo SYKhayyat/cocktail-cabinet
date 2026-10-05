@@ -13,6 +13,11 @@ export const IMITATION_MODES = [
   { value: "write", label: "Write text for AI to classify" }
 ];
 
+// BroadcastChannel has no close notification. The controller sends a
+// heartbeat while a peer is connected, and the model drops a peer that has
+// been silent for this long so a crashed tab cannot reserve the slot forever.
+export const PEER_LIVENESS_TIMEOUT = 3.5;
+
 export class ImitationModel {
   constructor() {
     // Monotonic across resets, never zeroed: a token that restarts from 0
@@ -29,6 +34,10 @@ export class ImitationModel {
     this.gameOver = false;
     this.won = false;
     this.matchId = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
+    this.peerId = null;
+    this.peerAge = 0;
+    this.peerLivenessEnabled = false;
+    this.onPeerChange = null;
     this.score = 0;
     this.guessStats = { right: 0, wrong: 0 };
     this.chatLog = [];
@@ -52,6 +61,8 @@ export class ImitationModel {
     this.restartTimer = null;
     this.guessToken += 1;
     this.peerId = null;
+    this.peerAge = 0;
+    this.peerLivenessEnabled = false;
     this.onAiChosen = null;
     this.onRoundStart = null;
   }
@@ -81,6 +92,8 @@ export class ImitationModel {
     this.phase = this.side === "ai" ? "ai" : this.side === "human" ? "searching" : this.side === "guess" ? "guess-waiting" : this.side === "provide" ? "provide-waiting" : this.side;
     this.matchmaking = 2.5;
     this.peerId = null;
+    this.peerAge = 0;
+    this.peerLivenessEnabled = false;
     this.aiClock = 0;
     this.aiReady = this.aiReady || false;
     this.aiUnavailable = false;
@@ -153,6 +166,27 @@ export class ImitationModel {
   // must come from the peer already negotiated, so an unrelated same-origin tab
   // cannot inject chat or hijack a Guess round.
   static get HANDSHAKE_TYPES() { return ["hello", "hello-ack", "guess-ready"]; }
+  dropPeer() {
+    if (!this.peerId) return false;
+    this.peerId = null;
+    this.peerAge = 0;
+    if (this.side === "guess" || this.side === "provide") {
+      this.invalidatePendingRequests();
+      this.guessToken += 1;
+      this.prompt = null;
+      this.mystery = null;
+      this.guessResult = null;
+      this.roundSource = null;
+      this.aiLocked = false;
+      this.guessFallbackStarted = false;
+      this.guessClock = 4;
+    }
+    this.matchmaking = 2.5;
+    this.phase = this.side === "human" ? "searching" : this.side === "guess" ? "guess-waiting" : this.side === "provide" ? "provide-waiting" : this.phase;
+    this.addMessage("System", "The other tab left. Waiting for another player.");
+    this.onPeerChange?.();
+    return true;
+  }
   receive(message) {
     if (this.disposed || !message || typeof message !== "object") return;
     if (typeof message.type !== "string" || typeof message.from !== "string") return;
@@ -176,10 +210,7 @@ export class ImitationModel {
     }
 
     if (message.type === "bye" && message.from === this.peerId) {
-      this.peerId = null;
-      this.matchmaking = 2.5;
-      this.phase = this.side === "human" ? "searching" : this.side === "guess" ? "guess-waiting" : this.side === "provide" ? "provide-waiting" : this.phase;
-      this.addMessage("System", "The other tab left. Waiting for another player.");
+      this.dropPeer();
       return;
     }
     if (ImitationModel.HANDSHAKE_TYPES.includes(message.type)) {
@@ -192,14 +223,18 @@ export class ImitationModel {
         this.addMessage("System", this.side === "guess" ? "That tab is not in Provide guessing message mode." : this.side === "provide" ? "That tab is not in Guess AI or human mode." : "That tab is not in human chat mode.");
         return;
       }
+      const newPeer = this.peerId !== message.from;
       this.peerId = message.from;
+      this.peerAge = 0;
       this.matchmaking = 0;
-      if (this.side === "guess") {
+      if (newPeer && this.side === "guess") {
         this.phase = "guess-peer";
         this.addMessage("System", "A new round is ready.");
-      } else if (this.side === "provide") this.addMessage("System", "A Guess player is connected. Send a message for it to guess.");
-      else this.addMessage("System", "Another player found. You can chat now.");
+      } else if (newPeer && this.side === "provide") this.addMessage("System", "A Guess player is connected. Send a message for it to guess.");
+      else if (newPeer) this.addMessage("System", "Another player found. You can chat now.");
+      if (newPeer) this.onPeerChange?.();
     }
+    if (this.peerId && message.from === this.peerId) this.peerAge = 0;
     if (message.type === "chat") this.addMessage("Partner", message.text);
     if (message.type === "round-start" && this.side === "provide") {
       this.aiLocked = false;
@@ -376,6 +411,10 @@ export class ImitationModel {
   }
   update(dt) {
     if (this.disposed) return;
+    if (this.peerId && this.peerLivenessEnabled) {
+      this.peerAge += Math.max(0, Number(dt) || 0);
+      if (this.peerAge > PEER_LIVENESS_TIMEOUT) this.dropPeer();
+    }
     if (this.side === "human" && !this.peerId) this.matchmaking = Math.max(0, this.matchmaking - dt);
     if (this.side === "guess" && this.prompt && !this.mystery && !this.roundSource && this.phase !== "guess-loading" && this.phase !== "result") {
       this.guessClock = Math.max(0, this.guessClock - dt);
