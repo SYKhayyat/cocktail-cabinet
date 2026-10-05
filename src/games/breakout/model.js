@@ -90,19 +90,27 @@ export class BreakoutModel {
     this.won = false;
   }
   resetAfterLife() {
+    // Only fresh replacements need the retained round difficulty. Survivors
+    // (including power-up clones) already carry it in their live velocities.
+    const factor = Math.pow(BREAKOUT_DIFFICULTY_FACTOR, this.difficultyLevel);
+    const scaleReplacement = (ball) => {
+      ball.vx *= factor;
+      ball.vy *= factor;
+      return ball;
+    };
     if (this.side === "versus") {
       const owners = this.lifeLossOwners.length ? this.lifeLossOwners : [this.lifeLossOwner || "human"];
       const survivors = [...this.balls];
-      const replacements = owners.map((owner) => this.newOwnedBall(owner));
+      const replacements = owners.map((owner) => scaleReplacement(this.newOwnedBall(owner)));
       this.balls = [...survivors, ...replacements];
-      if (!this.balls.some((ball) => ball.owner === "human")) this.balls.push(this.newOwnedBall("human"));
-      if (!this.balls.some((ball) => ball.owner === "computer")) this.balls.push(this.newOwnedBall("computer"));
+      if (!this.balls.some((ball) => ball.owner === "human")) this.balls.push(scaleReplacement(this.newOwnedBall("human")));
+      if (!this.balls.some((ball) => ball.owner === "computer")) this.balls.push(scaleReplacement(this.newOwnedBall("computer")));
       this.lifeLossOwner = null;
       this.lifeLossOwners = [];
     } else {
       this.human = { x: 350, targetX: 350, y: 500, width: 112, height: 16, speed: 460 };
       this.computer = { x: 350, targetX: 350, y: 500, width: 112, height: 16 };
-      this.balls = [this.newBall(400, 280, 180, 210)];
+      this.balls = [scaleReplacement(this.newBall(400, 280, 180, 210))];
     }
     this.computerReaction = this.aiTuning.initialReaction;
     this.computerDwell = 0;

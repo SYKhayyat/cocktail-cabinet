@@ -11,6 +11,12 @@ for (const id of ["breakout", "splat"]) for (const progressed of [false, true]) 
     assert.ok(result.completed >= 10, `${result.completed}/12 actual victories; score is not completion`);
     assert.ok(result.censored <= 2, "a stalled clearance must remain a visible censor, not a victory");
     assert.ok(result.exhausted <= 1, "a three-life default budget should usually be sufficient for clearance");
+    if (id === "breakout") for (const run of result.runs) {
+      if (!run.firstRespawn) continue;
+      const expected = Math.hypot(180, 210) * 1.045 ** run.firstRespawn.difficulty;
+      assert.ok(Math.abs(run.firstRespawn.speed - expected) < 1e-9,
+        "clearance retries must retain difficulty pressure, not silently return to base speed");
+    }
     for (const run of result.runs) {
       assert.ok(run.active > 0 && run.active <= COMPLETION_HORIZON + DT);
       assert.ok(run.wall >= run.active, "retry countdowns are excluded from active duration, not forgotten");
