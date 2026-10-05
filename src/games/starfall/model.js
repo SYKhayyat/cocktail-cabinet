@@ -20,6 +20,30 @@ export const STARFALL_AI_DEFAULTS = Object.freeze({
 export const RUNNER_PERCEPTION_MIN = STARFALL_AI_DEFAULTS.perceptionMin;
 const THREAT_HORIZON = 0.95;
 
+const HUMAN_RUNNER_SPEED = 240;
+const RUNNER_RADIUS = 16;
+const STAR_RADIUS = 10;
+// Human-only budgets, independent of the flipped runner's perception/tuning.
+// For a vertical star 160px above the runner (y340), allow 0.35s to react,
+// 26/240s to clear the collision corridor, and one 60Hz frame of margin:
+// vy <= (160 - 26) / (0.35 + 26/240 + 1/60) = 282.1px/s; round down to 280.
+// Space spawns by reaction + a full 52px corridor crossing + one frame:
+// 0.35 + 52/240 + 1/60 = 0.5833s; round up to 0.6s. This bounds pressure,
+// not a guarantee against every random multi-star arrangement or late response.
+const HUMAN_MAX_STAR_SPEED = 280;
+const HUMAN_MIN_SPAWN_INTERVAL = 0.6;
+
+export function starfallHumanDifficulty(score) {
+  // Keep the original opening/first-gem ramp. Then ease toward the budgets
+  // over two more gems (50 points each), with strict progression up to 150.
+  const opening = Math.min(Math.max(0, score), 50);
+  const later = clamp((score - 50) / 100, 0, 1);
+  return {
+    starSpeed: 130 + opening * 2 + later * (HUMAN_MAX_STAR_SPEED - 230),
+    spawnInterval: 1.1 - opening * 0.006 - later * (0.8 - HUMAN_MIN_SPAWN_INTERVAL)
+  };
+}
+
 const STARFALL_MODES = [
   { value: "runner", label: "Solo — guide the runner" },
   { value: "stars", label: "Computer vs you — send stars" }
@@ -46,6 +70,9 @@ export class StarfallModel {
   get sides() { return STARFALL_MODES.map((mode) => mode.value); }
   sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || STARFALL_MODES[0].label; }
   setSide(side) { if (this.sides.includes(side)) this.side = side; }
+  newRunnerStar(x = 20 + Math.random() * 760, y = 20) {
+    return { id: this.nextEntityId++, x, y, vy: starfallHumanDifficulty(this.score).starSpeed, radius: STAR_RADIUS, outcome: null, threatened: false };
+  }
   newGem(x = null, y = -20) {
     let nextX = x;
     if (nextX === null || nextX === undefined) {
@@ -73,7 +100,7 @@ export class StarfallModel {
     }
   }
   reset(keepScore = false) {
-    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.aiTargetGem = null; this.aiTargetLock = 0; this.aiLaneCommit = 0; this.aiPerceptionClock = 0; this.aiSeenStars = []; this.decisionLog = []; this.lastDecision = null; this.eventLog = []; this.nextEntityId = 1; this.gemHoldTime = 0; this.gemSpawnClock = 0; this.gemSpawnCooldown = 0; this.lifeLost = false; this.pendingLifeLoss = false; this.gameOver = false; this.won = false;
+    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: RUNNER_RADIUS }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.aiTargetGem = null; this.aiTargetLock = 0; this.aiLaneCommit = 0; this.aiPerceptionClock = 0; this.aiSeenStars = []; this.decisionLog = []; this.lastDecision = null; this.eventLog = []; this.nextEntityId = 1; this.gemHoldTime = 0; this.gemSpawnClock = 0; this.gemSpawnCooldown = 0; this.lifeLost = false; this.pendingLifeLoss = false; this.gameOver = false; this.won = false;
     if (this.side === "runner") for (let index = 0; index < 3; index += 1) this.gems.push(this.newGem(undefined, -20 - index * 80));
   }
   recordEvent(type, details = {}) {
@@ -94,7 +121,7 @@ export class StarfallModel {
     this.gemSpawnCooldown = Math.max(0, (this.gemSpawnCooldown || 0) - dt);
     if (this.side === "runner") {
       const direction = input.keyDirection || 0;
-      if (direction || input.mode === "keyboard") this.runner.x += direction * 240 * dt;
+      if (direction || input.mode === "keyboard") this.runner.x += direction * HUMAN_RUNNER_SPEED * dt;
       else if (input.mode === "mouse" && input.pointerX > 0) {
         const smoothing = 1 - Math.exp(-18 * dt);
         this.runner.x += (input.pointerX - this.runner.x) * smoothing;
@@ -136,7 +163,10 @@ export class StarfallModel {
     }
     if (this.side === "runner") {
       this.spawnClock -= dt;
-      if (this.spawnClock <= 0) { this.stars.push({ id: this.nextEntityId++, x: 20 + Math.random() * 760, y: 20, vy: 130 + this.score * 2, radius: 10, outcome: null, threatened: false }); this.spawnClock = Math.max(0.28, 1.1 - this.score * 0.006); }
+      if (this.spawnClock <= 0) {
+        this.stars.push(this.newRunnerStar());
+        this.spawnClock = starfallHumanDifficulty(this.score).spawnInterval;
+      }
     }
     for (const star of this.stars) {
       star.x += (star.vx || 0) * dt;
@@ -297,7 +327,7 @@ export class StarfallModel {
       gem.outcome = "gem-despawn";
       this.recordEvent("gem-despawn", { gemId: gem.id ?? null, reason: "life-reset" });
     }
-    this.runner = { x: 400, y: 500, radius: 16 };
+    this.runner = { x: 400, y: 500, radius: RUNNER_RADIUS };
     this.stars = [];
     this.gems = [];
     this.spawnClock = 0.3;

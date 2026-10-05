@@ -78,7 +78,8 @@ for (const id of Object.keys(GAMES)) {
       const result = recoveryWindow(id, progressed);
       assert.equal(result.idle.safe, false, "the no-input counterfactual must really lose a life/city");
       assert.equal(result.outcomes[0].safe, true, "immediate ordinary human input must save the scene");
-      assert.ok(result.maxSafeDelay >= 0.1, `at least a 100ms reaction window; got ${result.maxSafeDelay}`);
+      const minimumDelay = id === "starfall" ? 0.35 : 0.1;
+      assert.ok(result.maxSafeDelay >= minimumDelay, `at least a ${minimumDelay * 1000}ms reaction window; got ${result.maxSafeDelay}`);
       assert.ok(result.outcomes.some((r) => !r.safe), "delaying eventually makes the rescue fail");
     }
   });

@@ -526,6 +526,71 @@ async function testKeyboardAndPointerControls(page, step) {
   assertMatch(String(breakout.centre), /400/, "the paddle centre reference is sane");
 }
 
+async function testRetryPressureAndRecovery(page, step) {
+  await selectMode(page, 1, "bottom");
+  const retry = await page.evaluate(`(() => {
+    const engine = globalThis.__cocktailCabinet.engine;
+    document.querySelector('#restartButton').click();
+    engine.countdown = 0;
+    const model = engine.game.model;
+    model.score = 80;
+    model.applyDifficulty();
+    model.bricks[0].hits = 0;
+    model.balls[0].y = 550;
+    const lives = engine.lives;
+    globalThis.__tick(1);
+    return { livesBefore: lives, livesAfter: engine.lives, countdown: engine.countdown,
+      level: model.difficultyLevel, score: model.score, brick: model.bricks[0].hits,
+      vx: model.balls[0].vx, vy: model.balls[0].vy };
+  })()`);
+  assertEqual(retry.livesAfter, retry.livesBefore - 1, "Breakout retry spends a real host life");
+  assertEqual(retry.level, 8, "Breakout retry retains the earned difficulty level");
+  assertEqual(retry.score, 80, "Breakout retry preserves earned score");
+  assertEqual(retry.brick, 0, "Breakout retry preserves cleared bricks");
+  assertEqual(retry.countdown, 3, "Breakout recovery still gives the normal countdown");
+  const factor = 1.045 ** 8;
+  assert(Math.abs(retry.vx - 180 * factor) < 1e-9 && Math.abs(retry.vy - 210 * factor) < 1e-9,
+    "Breakout replacement ball carries the retained pressure before play resumes");
+
+  await selectMode(page, 6, "runner");
+  const prepareThreat = async () => page.evaluate(`(() => {
+    document.querySelector('#restartButton').click();
+    const engine = globalThis.__cocktailCabinet.engine;
+    engine.countdown = 0;
+    const model = engine.game.model;
+    model.score = 150;
+    model.gems = [];
+    model.stars = [model.newRunnerStar(400, 340)];
+    model.spawnClock = 10;
+    // Restart uses performance.now(); align it with the test's virtual source
+    // so all 21 waiting frames are exactly 1/60s, not a capped catch-up frame.
+    engine.lastTime = globalThis.__now;
+    return { lives: engine.lives, speed: model.stars[0].vy };
+  })()`);
+  const start = await prepareThreat();
+  assertEqual(start.speed, 280, "Starfall's actual late-score spawn honors the human speed ceiling");
+  await step(21); // 350ms of visible threat before the ordinary keyboard input.
+  await page.evaluate("window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); true");
+  await step(90);
+  await page.evaluate("window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true })); true");
+  const escaped = await page.evaluate(`(() => {
+    const engine = globalThis.__cocktailCabinet.engine;
+    const model = engine.game.model;
+    return { lives: engine.lives, x: model.runner.x, dodged: model.eventLog.some((event) => event.type === 'star-dodged') };
+  })()`);
+  assertEqual(escaped.lives, start.lives, "a 350ms delayed real keyboard response saves the life");
+  assert(escaped.x > 426 && escaped.dodged, "the runner physically clears the threat; no invulnerability or teleport rescue");
+  const idleStart = await prepareThreat();
+  await step(60);
+  const idle = await page.evaluate(`(() => {
+    const engine = globalThis.__cocktailCabinet.engine;
+    return { lives: engine.lives, score: engine.game.score, countdown: engine.countdown };
+  })()`);
+  assertEqual(idle.lives, idleStart.lives - 1, "ignoring the same threat still costs a real life");
+  assertEqual(idle.score, 150, "Starfall retry preserves earned score");
+  assert(idle.countdown > 0, "Starfall loss follows the normal retry lifecycle");
+}
+
 async function testEveryModeSurvivesPlay(page, step) {
   const catalogue = await page.evaluate(`(() => {
     const out = [];
@@ -1174,6 +1239,7 @@ async function main() {
       ["lives setting policy", () => testLivesSetting(first.page)],
       ["pause and continue around the countdown", () => testPauseDuringCountdown(first.page, step)],
       ["keyboard and pointer controls", () => testKeyboardAndPointerControls(first.page, step)],
+      ["retained retry pressure and late-score human recovery", () => testRetryPressureAndRecovery(first.page, step)],
       ["all twenty modes load and run", () => testEveryModeSurvivesPlay(first.page, step)],
       ["life loss, game over, and restart", () => testGameOverAndRestart(first.page, step)],
       ["Splat builder tools", () => testSplatBuilderTools(first.page, step)],

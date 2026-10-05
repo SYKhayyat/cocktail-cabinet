@@ -51,8 +51,9 @@ export function recoveryProbe(id, progressed, delay = Infinity) {
     }
     if (id === "starfall") {
       m.gems = [];
+      // Use the production spawn helper, including its current score ramp.
+      m.stars = [m.newRunnerStar(400, 340)];
       m.spawnClock = 10;
-      m.stars = [{ id: 999, x: 400, y: 340, vy: progressed ? 430 : 130, radius: 10 }];
       controls = input({ keys: new Set(["ArrowRight"]) });
       horizon = 1.8;
     }
