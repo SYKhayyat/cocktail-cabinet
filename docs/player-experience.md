@@ -97,7 +97,7 @@ have no learning, fear, fatigue, multi-step route search or motor noise.
 
 ### Default versus progressed fixtures
 
-All samples use the unchanged shipped default HUMAN-controlled mode and default
+All samples use the shipped default HUMAN-controlled mode and default
 settings. Progressed fixtures only set pressure/progression context; they do not
 tune the computer player. They are **section/restart scenarios**, not saved
 human play histories and not proof that a novice can attain the starting score.
@@ -109,7 +109,18 @@ human play histories and not proof that a novice can attain the starting score.
 | Splat | Start x=70 at column 1 | Start 120px before column 31, score/passed-columns=30, y=280 | Sections 1/11/21/31; gap heights 112/107/102/97, unchanged spacing 130 |
 | Asteroids | Score 0, normal initial rocks | Score 120 and normal score-preserving reset, with human score baseline restored | Scores 0/40/80/120; initial rock speed rises and subsequent spawn interval decreases |
 | Missile | Level 1, 12 enemies, 30 initial rounds | Start level 4 through normal level advancement, fresh initial cities/ammo; 28 enemies | Levels 1/2/3/4; salvo size and speed rise, launch interval decreases |
-| Starfall | Score 0 | Score 150, fresh default gems/runner | Scores 0/50/100/150; new star speed rises and spawn interval decreases |
+| Starfall | Score 0 | Score 150, fresh default gems/runner | Scores 0/50/100/150; speeds 130/230/255/280px/s, intervals 1.1/.8/.7/.6s; pressure caps after 150 |
+
+Starfall's human curve now preserves the original opening through score 50,
+then eases to explicit recovery budgets. A vertical star at y340 is 160px above
+the runner; collision clearance is 16+10=26px and keyboard speed is 240px/s.
+Allowing .35s reaction, 26/240s escape and a 60Hz frame margin requires at most
+`(160-26)/(.35+26/240+1/60) = 282.1px/s`; production rounds down to 280.
+Spawn spacing allows reaction plus a full 52px corridor crossing and frame
+margin, rounded up to .6s. This bounds the human ramp, not every multi-star
+arrangement. Flipped star spawning and the computer's tuning/bands are unchanged.
+`tests/starfall-recovery.test.js` verifies both directions, inward edge escapes,
+20/30/60/120Hz steps, extreme scores, actual collisions and retained retry score.
 
 Reset paths can consume different numbers of random draws, so equal seed labels
 do not imply identical default/progressed object layouts. Pressure comparisons
@@ -195,6 +206,11 @@ rounds have no imputed success or completion time. The reported duration
 distribution mixes observed terminal durations and restricted censor durations,
 so it is not an estimate of uncapped time-to-win.
 
+Breakout clearance trials also assert each replacement's initial speed equals
+`hypot(180,210) * 1.045 ** retainedDifficultyLevel`. They cannot pass by silently
+returning to a base-speed ball after loss. Only replacements get this factor;
+live versus balls and power-up clones keep their existing velocities.
+
 The longer limit is necessary: default Splat's route alone takes about 55s at
 its unchanged horizontal speed, making 45s full-route reachability impossible.
 Breakout needs repeated paddle cycles and pursuit of scattered final bricks;
@@ -226,7 +242,8 @@ For both default and progressed context, one seeded near-miss scene is tried
 at delays `0, .1, .2, .3, .4, .5, .6, .8, 1, 1.2, 1.6, 2` seconds, plus a
 no-input counterfactual: **156 probe runs** total. Immediate ordinary input must
 save the scene; the idle counterpart must lose a life (or the targeted city in
-Missile); at least a 100ms sampled reaction delay must remain recoverable, and
+Missile); at least a 100ms sampled reaction delay must remain recoverable (350ms
+for Starfall), and
 some delayed action must fail. The 100ms floor rejects zero-room control bugs;
 it is **not** a normative human reaction-time requirement. The 5Hz baseline and
 manual playtest must evaluate whether such a narrow window is actually usable.
@@ -242,7 +259,8 @@ manual playtest must evaluate whether such a narrow window is actually usable.
 * Missile: a missile at (400,330) threatens city 4 at 100px/s (150 progressed).
   One real click at (435,390), observe 2.1 seconds. Other cities are not
   artificially destroyed. Success means this city survives, not generic score.
-* Starfall: star at (400,340) descending at 130px/s (430 progressed); Right
+* Starfall: production `newRunnerStar()` at (400,340), descending at 130px/s
+  (280 progressed); Right
   input, 1.8 seconds. Other spawns/gems are removed to isolate dodge timing.
 
 Fixtures edit scene setup only. No rescue rewrites position, life flags or AI
@@ -259,7 +277,7 @@ Missile has city-based termination and **no host retry**, so that test is
 intentionally inapplicable to it; its idle distribution and city-rescue probe
 check its appropriate boundaries instead.
 
-## Revised calibration: observed, not desired
+## Recovery-fix calibration: observed, not desired
 
 Values below are from the seeded report, rounded to two decimals. Duration
 vectors are `[min, p25, median, p75, max]`; `45*`/`60*` means horizon censoring,
@@ -279,13 +297,13 @@ Starfall did so in 11/12, the other games in 12/12.
 | Asteroids/progressed | [5.55,9.00,12.47,16.10,21.87] | [80,90,120,170,240] | 12 | 63 |
 | Missile/default | [40.38,41.95,47.10,55.17,60*] | [420,435,510,670,875] | 24 | 80 |
 | Missile/progressed | [26.42,29.73,33.37,36.58,52.05] | [300,350,425,635,895] | 27 | 60 |
-| Starfall/default | [10.60,23.20,26.63,45*,45*] | [50,150,200,450,500] | 4 | 87 |
-| Starfall/progressed | [5.05,26.30,35.05,44.88,45*] | [0,250,300,350,400] | 6 | 132 |
+| Starfall/default | [10.60,17.22,45*,45*,45*] | [50,100,350,450,500] | 7 | 139 |
+| Starfall/progressed | [6.22,15.80,33.22,44.62,45*] | [0,100,200,350,500] | 4 | 107 |
 
 Observed progressed p25 (duration / actionable polls / one-second agency bins /
 objectives): Snake 45 / 443 / 45 / 14; Breakout 33.48 / 67 / 28 / 41;
 Splat 22.42 completed / 74 / 22 / 20; Asteroids 9 / 44 / 9 / 9;
-Missile 29.73 / 57 / 12 / 22; Starfall 26.30 / 87 / 21 / 5. All six satisfy
+Missile 29.73 / 57 / 12 / 22; Starfall 15.80 / 50 / 12 / 2. All six satisfy
 the joint 10/12 sustained-run gate. Breakout makes thirteen paddle returns in
 every default first life and six in every progressed first life. The seed phases
 do not make its world random: identical score/duration results are reported
@@ -293,25 +311,23 @@ honestly rather than presented as independent random outcomes.
 
 | Independent round | Actual wins / horizon censors / budget exhausted | Restricted active duration [min,p25,median,p75,max] seconds |
 | --- | --- | --- |
-| Breakout/default | 11 / 1 / 0 | [89.40,89.40,103.92,111.72,180*] |
-| Breakout/progressed | 12 / 0 / 0 | [71.57,71.57,76.23,87.52,87.52] |
+| Breakout/default | 12 / 0 / 0 | [74.47,74.47,96.12,138.43,146.88] |
+| Breakout/progressed | 12 / 0 / 0 | [85.47,88.73,93.55,102.80,104.77] |
 | Splat/default | 12 / 0 / 0 | [54.92,54.92,54.92,54.92,54.92] |
 | Splat/progressed | 12 / 0 / 0 | [22.42,22.42,22.42,22.42,22.42] |
 
 No Breakout sample wins during its first life; real retry resolution preserves
-bricks and permits the measured full-round completions. Default seed 57637 is
-still alive but unfinished at 180s and remains censored. It is not a victory.
+bricks and difficulty and permits the measured full-round completions. All
+twelve default and progressed clearance trials now finish within the unchanged
+180s limit. A stronger retry can change trajectory and improve clearance time;
+these results are not a claim that a faster ball always makes play easier.
 
-**Production retry-pressure limitation:** Breakout's first respawn in every
-clearance sample has speed 276.59px/s while `difficultyLevel` remains 8. A
-separate seed-57 progressed trace observes score 506, level 8 and a 402.13px/s
-ball immediately before loss, then the 276.59px/s replacement remains at that
-speed on its next normal update. The current respawn path does not restore
-the retained difficulty scaling to the new ball. The report exposes first
-respawn speed/difficulty as diagnostics; this work neither fixes production
-nor interprets retry-assisted wins as continued same-pressure clearance.
-Within-life score progression is tested; monotonic pressure **across life
-restarts** is a real uncorrected product limitation outside these owned files.
+**Corrected production retry pressure:** every sampled first respawn now has
+speed 393.33px/s at retained level 8, not the former unscaled 276.59px/s.
+Base replacement velocity receives the retained score multiplier exactly once.
+Transient paddle/brick speed gains on a lost ball are not retained; survivors
+keep theirs. `tests/breakout-retry.test.js` covers repeated/duel/fallback retries,
+clones, outstanding score increments, and New game returning to base pressure.
 
 | Game | Default idle median seconds | Successful recovery delay default/progressed seconds |
 | --- | ---: | ---: |
@@ -320,11 +336,11 @@ restarts** is a real uncorrected product limitation outside these owned files.
 | Splat | .92 | .5 / .5 |
 | Asteroids | 8.68 | .8 / .4 |
 | Missile | 22.02 | .8 / .5 |
-| Starfall | 13.70 | 1 / .2 |
+| Starfall | 13.70 | 1 / .4 |
 
 Observed maximum objective drought default/progressed (seconds): Snake
 8.43/6.30, Breakout 2.53/6.08, Splat 1.13/1.13, Asteroids 5.62/4.47,
-Missile 14.23/10.42, Starfall 11.78/14.32. Report distributions, not just these
+Missile 14.23/10.42, Starfall 11.78/16.13. Report distributions, not just these
 maxima, before drawing conclusions about pacing.
 
 **Review correction:** the old Breakout recipe collapsed at 2.32s and three
@@ -338,12 +354,13 @@ baseline, applied identically in both contexts. This is not a production fix.
 
 **Remaining warnings requiring manual calibration:** all revised Breakout
 first lives still end (25.42s default; 33.48s progressed). Retry-assisted
-clearance does not prove these deaths feel fair, and one default full round
-stalls beyond 180s. Snake seed 57637 loses at 5.07s, progressed Asteroids has a
-5.55s early loss, and progressed Starfall seed 449 loses at 5.05s before any gem.
+clearance does not prove these deaths feel fair. Snake seed 57637 loses at
+5.07s, progressed Asteroids has a 5.55s early loss, and progressed Starfall
+seed 57 loses at 6.22s before any gem.
 The majority-cohort gate does not erase those adverse tails. Progressed Starfall's
-controlled dodge window is only .2 seconds. Its higher median survival does not
-contradict increased star pressure; the paths and collection timing differ.
+controlled dodge window is now .4 seconds on the sampling grid, with a direct
+.35s regression and .5s/idle counterfactual losses. That is a recovery contract,
+not a guarantee for arbitrary multiple-star layouts or all input devices.
 Missile advances to the next level in 11/12 defaults but only 1/12 progressed
 fixtures; fresh-ammo level 4 is not proof of sustainable late-game economics.
 Twelve default Snake/Splat samples are censored: do not report “infinite
@@ -370,8 +387,8 @@ balance change:
    the headless harness; don't silently change production defaults. Note which
    stages each person reaches naturally, depletion of bricks/ammo, and whether
    the scripted policy has an unfair observation/motor advantage. Specifically
-   inspect Breakout's early progressed hazard and final-brick pursuit,
-   Starfall's score-150 dodge timing, and Missile's aircraft priorities/stock.
+   inspect Breakout's retained retry pressure and final-brick pursuit,
+   Starfall's capped score-150 multi-star pressure, and Missile's aircraft priorities/stock.
 4. Replay missed recoveries. Ask players to describe the perceived warning,
    alternative action and ability to recover, then measure actual warning-to-hit
    time. Confirm the three-second retry really pauses the board, inputs work
@@ -389,8 +406,12 @@ balance change:
    seeds. Never remove a difficult seed to achieve a pass. Preserve honest
    warnings and censor/completion distinctions.
 
-Revised automated verification: the player suite contains 36 passing tests
+Recovery-fix automated verification: the player suite contains 36 passing tests
 (distribution, sustained lower-tail agency, progression, recovery, retry and
 independent clearance checks plus input-boundary, motor/perception and
 random-scope checks). Browser/device experience and human calibration remain
 manual work; there is no assertion named or interpreted as “is fun.”
+Twenty-five dedicated production regressions additionally cover Breakout retries
+and Starfall's human recovery budget. The browser smoke suite also exercises real
+life loss, retained replacement velocity, delayed keyboard escape and the idle
+counterfactual in the rendered page. No human playtest is claimed.

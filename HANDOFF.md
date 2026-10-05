@@ -21,8 +21,19 @@ the integrated working directory, before commit/push/closure.
 | #57 separate human-input player-experience baselines | `013c1da` | 279 | 18 |
 
 `npm run check` passed at every checkpoint. Current local verification:
-**279 Node tests**, architectural/static/README checks, and **18 browser suites**.
+**304 Node tests**, architectural/static/README checks, and **19 browser suites**.
 The deterministic player report also completed.
+
+## Requested recovery follow-up
+
+- `2e3baf3`: Breakout retry scaling; exact checkpoint passed 297 Node tests and
+  static checks, and GitHub CI passed with the existing 18 browser suites.
+- `da736b0`: bounded Starfall human pressure and real-page recovery regression;
+  exact checkpoint passed 304 Node tests, static checks and 19 browser suites.
+- Both fixes are pushed to `main`. CI for the combined runtime changes is green:
+  https://github.com/SYKhayyat/cocktail-cabinet/actions/runs/37305413194
+- Recalibration did not widen player distribution/completion bands or change
+  flipped AI tuning. The Starfall recovery floor is now strengthened to 350ms.
 
 ## Browser/CI follow-ups
 
@@ -68,9 +79,16 @@ override these endpoints. Always use `REQUIRE_BROWSER=1` for verification.
 - `docs/player-experience.md`: six independent bounded human-input policies,
   sampled distributions, sustained agency/recovery/clearance checks, censoring,
   threshold rationale and a manual playtest procedure. Proxies are not proof of fun.
-- Breakout's existing retry path retains difficulty level 8 but creates an
-  unscaled replacement ball; retry-assisted clearance is not same-pressure
-  clearance. The player report documents this production limitation rather
-  than masking it. Progressed Starfall's controlled recovery probe is only 0.2s.
+- The recovery follow-up fixes both mechanical limitations identified by the
+  player report. Breakout replacement balls retain the score multiplier without
+  double-scaling survivors; both sampled clearance cohorts now finish 12/12 at
+  retained retry pressure. Starfall's human-only curve caps at 280px/s/.6s;
+  the progressed probe's sampled recovery window is .4s, with direct .35s
+  delayed-control regressions and late/idle counterfactual losses. The flipped
+  AI policy bands and existing player distribution thresholds are unchanged.
+- Added 18 Breakout retry regressions, seven Starfall recovery regressions and a
+  real-page browser suite for host life loss, scaled retries and delayed keyboard
+  recovery. `docs/player-experience.md` contains the recalibrated results and
+  the reaction/collision budgets, not a claim that arbitrary layouts are fair.
 - Manual human/device playtesting and a real separate-browser WebRTC exchange
   remain outside the automated verification; no such playtest is claimed.

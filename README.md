@@ -46,6 +46,11 @@ lives applies immediately; raising it takes effect from the next game, so a
 change can never hand you a free life mid-round. Breakout's `extraLife` brick
 raises the cap permanently.
 
+Breakout retries preserve earned score difficulty on replacement balls; surviving
+duel balls are not scaled twice. Starfall's human mode ramps through score 150,
+then caps stars at 280px/s and spawning at one every .6s to retain a measurable
+keyboard recovery window. Flipped computer tuning is unchanged.
+
 ## Architecture
 
 One game per folder. No game file knows the other six exist.
@@ -101,7 +106,7 @@ a third tab replace an active peer. BFCache restoration reopens discovery.
 | --- | --- |
 | `npm test` | Model/host contracts, event accounting, seeded computer-policy bands/tuning, and independent bounded HUMAN-input experience proxies |
 | `npm run check` | Syntax, architectural dependencies, dead code and README control descriptors |
-| `npm run test:browser` | 18 CDP suites: boot, twenty modes, settings/lives, pause/countdown, keyboard/pointer input, loss/restart, builder tools, provider fallback/load/chat fixtures, renamed labels, narrow layouts, cross-tab Guess/Provide, hostile-leftover isolation, pagehide/pageshow and disposal |
+| `npm run test:browser` | 19 CDP suites: boot, twenty modes, settings/lives, pause/countdown, keyboard/pointer input, retained retry pressure/delayed recovery, loss/restart, builder tools, provider fallback/load/chat fixtures, renamed labels, narrow layouts, cross-tab Guess/Provide, hostile-leftover isolation, pagehide/pageshow and disposal |
 
 Computer tuning is documented in [tests/ai/TUNING.md](tests/ai/TUNING.md), and
 explicit event denominators/calibration in [tests/ai/ACCOUNTING.md](tests/ai/ACCOUNTING.md).
