@@ -3302,6 +3302,7 @@ test("Splat Builder is a puzzle with an outcome, not a win for the navigating ac
   for (let attempt = 0; attempt < 12 && !(result && result.gameOver); attempt += 1) {
     failing.model.lostPlayers.push(failing.model.player);
     result = failing.handleLifeLoss();
+    if (result && !result.gameOver) failing.resetAfterLife();
   }
   assert.ok(result, "a life loss is reported");
   assert.equal(result.gameOver, true, "the puzzle ends once the budget is spent");
@@ -3324,6 +3325,7 @@ test("Splat Builder spends lives from its own budget", () => {
   const first = game.handleLifeLoss();
   assert.equal(first.gameOver, false, "one life is not terminal");
   assert.equal(game.model.raceLives.human, 1, "the budget is charged once");
+  game.resetAfterLife();
 
   game.model.lostPlayers.push(game.model.player);
   const second = game.handleLifeLoss();

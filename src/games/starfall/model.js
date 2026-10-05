@@ -12,6 +12,8 @@ const RUNNER_LANE_COMMIT_MAX = 0.95;
 const RUNNER_LANE_WIDTH = 45;
 const RUNNER_SPEED = 220;
 
+const THREAT_HORIZON = 0.95;
+
 const STARFALL_MODES = [
   { value: "runner", label: "Solo — guide the runner" },
   { value: "stars", label: "Computer vs you — send stars" }
@@ -30,6 +32,8 @@ export class StarfallModel {
     this.lifeLost = false;
     this.gameOver = false;
     this.won = false;
+    this.eventLog = [];
+    this.nextEntityId = 1;
   }
   get modes() { return STARFALL_MODES; }
   get sides() { return STARFALL_MODES.map((mode) => mode.value); }
@@ -43,7 +47,7 @@ export class StarfallModel {
         if (this.gems.every((gem) => Math.abs(gem.x - nextX) >= 110)) break;
       }
     }
-    return { x: nextX, y, vx: (Math.random() * 2 - 1) * 32, vy: 35 + Math.random() * 30, collected: false };
+    return { id: this.nextEntityId++, x: nextX, y, vx: (Math.random() * 2 - 1) * 32, vy: 35 + Math.random() * 30, collected: false, outcome: null };
   }
   separateGems() {
     for (let first = 0; first < this.gems.length; first += 1) {
@@ -62,8 +66,22 @@ export class StarfallModel {
     }
   }
   reset(keepScore = false) {
-    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.aiTargetGem = null; this.aiTargetLock = 0; this.aiLaneCommit = 0; this.aiPerceptionClock = 0; this.aiSeenStars = []; this.decisionLog = []; this.lastDecision = null; this.gemHoldTime = 0; this.gemSpawnClock = 0; this.gemSpawnCooldown = 0; this.lifeLost = false; this.gameOver = false; this.won = false;
+    if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: 16 }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.aiTargetGem = null; this.aiTargetLock = 0; this.aiLaneCommit = 0; this.aiPerceptionClock = 0; this.aiSeenStars = []; this.decisionLog = []; this.lastDecision = null; this.eventLog = []; this.nextEntityId = 1; this.gemHoldTime = 0; this.gemSpawnClock = 0; this.gemSpawnCooldown = 0; this.lifeLost = false; this.pendingLifeLoss = false; this.gameOver = false; this.won = false;
     if (this.side === "runner") for (let index = 0; index < 3; index += 1) this.gems.push(this.newGem(undefined, -20 - index * 80));
+  }
+  recordEvent(type, details = {}) {
+    this.eventLog.push({ type, ...details });
+    if (this.eventLog.length > 4096) this.eventLog.splice(0, 1024);
+  }
+  threatensRunner(star) {
+    const corridor = this.runner.radius + star.radius;
+    if (star.vy <= 0 || star.y > this.runner.y + corridor) return false;
+    // A threat is on a collision course within one lane-commitment window,
+    // not a star that happened to share the runner's x while high on the board.
+    const timeToRunner = Math.max(0, (this.runner.y - star.y) / star.vy);
+    if (timeToRunner > THREAT_HORIZON) return false;
+    const xAtRunner = star.x + (star.vx || 0) * timeToRunner;
+    return Math.abs(xAtRunner - this.runner.x) <= corridor;
   }
   update(dt, input) {
     this.gemSpawnCooldown = Math.max(0, (this.gemSpawnCooldown || 0) - dt);
@@ -80,11 +98,18 @@ export class StarfallModel {
         const dragX = input.spawnStar.dragDeltaX || 0;
         const dragY = input.spawnStar.dragDeltaY || 0;
         const horizontalSpeed = input.spawnStar.dragDistance ? clamp(dragX / Math.max(Math.abs(dragY), 1) * 180, -240, 240) : 0;
-        this.stars.push({ x: input.spawnStar.x, y: 20, vx: horizontalSpeed, vy: 130 + this.score * 2, radius: 10, age: 0, userCreated: true });
+        this.stars.push({ id: this.nextEntityId++, x: input.spawnStar.x, y: 20, vx: horizontalSpeed, vy: 130 + this.score * 2, radius: 10, age: 0, userCreated: true, outcome: null, threatened: false });
       }
       if (input.spawnGem && this.gemSpawnCooldown <= 0 && this.gems.length < 12) {
         for (let index = this.stars.length - 1; index >= 0; index -= 1) {
-          if (this.stars[index].userCreated && (this.stars[index].age || 0) < 0.5) { this.stars.splice(index, 1); break; }
+          if (this.stars[index].userCreated && (this.stars[index].age || 0) < 0.5) {
+            const removed = this.stars.splice(index, 1)[0];
+            if (!removed.outcome) {
+              removed.outcome = "star-despawn";
+              this.recordEvent("star-despawn", { starId: removed.id ?? null, reason: "gem-spawn" });
+            }
+            break;
+          }
         }
         this.gems.push(this.newGem(clamp(input.spawnGem.x, 20, 780), 20));
         this.gemSpawnCooldown = 0.25;
@@ -104,9 +129,17 @@ export class StarfallModel {
     }
     if (this.side === "runner") {
       this.spawnClock -= dt;
-      if (this.spawnClock <= 0) { this.stars.push({ x: 20 + Math.random() * 760, y: 20, vy: 130 + this.score * 2, radius: 10 }); this.spawnClock = Math.max(0.28, 1.1 - this.score * 0.006); }
+      if (this.spawnClock <= 0) { this.stars.push({ id: this.nextEntityId++, x: 20 + Math.random() * 760, y: 20, vy: 130 + this.score * 2, radius: 10, outcome: null, threatened: false }); this.spawnClock = Math.max(0.28, 1.1 - this.score * 0.006); }
     }
-    for (const star of this.stars) { star.x += (star.vx || 0) * dt; star.y += star.vy * dt; star.age = (star.age || 0) + dt; }
+    for (const star of this.stars) {
+      star.x += (star.vx || 0) * dt;
+      star.y += star.vy * dt;
+      star.age = (star.age || 0) + dt;
+      if (!star.threatened && this.threatensRunner(star)) {
+        star.threatened = true;
+        this.recordEvent("star-threatened", { starId: star.id ?? null });
+      }
+    }
     for (const gem of this.gems) {
       if (gem.collected) {
         if (this.side === "runner") {
@@ -120,18 +153,59 @@ export class StarfallModel {
       if (gem.x < 0) gem.x = 800;
       if (gem.x > 800) gem.x = 0;
       if (gem.y > 580) {
-        if (this.side === "runner") Object.assign(gem, this.newGem());
+        if (this.side === "runner") {
+          if (!gem.outcome) {
+            gem.outcome = "gem-expired";
+            this.recordEvent("gem-expired", { gemId: gem.id ?? null });
+          }
+          Object.assign(gem, this.newGem());
+        }
         else { gem.remove = true; continue; }
       }
       if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, gem.x, gem.y, 10)) {
         this.score += 50;
+        if (!gem.outcome) {
+          gem.outcome = "gem-collected";
+          this.recordEvent("gem-collected", { gemId: gem.id ?? null });
+        }
         if (this.side === "runner") { gem.collected = true; gem.respawn = 0.7; }
         else gem.remove = true;
+      } else if (!gem.outcome && gem.y > this.runner.y + this.runner.radius + 10) {
+        gem.outcome = "gem-passed";
+        this.recordEvent("gem-passed", { gemId: gem.id ?? null });
       }
     }
     this.separateGems();
+    for (const gem of this.gems) if (gem.remove && !gem.outcome) {
+      gem.outcome = "gem-expired";
+      this.recordEvent("gem-expired", { gemId: gem.id ?? null });
+    }
     this.gems = this.gems.filter((gem) => !gem.remove);
-    for (const star of this.stars) if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, star.x, star.y, star.radius)) { star.dead = true; this.lifeLost = true; }
+    for (const star of this.stars) {
+      if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, star.x, star.y, star.radius)) {
+        if (!star.threatened) this.recordEvent("star-threatened", { starId: star.id ?? null });
+        star.threatened = true;
+        star.dead = true;
+        if (!star.outcome) {
+          star.outcome = "star-collision";
+          this.recordEvent("star-collision", { starId: star.id ?? null });
+        }
+        if (!this.lifeLost) {
+          this.lifeLost = true;
+          this.pendingLifeLoss = true;
+          this.recordEvent("life-loss", { cause: "star" });
+        }
+      }
+    }
+    for (const star of this.stars) {
+      if (star.dead || star.y >= 560 || star.x <= -30 || star.x >= 830) {
+        if (!star.outcome) {
+          const passedRunner = star.y >= 560 && star.x > -30 && star.x < 830;
+          star.outcome = star.threatened && passedRunner ? "star-dodged" : "star-expired";
+          this.recordEvent(star.outcome, { starId: star.id ?? null });
+        }
+      }
+    }
     this.stars = this.stars.filter((star) => !star.dead && star.y < 560 && star.x > -30 && star.x < 830);
   }
   // What the runner can actually see. A star still high up has not been falling
@@ -200,6 +274,40 @@ export class StarfallModel {
     });
     if (Math.abs(this.aiTargetX - this.runner.x) <= 4) this.runner.x = this.aiTargetX;
     else this.runner.x = clamp(this.runner.x + clamp(this.aiTargetX - this.runner.x, -1, 1) * RUNNER_SPEED * dt, 20, 780);
+  }
+  handleLifeLoss() {
+    if (!this.lifeLost && !this.pendingLifeLoss) return null;
+    this.lifeLost = false;
+    this.pendingLifeLoss = false;
+    return { gameOver: false, message: "One life lost — starting again in 3…" };
+  }
+  resetAfterLife() {
+    for (const star of this.stars) if (!star.outcome) {
+      star.outcome = "star-despawn";
+      this.recordEvent("star-despawn", { starId: star.id ?? null, reason: "life-reset" });
+    }
+    for (const gem of this.gems) if (!gem.outcome) {
+      gem.outcome = "gem-despawn";
+      this.recordEvent("gem-despawn", { gemId: gem.id ?? null, reason: "life-reset" });
+    }
+    this.runner = { x: 400, y: 500, radius: 16 };
+    this.stars = [];
+    this.gems = [];
+    this.spawnClock = 0.3;
+    this.aiTargetX = null;
+    this.aiTargetGem = null;
+    this.aiTargetLock = 0;
+    this.aiLaneCommit = 0;
+    this.aiPerceptionClock = 0;
+    this.aiSeenStars = [];
+    this.gemHoldTime = 0;
+    this.gemSpawnClock = 0;
+    this.gemSpawnCooldown = 0;
+    this.lifeLost = false;
+    this.pendingLifeLoss = false;
+    this.gameOver = false;
+    this.won = false;
+    if (this.side === "runner") for (let index = 0; index < 3; index += 1) this.gems.push(this.newGem(undefined, -20 - index * 80));
   }
   publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: "The computer changes direction to dodge; it does not phase through stars." }; }
 }

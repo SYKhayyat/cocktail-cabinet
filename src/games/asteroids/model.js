@@ -71,18 +71,18 @@ export class AsteroidsModel {
     // them.
     this.lifeLost = false;
     this.gameOver = false;
+    this.eventLog = [];
+    this.nextAsteroidId = 1;
   }
   get modes() { return ASTEROIDS_MODES; }
   get sides() { return ASTEROIDS_MODES.map((mode) => mode.value); }
   sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || ASTEROIDS_MODES[0].label; }
   setSide(side) { if (this.sides.includes(side)) this.side = side; }
-  reset(keepScore = false) {
+  reset(keepScore = false, { startingLives = this.engine?.maxLives ?? 3 } = {}) {
     if (!keepScore) this.score = 0;
     this.scores = { human: 0, computer: 0 };
-    // The duel starts from the cabinet's configured lives, like Breakout and
-    // Splat do. This was hardcoded to 3, so the Lives control and the duel
-    // counters could disagree on the same screen.
-    const startingLives = this.engine?.maxLives ?? 3;
+    // Round configuration is value-only, so a headless caller and the cabinet
+    // use the same duel budget without a host reference.
     this.playerLives = { human: startingLives, computer: startingLives };
     this.ship = this.newShip(400, 280);
     this.computerShip = this.side === "versus" ? this.newShip(400, 160) : null;
@@ -94,6 +94,8 @@ export class AsteroidsModel {
     this.invulnerable = 1;
     this.decisionLog = [];
     this.lastDecision = null;
+    this.eventLog = [];
+    this.nextAsteroidId = 1;
     this.asteroidSpeed = 1;
     this.won = false;
     this.gameOver = false;
@@ -102,8 +104,6 @@ export class AsteroidsModel {
     this.draggedAsteroid = null;
     this.dragVelocityX = 0;
     this.dragVelocityY = 0;
-    this.computerMistake = false;
-    this.computerMistakeClock = 5 + Math.random() * 4;
     this.lastLifeLossOwner = null;
     // Which side the engine still owes a charge to, for losses that arrive
     // without passing through the bullet path (a rock collision).
@@ -114,7 +114,11 @@ export class AsteroidsModel {
   // A bounce must survive the next frame even when a pilot is coasting, and
   // steering recomputes speed from thrust every frame, so an impulse written
   // straight into `speed` would be erased immediately.
-  newShip(x, y) { return { x, y, angle: -Math.PI / 2, speed: 0, knockX: 0, knockY: 0, radius: 13, aiTarget: null, aiReaction: 0, aiError: 0, aiAim: 0 }; }
+  newShip(x, y) { return { x, y, angle: -Math.PI / 2, speed: 0, knockX: 0, knockY: 0, radius: 13, aiTarget: null, aiReaction: 0, aiAim: 0, aiDodgeCommit: 0, aiEscape: null }; }
+  recordEvent(type, details = {}) {
+    this.eventLog.push({ type, ...details });
+    if (this.eventLog.length > 4096) this.eventLog.splice(0, 1024);
+  }
   spawnAsteroid() {
     const edge = Math.floor(Math.random() * 4);
     let x = 0;
@@ -210,7 +214,7 @@ export class AsteroidsModel {
   fractureAsteroid(asteroid) {
     const speed = Math.max(35, Math.hypot(asteroid.vx, asteroid.vy));
     const angle = Math.atan2(asteroid.vy, asteroid.vx);
-    for (const offset of [-0.9, 0.9]) this.asteroids.push({ x: asteroid.x, y: asteroid.y, vx: Math.cos(angle + offset) * speed, vy: Math.sin(angle + offset) * speed, radius: asteroid.radius * 0.55, rotation: asteroid.rotation, spin: asteroid.spin * 1.2, shape: asteroid.shape.map((scale) => 0.78 + scale * 0.22), tone: asteroid.tone, generation: 1 });
+    for (const offset of [-0.9, 0.9]) this.asteroids.push({ id: this.nextAsteroidId++, x: asteroid.x, y: asteroid.y, vx: Math.cos(angle + offset) * speed, vy: Math.sin(angle + offset) * speed, radius: asteroid.radius * 0.55, rotation: asteroid.rotation, spin: asteroid.spin * 1.2, shape: asteroid.shape.map((scale) => 0.78 + scale * 0.22), tone: asteroid.tone, generation: 1 });
     asteroid.radius = 0;
   }
   updateRockPlacement(input) {
@@ -255,7 +259,7 @@ export class AsteroidsModel {
       const computerTarget = this.side === "versus" ? this.computerShip.aiTarget : this.asteroids.reduce((nearest, asteroid) => !nearest || wrapDistance(asteroid.x, asteroid.y, this.ship.x, this.ship.y) < wrapDistance(nearest.x, nearest.y, this.ship.x, this.ship.y) ? asteroid : nearest, null);
       if (computerTarget) {
         this.fire("computer", computerShip, 0, computerShip.angle);
-        this.computerShotClock = this.side === "versus" ? 1.1 + Math.random() * 0.3 : 1.3 + Math.random() * 0.3;
+        this.computerShotClock = (this.side === "versus" ? 1.1 : 1.3) + Math.random() * 0.3;
       } else this.computerShotClock = 0.5;
     }
     if (this.side === "rocks") {
@@ -339,18 +343,30 @@ export class AsteroidsModel {
   // cannot immediately cost a second life while the ship is still blinking.
   resolveShipHazards() {
     if (this.side !== "versus") {
-      if (this.invulnerable === 0 && this.asteroids.some((asteroid) => wrapHitsCircle(this.ship.x, this.ship.y, this.ship.radius, asteroid.x, asteroid.y, asteroid.radius))) this.lifeLost = true;
+      const asteroid = this.asteroids.find((candidate) => wrapHitsCircle(this.ship.x, this.ship.y, this.ship.radius, candidate.x, candidate.y, candidate.radius));
+      if (this.invulnerable === 0 && asteroid) {
+        if (!this.lifeLost) {
+          this.recordEvent("asteroid-collision", { asteroidId: asteroid.id ?? null, owner: "human" });
+          this.lifeLost = true;
+          this.lastLifeLossOwner = "human";
+          this.recordEvent("life-loss", { owner: "human", cause: "asteroid" });
+        }
+      }
       return;
     }
     for (const [owner, ship] of [["human", this.ship], ["computer", this.computerShip]]) {
       if (!ship) continue;
-      const hit = this.asteroids.some((asteroid) => wrapHitsCircle(ship.x, ship.y, ship.radius, asteroid.x, asteroid.y, asteroid.radius));
-      if (!hit) continue;
+      const asteroid = this.asteroids.find((candidate) => wrapHitsCircle(ship.x, ship.y, ship.radius, candidate.x, candidate.y, candidate.radius));
+      if (!asteroid) continue;
       if (owner === "human") {
-        if (this.invulnerable === 0) this.chargeLifeLoss("human");
+        if (this.invulnerable === 0) {
+          this.recordEvent("asteroid-collision", { asteroidId: asteroid.id ?? null, owner });
+          this.chargeLifeLoss("human", "asteroid");
+        }
         continue;
       }
-      this.chargeLifeLoss("computer");
+      this.recordEvent("asteroid-collision", { asteroidId: asteroid.id ?? null, owner });
+      this.chargeLifeLoss("computer", "asteroid");
       // Move the computer clear so it does not lose every remaining life to
       // one rock in consecutive frames.
       ship.x = (ship.x + 240) % 800;
@@ -361,7 +377,7 @@ export class AsteroidsModel {
   spawnAsteroidAt(x, y, target = this.ship, velocity = null) {
     const angle = velocity ? Math.atan2(velocity.vy, velocity.vx) : Math.atan2(wrapDeltaY(target.y, y), wrapDeltaX(target.x, x)) + (Math.random() - 0.5) * 0.8;
     const speed = velocity ? Math.hypot(velocity.vx, velocity.vy) : 48 + this.score * 0.4;
-    const asteroid = { x: clamp(x, 10, 790), y: clamp(y, 10, 550), vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, radius: 20 + Math.random() * 10, rotation: 0, spin: (Math.random() - 0.5) * 1.8, shape: Array.from({ length: 9 }, () => 0.72 + Math.random() * 0.35), tone: Math.random(), generation: 0 };
+    const asteroid = { id: this.nextAsteroidId++, x: clamp(x, 10, 790), y: clamp(y, 10, 550), vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, radius: 20 + Math.random() * 10, rotation: 0, spin: (Math.random() - 0.5) * 1.8, shape: Array.from({ length: 9 }, () => 0.72 + Math.random() * 0.35), tone: Math.random(), generation: 0 };
     this.asteroids.push(asteroid);
     return asteroid;
   }
@@ -388,21 +404,27 @@ export class AsteroidsModel {
   // the same playerLives counters the overlay reads. Bullets already decremented
   // at the point of impact; rock collisions only raised the flag, so the duel
   // counter never moved while the round still restarted.
-  chargeLifeLoss(owner) {
+  chargeLifeLoss(owner, cause = "bullet") {
     this.playerLives[owner] = Math.max(0, this.playerLives[owner] - 1);
     this.lifeLost = true;
     this.lastDuelLossOwner = owner;
+    this.recordEvent("life-loss", { owner, cause });
   }
   handleLifeLoss() {
-    if (this.side !== "versus") return null;
+    if (this.side !== "versus") {
+      if (!this.lifeLost && this.lastLifeLossOwner === null) return null;
+      this.lifeLost = false;
+      this.lastLifeLossOwner = null;
+      return { gameOver: false, message: "One life lost — starting again in 3…" };
+    }
     if (this.playerLives.human <= 0 || this.playerLives.computer <= 0) {
       this.gameOver = true;
       this.won = true;
       this.winner = this.playerLives.human <= 0 ? "computer" : "human";
       return { gameOver: true, message: `${this.winner === "human" ? "You win" : "Computer wins"} the space duel!` };
     }
-    // The engine clears lifeLost before calling this hook. The pending owner is
-    // therefore the durable edge trigger for every already-charged duel loss.
+    // The pending owner is a durable edge trigger even for a caller that has
+    // already cleared lifeLost; an already-charged duel loss must not be spent twice.
     if (!this.lifeLost && this.lastDuelLossOwner === null) return null;
     this.lifeLost = false;
     // Keep the fallback for a caller that raises lifeLost directly, but all real
@@ -430,19 +452,29 @@ export class AsteroidsModel {
     this.ship.y = 280;
     this.ship.angle = -Math.PI / 2;
     this.ship.speed = 0;
+    this.ship.knockX = 0;
+    this.ship.knockY = 0;
     this.invulnerable = 1.2;
+    this.lifeLost = false;
+    this.lastLifeLossOwner = null;
     // Clear the respawn area. Repositioning the ship alone is not enough: a
     // rock can drift over the fixed spawn point, and once the grace period
     // lapses -- which is sooner than the three-second countdown -- the same
     // collision takes another life. The blast is small and reads as the
     // respawn pushing the rocks off.
-    this.asteroids = this.asteroids.filter((asteroid) => !wrapHitsCircle(this.ship.x, this.ship.y, this.ship.radius + RESPAWN_CLEARANCE, asteroid.x, asteroid.y, asteroid.radius));
+    this.asteroids = this.asteroids.filter((asteroid) => {
+      if (!wrapHitsCircle(this.ship.x, this.ship.y, this.ship.radius + RESPAWN_CLEARANCE, asteroid.x, asteroid.y, asteroid.radius)) return true;
+      this.recordEvent("asteroid-despawn", { asteroidId: asteroid.id ?? null, reason: "life-reset" });
+      return false;
+    });
     if (this.side === "rocks") {
       // The computer steers the ship in rocks mode, so its targeting state has
       // to be dropped too or it resumes aiming at the rock it just hit.
       this.ship.aiTarget = null;
       this.ship.aiReaction = 0;
-      this.computerMistake = false;
+      this.ship.aiAim = 0;
+      this.ship.aiDodgeCommit = 0;
+      this.ship.aiEscape = null;
     }
     if (this.side !== "versus") return;
     // The computer's position is restored alongside the human's, so a life

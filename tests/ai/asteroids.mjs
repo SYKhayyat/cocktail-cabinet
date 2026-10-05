@@ -1,16 +1,17 @@
 // Asteroids rocks mode: how the computer ship handles incoming rocks.
 //
-// "Dodged" has no terminal event here -- a rock that misses wraps the board and
-// comes round again -- so the measurement is hits against time spent inside the
-// ship's own dodge range. That range is the model's constant, not one invented
-// for the test.
+// A rock that misses wraps the board and comes round again, so threat time is a
+// useful exposure denominator. Actual losses come from the model's explicit
+// collision/life-loss events and are resolved through its normal hook.
 import { AsteroidsModel, wrapDistance } from "../../src/games/asteroids/model.js";
 import { seeded, rate } from "./snake.mjs";
+import { lifecycle } from "./lifecycle.mjs";
 
-export function measureAsteroids({ runs = 200, steps = 1200, dt = 1 / 60, dodgeRange = 105 } = {}) {
+export function measureAsteroids({ runs = 200, steps = 1200, dt = 1 / 60, dodgeRange = 105, lives = 3 } = {}) {
   const originalRandom = Math.random;
   let hits = 0;
-  let threatFrames = 0;
+  let resets = 0;
+  let hazardProximityFrames = 0;
   let decisions = 0;
   let dodging = 0;
   let replanned = 0;
@@ -20,21 +21,21 @@ export function measureAsteroids({ runs = 200, steps = 1200, dt = 1 / 60, dodgeR
       const game = new AsteroidsModel();
       game.setSide("rocks");
       game.reset();
+      const round = lifecycle(game, { lives });
       for (let index = 0; index < 3; index += 1) game.spawnAsteroid();
-      for (let step = 0; step < steps; step += 1) {
+      for (let step = 0; step < steps && !game.gameOver; step += 1) {
         let nearest = Infinity;
         for (const asteroid of game.asteroids) {
           if (!asteroid.radius) continue;
           const distance = wrapDistance(asteroid.x, asteroid.y, game.ship.x, game.ship.y);
           if (distance < nearest) nearest = distance;
         }
-        if (nearest < dodgeRange) threatFrames += 1;
+        if (nearest < dodgeRange) hazardProximityFrames += 1;
         game.update(dt, { attack: null, fire: false, spawnAsteroid: null });
-        if (game.lifeLost) {
-          hits += 1;
-          game.lifeLost = false;
-        }
+        round.resolve();
+        for (const event of game.eventLog.splice(0)) if (event.type === "life-loss" && event.owner === "human") hits += 1;
       }
+      resets += round.resets;
       for (const entry of game.decisionLog) {
         decisions += 1;
         if (entry.dodging) {
@@ -49,8 +50,9 @@ export function measureAsteroids({ runs = 200, steps = 1200, dt = 1 / 60, dodgeR
   return {
     hits,
     hitsPerRun: +(hits / runs).toFixed(2),
-    threatFrames,
-    hitsPerThousandThreatFrames: +(((hits / threatFrames) * 1000)).toFixed(2),
+    hazardProximityFrames,
+    lossesPerThousandProximityFrames: hazardProximityFrames ? +(((hits / hazardProximityFrames) * 1000)).toFixed(2) : 0,
+    resets,
     decisions,
     dodgingRate: rate(dodging, decisions),
     freshSwerveRate: rate(replanned, dodging),

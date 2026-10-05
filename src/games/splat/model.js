@@ -49,6 +49,8 @@ export class SplatModel {
     // caller to clear them.
     this.lifeLost = false;
     this.gameOver = false;
+    this.eventLog = [];
+    this.nextColumnId = 1;
   }
   get modes() { return SPLAT_MODES; }
   get sides() { return SPLAT_MODES.map((mode) => mode.value); }
@@ -70,7 +72,7 @@ export class SplatModel {
     return true;
   }
   applyPendingSettings() { this.columnSpacing = this.pendingSettings.columnSpacing; }
-  reset(keepScore = false, preserveLayout = false) {
+  reset(keepScore = false, preserveLayout = false, { startingLives = this.engine?.maxLives ?? 3 } = {}) {
     const preservedColumns = preserveLayout && this.columns ? this.columns.map((column) => ({ ...column, passed: false })) : null;
     if (!keepScore) {
       this.score = 0;
@@ -79,11 +81,11 @@ export class SplatModel {
     this.driftActive = 0;
     this.player = this.newPlayer();
     this.computerPlayer = this.side === "race" ? this.newPlayer() : null;
-    const startingLives = this.engine?.maxLives ?? 3;
     // Builder owns its life budget too, so the puzzle can report its own outcome
     // instead of falling through to the engine's generic out-of-lives text.
     this.raceLives = this.side === "race" || this.side === "builder" ? { human: startingLives, computer: startingLives } : null;
     this.lostPlayers = [];
+    this.lifeLossHandled = false;
     this.columns = [];
     this.cameraX = 0;
     this.builderCameraX = 0;
@@ -97,6 +99,8 @@ export class SplatModel {
     this.gameOver = false;
     this.winner = null;
     this.lifeLost = false;
+    this.eventLog = [];
+    this.nextColumnId = 1;
     // Builder is a puzzle, so it reports an outcome rather than a winner. The
     // old copy called it a win for the human while the mode label said the
     // computer navigates, which left the objective ambiguous.
@@ -106,12 +110,17 @@ export class SplatModel {
       for (let index = 0; index < COLUMN_COUNT; index += 1) {
         const gapY = 150 + ((index * 83 + 47) % 230);
         const gapHeight = Math.max(76, GAP_HEIGHT - Math.floor(index / 10) * 5);
-        this.columns.push({ x: 190 + index * this.columnSpacing, y: 0, width: COLUMN_WIDTH, height: 560, gapY, gapHeight, passed: false });
+        this.columns.push({ id: this.nextColumnId++, x: 190 + index * this.columnSpacing, y: 0, width: COLUMN_WIDTH, height: 560, gapY, gapHeight, passed: false });
       }
     }
+    if (preservedColumns) this.nextColumnId = Math.max(0, ...this.columns.map((column) => column.id || 0)) + 1;
     this.nextColumn = this.columns[0] || null;
   }
-  newPlayer() { return { x: 70, y: 280, radius: 12, vy: 0, columnsPassed: 0, passedColumns: new Set(), aiTargetY: null, aiReaction: 0, aiCommit: 0 }; }
+  recordEvent(type, details = {}) {
+    this.eventLog.push({ type, ...details });
+    if (this.eventLog.length > 4096) this.eventLog.splice(0, 1024);
+  }
+  newPlayer() { return { x: 70, y: 280, radius: 12, vy: 0, columnsPassed: 0, passedColumns: new Set(), attempt: 1, aiTargetY: null, aiReaction: 0, aiCommit: 0 }; }
   update(dt, input) {
     if (this.side === "race") this.updateRace(dt, input);
     else if (this.side === "builder") this.updateBuilder(dt, input);
@@ -197,7 +206,7 @@ export class SplatModel {
   }
   addColumn(x, gapY = 280) {
     const minimumX = this.player.x + 60;
-    const column = { x: clamp(x, minimumX, this.columns.at(-1).x + 300), y: 0, width: COLUMN_WIDTH, height: 560, gapY: clamp(gapY, 60, 420), gapHeight: GAP_HEIGHT, passed: false };
+    const column = { id: this.nextColumnId++, x: clamp(x, minimumX, this.columns.at(-1).x + 300), y: 0, width: COLUMN_WIDTH, height: 560, gapY: clamp(gapY, 60, 420), gapHeight: GAP_HEIGHT, passed: false };
     this.columns.push(column);
     this.columns.sort((a, b) => a.x - b.x);
     if (!this.nextColumn) this.nextColumn = column;
@@ -210,8 +219,12 @@ export class SplatModel {
       if (passed || !this.horizontalCollision(player, column)) continue;
       const insideGap = player.y + player.radius > column.gapY && player.y - player.radius < column.gapY + column.gapHeight;
       if (!insideGap) {
+        if (!this.lostPlayers.includes(player)) {
+          this.lostPlayers.push(player);
+          this.recordEvent("column-collision", { columnId: column.id ?? null, attempt: player.attempt, owner: player === this.player ? "human" : "computer" });
+          this.recordEvent("life-loss", { owner: player === this.player ? "human" : "computer", attempt: player.attempt, cause: "column" });
+        }
         this.lifeLost = true;
-        this.lostPlayers.push(player);
         player.vy *= -0.25;
         break;
       }
@@ -219,6 +232,7 @@ export class SplatModel {
         if (this.side === "race") player.passedColumns.add(column);
         else column.passed = true;
         player.columnsPassed += 1;
+        this.recordEvent("column-cleared", { columnId: column.id ?? null, attempt: player.attempt, owner: player === this.player ? "human" : "computer" });
         if (human) {
           this.score = player.columnsPassed;
           this.furthestColumns = Math.max(this.furthestColumns, this.score);
@@ -291,7 +305,9 @@ export class SplatModel {
   }
   handleLifeLoss() {
     const lostPlayers = [...this.lostPlayers];
-    if (!lostPlayers.length) return null;
+    if (!lostPlayers.length || this.lifeLossHandled) return null;
+    this.lifeLossHandled = true;
+    this.lifeLost = false;
     if (this.side !== "race") {
       if (this.side === "builder") {
         const remaining = Math.max(0, this.raceLives.human - 1);
@@ -318,11 +334,13 @@ export class SplatModel {
     return { gameOver: false, message: `${owners.map((owner) => owner === "human" ? "You" : "Computer").join(" and ")} lost a ball.` };
   }
   resetAfterLife() {
+    this.lifeLossHandled = false;
     for (const player of this.lostPlayers.splice(0)) {
       player.x = 70;
       player.y = 280;
       player.vy = 0;
       player.columnsPassed = 0;
+      player.attempt += 1;
       player.passedColumns.clear();
       player.aiTargetY = null;
       player.aiReaction = 0;
@@ -334,9 +352,11 @@ export class SplatModel {
       this.score = 0;
       this.cameraX = 0;
       this.builderCameraX = 0;
+      this.lifeLost = false;
       return;
     }
     this.score = this.player.columnsPassed;
+    this.lifeLost = false;
   }
   publicState() {
     const status = this.side === "race" ? "Race the computer; the first ball to finish wins." : this.side === "builder" ? "Design a route the computer can clear: every column needs a gap it can reach." : "Clear the gaps to score; reach the far right to win.";

@@ -23,6 +23,8 @@ export class StarfallGame {
   validateSettings(values) { return this.model.validateSettings?.(values); }
   setSide(side) { this.model.setSide(side); }
   reset(keepScore) { this.model.reset(keepScore); }
+  handleLifeLoss() { return this.model.handleLifeLoss(); }
+  resetAfterLife() { this.model.resetAfterLife(); }
   update(dt, input) { this.controller.update(dt, input); }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }

@@ -41,6 +41,8 @@ export class MissileModel {
     // them.
     this.lifeLost = false;
     this.gameOver = false;
+    this.eventLog = [];
+    this.nextEntityId = 1;
   }
   get modes() { return MISSILE_MODES; }
   get sides() { return MISSILE_MODES.map((mode) => mode.value); }
@@ -66,12 +68,24 @@ export class MissileModel {
     this.interceptorClock = 0;
     this.decisionLog = [];
     this.lastDecision = null;
+    this.eventLog = [];
+    this.nextEntityId = 1;
     this.levelComplete = false;
     this.levelTransition = 0;
     this.lifeLost = false;
     this.gameOver = false;
     this.won = false;
     this.winner = null;
+  }
+  recordEvent(type, details = {}) {
+    this.eventLog.push({ type, ...details });
+    if (this.eventLog.length > 4096) this.eventLog.splice(0, 1024);
+  }
+  recordEnemyOutcome(enemy, type, details = {}) {
+    if (enemy.outcome) return false;
+    enemy.outcome = type;
+    this.recordEvent(type, { enemyId: enemy.id ?? null, ...details });
+    return true;
   }
   selectBattery(direction) {
     if (!direction) return;
@@ -84,6 +98,7 @@ export class MissileModel {
     const speed = this.selectedBattery === 1 ? 470 : 270;
     const travelAngle = Math.atan2(this.target.y - (base.y - 20), this.target.x - base.x);
     this.interceptors.push({ x: base.x, y: base.y - 20, targetX: this.target.x, targetY: this.target.y, speed, color: "#22d3ee", battery: base, travelAngle });
+    this.recordEvent("interceptor-fired", { machine: false });
     return true;
   }
   launchEnemy(target = null, options = {}) {
@@ -96,14 +111,14 @@ export class MissileModel {
     this.lastEnemyTarget = destination.target;
     const aircraft = !options.freeFlight && this.side === "defender" && Math.random() < 0.12;
     if (aircraft) {
-      this.enemyMissiles.push({ x: Math.random() < 0.5 ? 24 : 776, y: 70 + Math.random() * 80, targetX: Math.random() < 0.5 ? 820 : -20, targetY: 70 + Math.random() * 80, speed: 70 + this.level * 8, color: "#f472b6", kind: Math.random() < 0.5 ? "bomber" : "satellite", aircraft: true, dropClock: 1.4, isSplit: false, dead: false });
+      this.enemyMissiles.push({ id: this.nextEntityId++, x: Math.random() < 0.5 ? 24 : 776, y: 70 + Math.random() * 80, targetX: Math.random() < 0.5 ? 820 : -20, targetY: 70 + Math.random() * 80, speed: 70 + this.level * 8, color: "#f472b6", kind: Math.random() < 0.5 ? "bomber" : "satellite", aircraft: true, dropClock: 1.4, isSplit: false, dead: false, outcome: null });
       return;
     }
     const smart = this.level > 1 && Math.random() < 0.18;
     const splitCount = this.level > 2 && Math.random() < 0.32 ? 1 : 0;
     const startX = options.startX ?? 40 + Math.random() * 720;
     const startY = options.startY ?? 20;
-    this.enemyMissiles.push({ x: startX, y: startY, targetX: destination.target.x, targetY: destination.target.y, speed: 78 + this.level * 8 + this.score * 0.15, color: smart ? "#fbbf24" : "#fb7185", kind: destination.kind, targetObject: destination.target, smart, splitCount, isSplit: false, dead: false, freeFlight: Boolean(options.freeFlight), vx: options.vx || 0, vy: options.vy || 0 });
+    this.enemyMissiles.push({ id: this.nextEntityId++, x: startX, y: startY, targetX: destination.target.x, targetY: destination.target.y, speed: 78 + this.level * 8 + this.score * 0.15, color: smart ? "#fbbf24" : "#fb7185", kind: destination.kind, targetObject: destination.target, smart, splitCount, isSplit: false, dead: false, outcome: null, freeFlight: Boolean(options.freeFlight), vx: options.vx || 0, vy: options.vy || 0 });
   }
   launchPlayerEnemy(pointer) {
     if (!pointer) return;
@@ -158,6 +173,7 @@ export class MissileModel {
     const aimX = target.x + (distance ? dx / distance * target.speed * lead : 0);
     const aimY = target.y + (distance ? dy / distance * target.speed * lead : 0);
     this.interceptors.push({ x: base.x, y: base.y - 20, targetX: aimX, targetY: aimY, speed: INTERCEPTOR_SPEED, color: "#22d3ee", machine: true });
+    this.recordEvent("interceptor-fired", { machine: true });
     recordDecision(this, {
       mode: "attacker",
       targetX: Math.round(target.x),
@@ -212,11 +228,18 @@ export class MissileModel {
         if (!circleHitsCircle(interceptor.x, interceptor.y, INTERCEPTOR_RADIUS, enemy.x, enemy.y, ENEMY_RADIUS)) continue;
         interceptor.dead = true;
         enemy.dead = true;
+        this.recordEnemyOutcome(enemy, "intercepted", { mode: "attacker" });
         this.score += 15;
         break;
       }
     }
-    for (const enemy of this.enemyMissiles) if (enemy.targetObject?.alive && enemy.y >= enemy.targetY - enemy.targetObject.radius - IMPACT_MARGIN) { enemy.targetObject.alive = false; enemy.dead = true; }
+    for (const enemy of this.enemyMissiles) {
+      if (!enemy.dead && enemy.targetObject && enemy.y >= enemy.targetY - enemy.targetObject.radius - IMPACT_MARGIN) this.impactEnemy(enemy);
+      if (!enemy.dead && enemy.y >= 560) {
+        enemy.dead = true;
+        this.recordEnemyOutcome(enemy, "offscreen-expiry");
+      }
+    }
     this.enemyMissiles = this.enemyMissiles.filter((missile) => !missile.dead && missile.y < 560);
     this.interceptors = this.interceptors.filter((missile) => !missile.dead);
     // The attacker's objective is the cities, so losing all batteries is losing
@@ -250,6 +273,7 @@ export class MissileModel {
       for (const enemy of this.enemyMissiles) {
         if (!enemy.dead && circleHitsCircle(fireball.x, fireball.y, fireball.radius, enemy.x, enemy.y, ENEMY_RADIUS + FIREBALL_ENEMY_BONUS)) {
           enemy.dead = true;
+          this.recordEnemyOutcome(enemy, "intercepted", { mode: "defender" });
           this.score += enemy.smart ? 35 : 15;
           if (enemy.splitCount > 0) this.splitEnemy(enemy);
         }
@@ -280,10 +304,14 @@ export class MissileModel {
     return false;
   }
   moveEnemy(enemy, dt) {
+    if (enemy.dead) return;
     if (enemy.freeFlight) {
       enemy.x += enemy.vx * dt;
       enemy.y += enemy.vy * dt;
-      if (enemy.x < -30 || enemy.x > 830 || enemy.y < -30 || enemy.y > 590) enemy.dead = true;
+      if (enemy.x < -30 || enemy.x > 830 || enemy.y < -30 || enemy.y > 590) {
+        enemy.dead = true;
+        this.recordEnemyOutcome(enemy, "offscreen-expiry");
+      }
       return;
     }
     if (enemy.aircraft) {
@@ -292,9 +320,12 @@ export class MissileModel {
       if (enemy.dropClock <= 0) {
         enemy.dropClock = 1.6;
         const destination = this.cities.find((city) => city.alive) || this.bases.find((base) => base.alive);
-        if (destination) this.enemyMissiles.push({ x: enemy.x, y: enemy.y, targetX: destination.x, targetY: destination.y, speed: enemy.speed, color: "#fb7185", kind: "city", targetObject: destination, smart: false, splitCount: 0, isSplit: true, dead: false });
+        if (destination) this.enemyMissiles.push({ id: this.nextEntityId++, x: enemy.x, y: enemy.y, targetX: destination.x, targetY: destination.y, speed: enemy.speed, color: "#fb7185", kind: "city", targetObject: destination, smart: false, splitCount: 0, isSplit: true, dead: false, outcome: null });
       }
-      if (enemy.x < -30 || enemy.x > 830) enemy.dead = true;
+      if (enemy.x < -30 || enemy.x > 830) {
+        enemy.dead = true;
+        this.recordEnemyOutcome(enemy, "offscreen-expiry");
+      }
       return;
     }
     const dx = enemy.targetX - enemy.x;
@@ -308,13 +339,14 @@ export class MissileModel {
     enemy.dead = true;
     const target = enemy.targetObject || enemy.targetBase;
     if (target) target.alive = false;
+    this.recordEnemyOutcome(enemy, "target-impact", { target: enemy.kind || (target?.radius === 12 ? "city" : "battery") });
   }
   splitEnemy(enemy) {
     const childTargets = [...this.cities.filter((city) => city.alive), ...this.bases.filter((base) => base.alive)];
     for (let index = 0; index < 2; index += 1) {
       const destination = childTargets[Math.floor(Math.random() * childTargets.length)];
       if (!destination) continue;
-      this.enemyMissiles.push({ x: enemy.x, y: enemy.y, targetX: destination.x, targetY: destination.y, speed: enemy.speed * 0.9, color: enemy.color, kind: destination === this.cities[0] || destination.y === BASE_Y && destination.radius === 12 ? "city" : "battery", targetObject: destination, smart: enemy.smart, splitCount: 0, isSplit: true, dead: false });
+      this.enemyMissiles.push({ id: this.nextEntityId++, x: enemy.x, y: enemy.y, targetX: destination.x, targetY: destination.y, speed: enemy.speed * 0.9, color: enemy.color, kind: destination === this.cities[0] || destination.y === BASE_Y && destination.radius === 12 ? "city" : "battery", targetObject: destination, smart: enemy.smart, splitCount: 0, isSplit: true, dead: false, outcome: null });
     }
   }
   completeLevel() {

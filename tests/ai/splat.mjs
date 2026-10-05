@@ -8,6 +8,7 @@
 // measures nothing.
 import { SplatModel } from "../../src/games/splat/model.js";
 import { seeded, rate } from "./snake.mjs";
+import { lifecycle } from "./lifecycle.mjs";
 
 export function measureSplat({ runs = 100, steps = 6500, dt = 1 / 60, step = 130, gapHeight = 50, lives = 3 } = {}) {
   const originalRandom = Math.random;
@@ -20,7 +21,8 @@ export function measureSplat({ runs = 100, steps = 6500, dt = 1 / 60, step = 130
       Math.random = seeded(1000 + run * 7919);
       const game = new SplatModel();
       game.setSide("builder");
-      game.reset();
+      game.reset(false, false, { startingLives: lives });
+      const round = lifecycle(game, { lives, modelOwnsLives: true });
       if (step !== null) {
         let y = 280;
         for (const column of game.columns) {
@@ -29,24 +31,13 @@ export function measureSplat({ runs = 100, steps = 6500, dt = 1 / 60, step = 130
           column.gapHeight = gapHeight;
         }
       }
-      let seen = new WeakSet();
-      let budget = lives;
-      for (let tick = 0; tick < steps && !game.won && budget > 0; tick += 1) {
-        for (const column of game.columns) {
-          if (column.passed && !seen.has(column)) {
-            seen.add(column);
-            cleared += 1;
-          }
-        }
+      for (let tick = 0; tick < steps && !game.won && !game.gameOver; tick += 1) {
         game.update(dt, {});
-        if (game.lifeLost) {
-          deaths += 1;
-          budget -= 1;
-          game.lifeLost = false;
-          if (budget <= 0) break;
-          game.resetAfterLife();
-          seen = new WeakSet();
+        for (const event of game.eventLog.splice(0)) {
+          if (event.type === "column-cleared") cleared += 1;
+          if (event.type === "life-loss") deaths += 1;
         }
+        round.resolve();
       }
       if (game.won) solved += 1;
       decisions += game.decisionLog.length;

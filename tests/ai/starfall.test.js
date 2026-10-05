@@ -6,16 +6,18 @@ test("Starfall runner: limited sight, held lanes, stars dodged and gems taken", 
   const measured = measureStarfall({ runs: 150 });
 
   assert.ok(measured.starsRemoved > 1000, "enough stars judged");
-  // The runner dodges nearly everything, and that is a property of the lane
-  // layout rather than of its reaction time -- see the note below. What the
-  // factors do control is that a threatening star can now connect at all.
-  assert.ok(measured.dodgedRate > 90, `dodged ${measured.dodgedRate}% of stars`);
-  assert.ok(measured.hitRateOnThreatening > 0.8 && measured.hitRateOnThreatening < 10,
-    `${measured.hitRateOnThreatening}% of stars that came into range connected`);
+  // Only collision-course stars within one commitment window are threats.
+  // Cleanup is excluded; the corrected seeded baseline is 62.1% dodged.
+  assert.ok(measured.resolvedThreats > 40, "enough real collision opportunities judged");
+  assert.ok(measured.dodgeRateOnResolvedThreats > 45 && measured.dodgeRateOnResolvedThreats < 80,
+    `dodged ${measured.dodgeRateOnResolvedThreats}% of resolved threats`);
+  assert.ok(measured.collisionRateOnResolvedThreats > 20 && measured.collisionRateOnResolvedThreats < 55,
+    `${measured.collisionRateOnResolvedThreats}% of resolved imminent threats connected`);
+  assert.equal(measured.starsRemoved, measured.starsExpired + measured.starsDespawned + measured.starsDodged + measured.hits);
 
   // Gems: it collects some and misses some, so it is trading safety for score
   // rather than only ever running for cover.
-  assert.ok(measured.gemsGotRate > 25 && measured.gemsGotRate < 45, `collected ${measured.gemsGotRate}% of gems that passed it`);
+  assert.ok(measured.gemCollectionRate > 8 && measured.gemCollectionRate < 25, `collected ${measured.gemCollectionRate}% of gems that reached the runner's row`);
 
   // It holds a lane rather than re-picking the safest one every frame.
   assert.ok(measured.replanRate < 25, `re-chose a lane on only ${measured.replanRate}% of frames`);
