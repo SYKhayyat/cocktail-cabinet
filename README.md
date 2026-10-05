@@ -12,8 +12,8 @@ record or a historical audit — see [Historical documents](#historical-document
 
 ```sh
 npm install
-npm test          # Node test suite (models, engine, Monte Carlo)
-npm run check     # syntax check + dead-code check
+npm test          # models, lifecycle, computer policies, player proxies
+npm run check     # syntax, architecture, dead-code and README checks
 npm run serve     # static server on http://localhost:4173
 ```
 
@@ -53,16 +53,23 @@ One game per folder. No game file knows the other six exist.
 ```
 index.html          cabinet shell and controls
 styles.css          all visual styling
-src/engine.js       canvas, input collection, animation loop, geometry helpers
+src/engine.js       canvas, input collection, animation loop, host lifecycle
+src/game-lifecycle.js facade capabilities, value-only round context, rewards/results
+src/geometry.js     model-safe geometry
+src/decisions.js    bounded computer-decision recording
+src/rendering.js    canvas text helper
 src/main.js         cabinet UI; swaps game modules in and out
 src/games/<id>/     model.js (rules), controller.js (input), view.js (drawing), index.js (facade)
 src/ai/on-device.js local-AI provider ladder: Chrome built-in AI → Ollama → WebGPU/WASM worker
-tests/              core.test.js, models.test.js, ai/*.mjs + ai/*.test.js, browser-smoke.mjs
-scripts/            dead-code-check.py
+tests/              model/contract tests, ai/ policies, player/ proxies, browser-smoke.mjs
+scripts/            architecture, dead-code and README checks
 ```
 
-The engine owns lives, score, pause, the new-game countdown, and the end-of-round
-overlay. Games own their rules and expose `publicState()`. Switching games calls
+The engine owns host lives, pause, the new-game countdown, and the end-of-round
+overlay. Facades expose lifecycle capabilities; games own rules, scores and any
+per-player life budget. Models receive value-only round context, never an engine
+reference. Games expose `publicState()`; Imitation includes stable mode/provider
+flags so display-label changes cannot alter controls. Switching games calls
 `destroy()` on the outgoing controller, which releases channels and timers.
 
 Mode values, labels, and settings bounds are declared once per game as
@@ -84,17 +91,30 @@ available, Imitation says so rather than faking a reply.
 Imitation pairs tabs in one browser over `BroadcastChannel`, and separate
 browsers via a manual WebRTC offer/answer that the players copy between
 themselves. It remains a static page with no application server.
+Same-browser peers send `bye` on `pagehide` and renew heartbeats. A silent peer
+expires after 3.5 active simulation seconds, allowing re-pairing without letting
+a third tab replace an active peer. BFCache restoration reopens discovery.
 
 ## Testing
 
 | Command | What it covers |
 | --- | --- |
-| `npm test` | Model and engine unit tests, plus seeded Monte Carlo runs asserting each computer opponent stays within its intended difficulty band |
-| `npm run check` | Syntax check and `scripts/dead-code-check.py` |
-| `npm run test:browser` | Twelve CDP suites against the real page in headless Chrome: boot, all twenty modes, settings, lives, pause/countdown, keyboard and pointer input, life loss and restart, builder tools, the provider fallback, a 360px viewport, the cross-tab Guess/Provide protocol, and controller disposal |
+| `npm test` | Model/host contracts, event accounting, seeded computer-policy bands/tuning, and independent bounded HUMAN-input experience proxies |
+| `npm run check` | Syntax, architectural dependencies, dead code and README control descriptors |
+| `npm run test:browser` | 18 CDP suites: boot, twenty modes, settings/lives, pause/countdown, keyboard/pointer input, loss/restart, builder tools, provider fallback/load/chat fixtures, renamed labels, narrow layouts, cross-tab Guess/Provide, hostile-leftover isolation, pagehide/pageshow and disposal |
+
+Computer tuning is documented in [tests/ai/TUNING.md](tests/ai/TUNING.md), and
+explicit event denominators/calibration in [tests/ai/ACCOUNTING.md](tests/ai/ACCOUNTING.md).
+Player hypotheses, distributions, thresholds and manual-playtest limitations are
+in [docs/player-experience.md](docs/player-experience.md). Run
+`node tests/player/report.mjs` for reproducible player metrics. These automated
+proxies do **not** establish subjective enjoyment or replace human playtesting.
 
 The browser suite drives a seeded `Math.random` and a manual clock, so it is
-deterministic rather than racing `requestAnimationFrame`. It skips cleanly when
+deterministic rather than racing `requestAnimationFrame`: it cancels the queued
+boot frame before installing its virtual clock. Each suite (or cross-tab group)
+has a fresh browser context; owned contexts dispose on cleanup or runner detach.
+Unrelated tabs are never closed. It skips cleanly when
 no browser is listening on `CDP_URL`; CI sets `REQUIRE_BROWSER=1` so a missing
 browser fails the build instead.
 
