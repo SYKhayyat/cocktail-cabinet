@@ -1,4 +1,4 @@
-import { drawText } from "../../engine.js";
+import { drawText } from "../../rendering.js";
 import { BOARD_WIDTH, BOARD_HEIGHT } from "./model.js";
 
 export function draw(model, context) {

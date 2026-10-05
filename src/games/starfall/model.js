@@ -1,4 +1,5 @@
-import { clamp, circleHitsCircle, recordDecision } from "../../engine.js";
+import { clamp, circleHitsCircle } from "../../geometry.js";
+import { recordDecision } from "../../decisions.js";
 
 export // Runner factors. The runner does not roll for mistakes: it can only see stars
 // that have fallen past a certain height, it re-reads them on a clock, and once

@@ -1,4 +1,5 @@
-import { clamp, recordDecision } from "../../engine.js";
+import { clamp } from "../../geometry.js";
+import { recordDecision } from "../../decisions.js";
 
 // Extra radius cleared around the ship when it respawns, so the spawn point
 // is not still inside a rock once the grace period lapses.

@@ -1,3 +1,10 @@
+import { drawText } from "./rendering.js";
+
+// Compatibility for existing consumers; models and views import their own layer.
+export { clamp, distance, circleHitsCircle, circleHitsRect } from "./geometry.js";
+export { DECISION_LOG_LIMIT, recordDecision } from "./decisions.js";
+export { drawText } from "./rendering.js";
+
 const DEFAULT_LIVES = 3;
 const MIN_LIVES = 1;
 const MAX_LIVES = 9;
@@ -347,47 +354,4 @@ export class GameEngine {
     window.removeEventListener("pointerup", this.handlePointerUp);
     window.removeEventListener("pointercancel", this.handlePointerCancel);
   }
-}
-
-// Observability seam for computer decisions.
-//
-// Models own their own decisions, but a test that cannot see them has to
-// monkey-patch the model from outside, which couples the test to internals and
-// breaks the moment a method is renamed. Every model therefore records what it
-// decided here, and the AI tests read model.decisionLog instead of patching.
-//
-// The log is bounded: games run indefinitely, so it drops the oldest quarter in
-// one splice rather than shifting per entry, which keeps recording O(1).
-export const DECISION_LOG_LIMIT = 4096;
-
-export function recordDecision(model, entry) {
-  model.lastDecision = entry;
-  model.decisionLog.push(entry);
-  const limit = model.decisionLogLimit ?? DECISION_LOG_LIMIT;
-  if (model.decisionLog.length > limit) model.decisionLog.splice(0, limit >> 2);
-}
-
-export function clamp(value, minimum, maximum) {
-  return Math.max(minimum, Math.min(maximum, value));
-}
-
-export function distance(ax, ay, bx, by) {
-  return Math.hypot(ax - bx, ay - by);
-}
-
-export function circleHitsCircle(ax, ay, ar, bx, by, br) {
-  return distance(ax, ay, bx, by) < ar + br;
-}
-
-export function circleHitsRect(circle, rectangle) {
-  const closestX = clamp(circle.x, rectangle.x, rectangle.x + rectangle.width);
-  const closestY = clamp(circle.y, rectangle.y, rectangle.y + rectangle.height);
-  return distance(circle.x, circle.y, closestX, closestY) < circle.radius;
-}
-
-export function drawText(context, text, x, y, size = 16, color = "#f8fafc", align = "left") {
-  context.fillStyle = color;
-  context.font = `700 ${size}px system-ui, sans-serif`;
-  context.textAlign = align;
-  context.fillText(text, x, y);
 }

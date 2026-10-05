@@ -1,4 +1,5 @@
-import { clamp, recordDecision } from "../../engine.js";
+import { clamp } from "../../geometry.js";
+import { recordDecision } from "../../decisions.js";
 
 const COLUMN_WIDTH = 30;
 const COLUMN_COUNT = 50;

@@ -1,4 +1,4 @@
-import { drawText } from "../../engine.js";
+import { drawText } from "../../rendering.js";
 
 function drawColumns(context, model, cameraX, offset, width) {
   model.columns.forEach((column) => {

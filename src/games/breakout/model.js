@@ -1,4 +1,5 @@
-import { clamp, circleHitsRect, recordDecision } from "../../engine.js";
+import { clamp, circleHitsRect } from "../../geometry.js";
+import { recordDecision } from "../../decisions.js";
 
 export const BRICK_LABELS = { extraLife: "+1 LIFE", double: "2 BALLS", speed: "SPEED", shortBar: "SHORT", longBar: "LONG", hazard: "DANGER" };
 const BRICK_TYPES = ["normal", "extraLife", "shortBar", "double", "speed", "longBar", "hazard"];

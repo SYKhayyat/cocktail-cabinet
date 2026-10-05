@@ -1,4 +1,5 @@
-import { circleHitsCircle, clamp, recordDecision } from "../../engine.js";
+import { circleHitsCircle, clamp } from "../../geometry.js";
+import { recordDecision } from "../../decisions.js";
 
 const BATTERY_X = [130, 400, 670];
 const CITY_X = [70, 200, 300, 500, 600, 730];

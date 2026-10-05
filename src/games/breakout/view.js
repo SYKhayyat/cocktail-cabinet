@@ -1,4 +1,4 @@
-import { drawText } from "../../engine.js";
+import { drawText } from "../../rendering.js";
 import { BRICK_LABELS } from "./model.js";
 
 const BRICK_COLORS = { normal: "#38bdf8", extraLife: "#4ade80", double: "#f472b6", speed: "#fbbf24", shortBar: "#c084fc", longBar: "#fb923c", hazard: "#fb7185" };

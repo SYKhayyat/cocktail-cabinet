@@ -1,4 +1,5 @@
-import { clamp, recordDecision } from "../../engine.js";
+import { clamp } from "../../geometry.js";
+import { recordDecision } from "../../decisions.js";
 
 const BOARD_WIDTH = 800;
 const BOARD_HEIGHT = 560;

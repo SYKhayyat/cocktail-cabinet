@@ -1,4 +1,4 @@
-import { drawText } from "../../engine.js";
+import { drawText } from "../../rendering.js";
 
 export function draw(model, context) {
   context.fillStyle = "#080d18"; context.fillRect(0, 0, 800, 560);
