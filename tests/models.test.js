@@ -3146,15 +3146,17 @@ test("Asteroids versus resolves every loss source against the same counters", ()
   const duel = (lives = 3) => {
     const game = new AsteroidsGame();
     game.setSide("versus");
-    game.lifecycle.startRound({ startingLives: lives, reason: "load" });
+    // Seed 278 previously placed a reset rock on the relocated human pilot.
+    withSeededRandom(278, () => game.lifecycle.startRound({ startingLives: lives, reason: "load" }));
     game.model.computerShip.x = 700;
     game.model.computerShip.y = 60;
     game.model.invulnerable = 0;
     game.model.computerShotClock = 99;
-    // Versus spawns a rock at a random edge when the spawn clock is due, and at
-    // reset it is, so a rock could land on a ship and raise a life loss the test
-    // never caused. Same guard as the other versus fixture.
+    // Isolate this scene from both future spawns and the three reset rocks.
+    // Keep one harmless rock so the empty-field refill cannot add random noise.
     game.model.spawnClock = 99;
+    game.model.asteroids = [];
+    game.model.spawnAsteroidAt(400, 40, game.model.ship, { vx: 0, vy: 0 });
     game.model.ship.x = 60;
     game.model.ship.y = 500;
     return game;
@@ -3207,10 +3209,10 @@ test("Asteroids versus ends at zero however the last life is lost", () => {
     game.model.computerShip.y = 60;
     game.model.invulnerable = 0;
     game.model.computerShotClock = 99;
-    // Versus spawns a rock at a random edge when the spawn clock is due, and at
-    // reset it is, so a rock could land on a ship and raise a life loss the test
-    // never caused. Same guard as the other versus fixture.
+    // A bullet-only outcome must not depend on unrelated reset rocks/refills.
     game.model.spawnClock = 99;
+    game.model.asteroids = [];
+    game.model.spawnAsteroidAt(400, 40, game.model.ship, { vx: 0, vy: 0 });
     game.model.ship.x = 60;
     game.model.ship.y = 500;
     return game;
@@ -3243,6 +3245,9 @@ test("Asteroids versus does not double-charge a bullet that already decremented"
   game.lifecycle.startRound({ startingLives: 3, reason: "load" });
   game.model.invulnerable = 0;
   game.model.computerShotClock = 99;
+  game.model.spawnClock = 99;
+  game.model.asteroids = [];
+  game.model.spawnAsteroidAt(400, 40, game.model.ship, { vx: 0, vy: 0 });
   game.model.computerShip.x = 700;
   game.model.computerShip.y = 60;
   game.model.ship.x = 60;
