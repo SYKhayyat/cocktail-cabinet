@@ -72,7 +72,7 @@ export class SplatModel {
     return true;
   }
   applyPendingSettings() { this.columnSpacing = this.pendingSettings.columnSpacing; }
-  reset(keepScore = false, preserveLayout = false, { startingLives = this.engine?.maxLives ?? 3 } = {}) {
+  reset(keepScore = false, preserveLayout = false, { startingLives = 3 } = {}) {
     const preservedColumns = preserveLayout && this.columns ? this.columns.map((column) => ({ ...column, passed: false })) : null;
     if (!keepScore) {
       this.score = 0;

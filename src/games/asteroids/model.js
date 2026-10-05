@@ -78,7 +78,7 @@ export class AsteroidsModel {
   get sides() { return ASTEROIDS_MODES.map((mode) => mode.value); }
   sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || ASTEROIDS_MODES[0].label; }
   setSide(side) { if (this.sides.includes(side)) this.side = side; }
-  reset(keepScore = false, { startingLives = this.engine?.maxLives ?? 3 } = {}) {
+  reset(keepScore = false, { startingLives = 3 } = {}) {
     if (!keepScore) this.score = 0;
     this.scores = { human: 0, computer: 0 };
     // Round configuration is value-only, so a headless caller and the cabinet

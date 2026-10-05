@@ -51,12 +51,12 @@ export class BreakoutModel {
   get sides() { return BREAKOUT_MODES.map((mode) => mode.value); }
   sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || BREAKOUT_MODES[0].label; }
   setSide(side) { if (this.sides.includes(side)) this.side = side; }
-  reset(keepScore = false) {
+  reset(keepScore = false, { startingLives = 3 } = {}) {
     if (!keepScore) this.score = 0;
     this.lifeLost = false;
     this.scores = keepScore && this.scores ? { ...this.scores } : { human: 0, computer: 0 };
-    const startingLives = this.engine?.maxLives ?? 3;
     this.playerLives = { human: startingLives, computer: startingLives };
+    this.pendingRewards = [];
     this.lastLifeLossOwner = null;
     this.lifeLossOwner = null;
     this.lifeLossOwners = [];
@@ -366,7 +366,7 @@ export class BreakoutModel {
       if (this.side === "versus") {
         const lifeOwner = owner || ball.owner || "human";
         this.playerLives[lifeOwner] = Math.min(9, this.playerLives[lifeOwner] + 1);
-      } else this.engine?.addLife?.();
+      } else this.pendingRewards.push({ type: "extra-life" });
     }
     if (brick.type === "speed") for (const other of this.balls) { other.vx *= 1.12; other.vy *= 1.12; }
     if (brick.type === "double" && this.balls.length < 4) this.balls.push(this.newBall(ball.x, ball.y, -ball.vx * 0.82, ball.vy * 0.82, owner));

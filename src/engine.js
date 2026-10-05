@@ -1,4 +1,5 @@
 import { drawText } from "./rendering.js";
+import { createGameLifecycle } from "./game-lifecycle.js";
 
 // Compatibility for existing consumers; models and views import their own layer.
 export { clamp, distance, circleHitsCircle, circleHitsRect } from "./geometry.js";
@@ -18,6 +19,7 @@ export class GameEngine {
     this.onMessage = onMessage;
     this.onLives = onLives;
     this.game = null;
+    this.lifecycle = null;
     this.running = false;
     this.stopped = false;
     this.paused = false;
@@ -150,17 +152,14 @@ export class GameEngine {
     this.stop();
     this.game?.destroy?.();
     this.game = game;
-    game.engine = this;
-    game.gameOver = false;
-    game.lifeLost = false;
-    const interactive = game.id === "imitation";
+    this.lifecycle = game.lifecycle || createGameLifecycle(game);
+    const interactive = this.lifecycle.boot === "interactive";
     this.stopped = !interactive;
     this.paused = false;
     this.ready = !interactive;
     this.countdown = 0;
     this.applyLives();
-    game.applyPendingSettings?.();
-    game.reset();
+    this.startRound("load");
     this.onState?.(game.publicState());
     this.running = true;
     this.lastTime = performance.now();
@@ -222,11 +221,41 @@ export class GameEngine {
     this.onLives?.(this.lives, this.maxLives);
   }
 
+  startRound(reason) {
+    this.lifecycle.startRound(Object.freeze({ startingLives: this.maxLives, reason }));
+  }
+
   addLife() {
     this.maxLives = Math.min(MAX_LIVES, this.maxLives + 1);
     this.lives = Math.min(this.maxLives, this.lives + 1);
     this.pendingLives = this.maxLives;
     this.onLives?.(this.lives, this.maxLives);
+  }
+
+  handleLifeLoss() {
+    const loss = this.lifecycle.resolveLifeLoss();
+    const life = this.lifecycle.lifeState();
+    if (life.owner === "host") {
+      this.lives = Math.max(0, this.lives - 1);
+      this.onLives?.(this.lives, this.maxLives);
+    } else if (life.owner === "game") {
+      if (life.mirrorHost) this.lives = life.remaining;
+      this.onLives?.(life.remaining, this.maxLives);
+    }
+    const remaining = life.owner === "game" ? life.remaining : this.lives;
+    if (loss.gameOver) {
+      this.lifecycle.endRound();
+      this.stopped = true;
+      this.onMessage?.(loss.message);
+    } else if (remaining > 0 && this.lifecycle.restartAfterLife) {
+      this.lifecycle.restartAfterLife();
+      this.countdown = 3;
+      this.onMessage?.(loss.message);
+    } else {
+      this.lifecycle.endRound();
+      this.stopped = true;
+      this.onMessage?.("Out of lives — press New game to try again.");
+    }
   }
 
   frame(time) {
@@ -238,51 +267,15 @@ export class GameEngine {
       if (this.countdown <= 0) this.onMessage?.("Go!");
     } else if (!this.ready && !this.stopped) {
       this.game.update(delta, this.input);
-      if (this.game.won) {
+      for (const reward of this.lifecycle.takeRewards()) {
+        if (reward.type === "extra-life") this.addLife();
+      }
+      const result = this.lifecycle.resultState();
+      if (result.won) {
         this.stopped = true;
-        this.onMessage?.(this.game.winMessage?.() || "You cleared every brick — you win!");
-      } else if (this.game.lifeLost || this.game.gameOver) {
-        this.game.lifeLost = false;
-        const customLifeLoss = this.game.handleLifeLoss?.();
-        if (customLifeLoss) {
-          // A game that tracks its own lives exposes playerLives, and the
-          // engine mirrors it. A game that does not is spending the engine's
-          // lives, so the engine spends one -- previously this branch spent
-          // nothing, so a non-Race Splat collision could repeat indefinitely
-          // against a configured budget of one.
-          if (this.game.playerLives) this.onLives?.(this.game.playerLives.human, this.maxLives);
-          else {
-            this.lives -= 1;
-            this.onLives?.(this.lives, this.maxLives);
-          }
-          if (customLifeLoss.gameOver) {
-            this.stopped = true;
-            this.onMessage?.(customLifeLoss.message);
-          } else if (this.game.playerLives ? this.game.playerLives.human > 0 : this.lives > 0) {
-            this.game.resetAfterLife?.();
-            this.countdown = 3;
-            this.onMessage?.(customLifeLoss.message);
-          } else {
-            // Out of lives: end the round rather than restarting it forever.
-            this.game.gameOver = true;
-            this.stopped = true;
-            this.onMessage?.(`Out of lives — press New game to try again. ${customLifeLoss.message}`);
-          }
-        } else {
-          const lossReason = this.game.lossReason || "collision";
-          this.lives -= 1;
-          this.onLives?.(this.lives, this.maxLives);
-          if (this.lives > 0) {
-            if (this.game.resetAfterLife) this.game.resetAfterLife();
-            else this.game.reset(true, this.game.snake?.length);
-            this.countdown = 3;
-            this.onMessage?.(lossReason === "wall" ? "Wall hit — one life lost. Starting again in 3…" : "One life lost — starting again in 3…");
-          } else {
-            this.game.gameOver = true;
-            this.stopped = true;
-            this.onMessage?.("Out of lives — press New game to try again.");
-          }
-        }
+        this.onMessage?.(result.message);
+      } else if (this.lifecycle.lifeLossPending()) {
+        this.handleLifeLoss();
       }
     }
     if (this.ready) this.game.handleReadyInput?.(this.input);
@@ -295,12 +288,11 @@ export class GameEngine {
       this.context.lineWidth = 2;
       this.context.strokeRect(250, 238, 300, 120);
       this.context.lineWidth = 1;
-      const winner = this.game.winner;
-      const tied = this.game.versusTie;
-      const resultHeading = this.game.resultHeading?.();
-      const heading = this.ready ? "READY" : this.countdown > 0 ? "GET READY" : this.game.won ? resultHeading || (winner === "computer" ? "COMPUTER WINS" : "YOU WIN") : this.game.gameOver && resultHeading ? resultHeading : this.game.gameOver && tied ? "TIE" : this.game.gameOver && winner ? winner === "human" ? "YOU WIN" : "COMPUTER WINS" : this.game.gameOver ? "OUT OF LIVES" : "PAUSED";
-      const instruction = this.ready ? "Press New game to start" : this.countdown > 0 ? `Starting in ${Math.ceil(this.countdown)}…` : this.game.won || this.game.gameOver && (winner || tied) ? "Press New game to play again" : this.game.gameOver ? "Press New game to try again" : "Press Continue to resume";
-      const lifeText = this.game.playerLives ? `You: ${this.game.playerLives.human}    Computer: ${this.game.playerLives.computer}` : `Lives: ${this.lives}/${this.maxLives}`;
+      const result = this.lifecycle.resultState();
+      const life = this.lifecycle.lifeState();
+      const heading = this.ready ? "READY" : this.countdown > 0 ? "GET READY" : result.ended ? result.heading : "PAUSED";
+      const instruction = this.ready ? "Press New game to start" : this.countdown > 0 ? `Starting in ${Math.ceil(this.countdown)}…` : result.ended ? result.instruction : "Press Continue to resume";
+      const lifeText = life.players ? `You: ${life.players.human}    Computer: ${life.players.computer}` : `Lives: ${life.owner === "game" ? life.remaining : this.lives}/${this.maxLives}`;
       drawText(this.context, heading, 400, 275, 24, "#fbbf24", "center");
       drawText(this.context, `Score: ${this.game.score}    ${lifeText}`, 400, 310, 16, "#f8fafc", "center");
       drawText(this.context, instruction, 400, 340, 14, "#cbd5e1", "center");
@@ -319,25 +311,19 @@ export class GameEngine {
     this.ready = false;
     this.countdown = 3;
     this.applyLives();
-    this.game.applyPendingSettings?.();
-    this.game.gameOver = false;
-    this.game.lifeLost = false;
-    this.game.reset(false, true);
+    this.startRound("restart");
     this.onMessage?.("New game — starting in 3…");
   }
 
   setSide(side) {
     if (!this.game) return;
     this.game.setSide(side);
-    this.game.applyPendingSettings?.();
     this.stopped = false;
     this.paused = false;
     this.ready = false;
     this.countdown = 0;
     this.applyLives();
-    this.game.gameOver = false;
-    this.game.lifeLost = false;
-    this.game?.reset();
+    this.startRound("side");
     this.onMessage?.(`${this.game.title}: ${this.game.sideLabel()}`);
   }
 
@@ -345,6 +331,7 @@ export class GameEngine {
     this.stop();
     this.game?.destroy?.();
     this.game = null;
+    this.lifecycle = null;
     window.removeEventListener("keydown", this.handleKeyDown);
     window.removeEventListener("keyup", this.handleKeyUp);
     this.canvas.removeEventListener("pointermove", this.handlePointerMove);

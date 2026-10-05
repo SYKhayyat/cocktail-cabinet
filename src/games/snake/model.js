@@ -111,9 +111,6 @@ export class SnakeModel {
     this.direction = { x: 1, y: 0 };
     this.nextDirection = { x: 1, y: 0 };
     this.aiClock = 0;
-    // The factors are fields, not module constants, so a test can dial
-    // perception to zero and prove the snake's mistakes come from the reaction
-    // delay rather than from a dice roll.
     this.aiPerceptionInterval = AI_PERCEPTION_INTERVAL;
     this.aiCommitMoves = AI_COMMIT_MOVES;
     this.aiPerceptionClock = 0;
@@ -184,7 +181,7 @@ cellKey(x, y) { return y * this.cols + x; }
       const cell = this.cellFromPointer(input.placeApple);
       if (!this.isOccupiedCell(cell.x, cell.y)) this.apple = cell;
     }
-    const interval = this.moveInterval();
+    const interval = this.moveInterval() * (this.side === "snake" ? 1 : 1);
     if (this.side === "snake") {
       if (input.direction) this.nextDirection = input.direction;
       if (input.steer) this.steerToward(input.steer.x, input.steer.y);
@@ -243,7 +240,7 @@ cellKey(x, y) { return y * this.cols + x; }
     const direction = Math.abs(dx) > Math.abs(dy) ? { x: Math.sign(dx), y: 0 } : { x: 0, y: Math.sign(dy) };
     if (direction.x + this.direction.x || direction.y + this.direction.y) this.nextDirection = direction;
   }
-  // The snake only re-reads the board every AI_PERCEPTION_INTERVAL seconds. When
+  // The snake only re-reads the board every perceptionInterval seconds. When
   // the apple is placed somewhere new it keeps steering toward where the apple
   // used to be, which is where its mistakes come from: it is not thinking badly,
   // it has not noticed yet.

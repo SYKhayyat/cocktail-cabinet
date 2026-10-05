@@ -1,11 +1,20 @@
 import { BreakoutModel, BRICK_LABELS } from "./model.js";
 import { BreakoutController } from "./controller.js";
 import { draw } from "./view.js";
+import { createGameLifecycle } from "../../game-lifecycle.js";
 
 export class BreakoutGame {
   constructor() {
     this.model = new BreakoutModel();
     this.controller = new BreakoutController(this.model);
+    this.lifecycle = createGameLifecycle(this, {
+      startRound: (context) => this.model.reset(false, context),
+      restartAfterLife: () => this.model.resetAfterLife(),
+      lifeState: () => this.model.side === "versus"
+        ? { owner: "game", remaining: this.model.playerLives.human, players: { ...this.model.playerLives } }
+        : { owner: "host" },
+      takeRewards: () => this.model.pendingRewards.splice(0)
+    });
   }
   get id() { return this.model.id; }
   get title() { return this.model.title; }
@@ -29,14 +38,13 @@ export class BreakoutGame {
   set lifeLost(value) { this.model.lifeLost = value; }
   get won() { return this.model.won; }
   set won(value) { this.model.won = value; }
-  set engine(value) { this.model.engine = value; }
   sideLabel() { return this.model.sideLabel(); }
   get modes() { return this.model.modes; }
   get sides() { return this.model.sides; }
   get settings() { return this.model.settings; }
   validateSettings(values) { return this.model.validateSettings?.(values); }
   setSide(side) { this.model.setSide(side); }
-  reset(keepScore) { this.model.reset(keepScore); }
+  reset(keepScore, context = this.lifecycle.roundContext) { this.model.reset(keepScore, context); }
   controlHint() { return this.controller.controlHint(); }
   resetAfterLife() { this.model.resetAfterLife(); }
   handleLifeLoss() { return this.model.handleLifeLoss(); }

@@ -1,9 +1,17 @@
 import { MissileModel } from "./model.js";
 import { MissileController } from "./controller.js";
 import { draw } from "./view.js";
+import { createGameLifecycle } from "../../game-lifecycle.js";
 
 export class MissileCommandGame {
-  constructor() { this.model = new MissileModel(); this.controller = new MissileController(this.model); }
+  constructor() {
+    this.model = new MissileModel();
+    this.controller = new MissileController(this.model);
+    this.lifecycle = createGameLifecycle(this, {
+      startRound: () => this.model.reset(),
+      lifeState: () => ({ owner: "none" })
+    });
+  }
   get id() { return this.model.id; }
   get title() { return this.model.title; }
   get description() { return this.model.description; }

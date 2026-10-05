@@ -1,11 +1,16 @@
 import { SnakeModel } from "./model.js";
 import { SnakeController } from "./controller.js";
 import { draw } from "./view.js";
+import { createGameLifecycle } from "../../game-lifecycle.js";
 
 export class SnakeGame {
   constructor() {
     this.model = new SnakeModel();
     this.controller = new SnakeController(this.model);
+    this.lifecycle = createGameLifecycle(this, {
+      startRound: () => this.model.reset(),
+      restartAfterLife: () => this.model.reset(true, this.model.snake.length)
+    });
   }
   get id() { return this.model.id; }
   get title() { return this.model.title; }
@@ -23,8 +28,6 @@ export class SnakeGame {
   set lifeLost(value) { this.model.lifeLost = value; }
   get lossReason() { return this.model.lossReason; }
   set lossReason(value) { this.model.lossReason = value; }
-  set engine(value) { this.model.engine = value; }
-  get engine() { return this.model.engine; }
   sideLabel() { return this.model.sideLabel(); }
   get modes() { return this.model.modes; }
   get sides() { return this.model.sides; }

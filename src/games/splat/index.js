@@ -1,9 +1,20 @@
 import { SplatModel } from "./model.js";
 import { SplatController } from "./controller.js";
 import { draw } from "./view.js";
+import { createGameLifecycle } from "../../game-lifecycle.js";
 
 export class SplatGame {
-  constructor() { this.model = new SplatModel(); this.controller = new SplatController(this.model); }
+  constructor() {
+    this.model = new SplatModel();
+    this.controller = new SplatController(this.model);
+    this.lifecycle = createGameLifecycle(this, {
+      startRound: (context) => this.model.reset(false, context.reason === "restart", context),
+      restartAfterLife: () => this.model.resetAfterLife(),
+      lifeState: () => this.model.raceLives
+        ? { owner: "game", remaining: this.model.raceLives.human, mirrorHost: this.model.side === "builder", players: this.model.side === "race" ? { ...this.model.raceLives } : null }
+        : { owner: "host" }
+    });
+  }
   get id() { return this.model.id; }
   get title() { return this.model.title; }
   get description() { return this.model.description; }
@@ -19,7 +30,6 @@ export class SplatGame {
   // puzzle, but it is not a second pilot and must use the engine's single-owner
   // lives overlay just like Climber.
   get playerLives() { return this.model.side === "race" ? this.model.raceLives : null; }
-  set engine(value) { this.model.engine = value; }
   set gameOver(value) { this.model.gameOver = value; }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
@@ -30,7 +40,7 @@ export class SplatGame {
   setSide(side) { this.model.setSide(side); }
   setSettings(settings) { return this.model.setSettings(settings); }
   applyPendingSettings() { this.model.applyPendingSettings(); }
-  reset(keepScore, preserveLayout) { this.model.reset(keepScore, preserveLayout); }
+  reset(keepScore, preserveLayout, context = this.lifecycle.roundContext) { this.model.reset(keepScore, preserveLayout, context); }
   controlHint() { return this.controller.controlHint(); }
   resetAfterLife() { this.model.resetAfterLife(); }
   handleLifeLoss() { return this.model.handleLifeLoss(); }

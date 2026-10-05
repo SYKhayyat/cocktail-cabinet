@@ -1,9 +1,17 @@
 import { StarfallModel } from "./model.js";
 import { StarfallController } from "./controller.js";
 import { draw } from "./view.js";
+import { createGameLifecycle } from "../../game-lifecycle.js";
 
 export class StarfallGame {
-  constructor() { this.model = new StarfallModel(); this.controller = new StarfallController(this.model); }
+  constructor() {
+    this.model = new StarfallModel();
+    this.controller = new StarfallController(this.model);
+    this.lifecycle = createGameLifecycle(this, {
+      startRound: () => this.model.reset(),
+      restartAfterLife: () => this.model.resetAfterLife()
+    });
+  }
   get id() { return this.model.id; }
   get title() { return this.model.title; }
   get description() { return this.model.description; }

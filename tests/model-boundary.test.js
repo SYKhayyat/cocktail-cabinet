@@ -35,6 +35,7 @@ test("all arcade models import and step without a browser, renderer, or engine",
     for (const [name, type] of models) {
       const module = await import("./src/games/" + name + "/model.js");
       const model = new module[type]();
+      Object.defineProperty(model, "engine", { get() { throw new Error("engine access: " + name); } });
       model.reset();
       model.update(0.01, { pointer: { x: 0, y: 0, down: false, clicked: false }, keys: new Set(), pressed: new Set() });
       assert.equal(model.lifeLost, false);

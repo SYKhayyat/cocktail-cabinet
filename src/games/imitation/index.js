@@ -1,9 +1,18 @@
 import { ImitationModel } from "./model.js";
 import { ImitationController } from "./controller.js";
 import { draw } from "./view.js";
+import { createGameLifecycle } from "../../game-lifecycle.js";
 
 export class ImitationGame {
-  constructor() { this.model = new ImitationModel(); this.controller = new ImitationController(this.model); }
+  constructor() {
+    this.model = new ImitationModel();
+    this.controller = new ImitationController(this.model);
+    this.lifecycle = createGameLifecycle(this, {
+      boot: "interactive",
+      startRound: () => this.controller.reset(),
+      lifeState: () => ({ owner: "none" })
+    });
+  }
   get id() { return this.model.id; }
   get title() { return this.model.title; }
   get description() { return this.model.description; }

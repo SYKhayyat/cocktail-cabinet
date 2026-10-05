@@ -1977,8 +1977,6 @@ test("a solo Breakout extra-life brick leaves no stale per-pilot count", () => {
   const facade = new BreakoutGame();
   facade.setSide("bottom");
   facade.reset();
-  const calls = [];
-  facade.engine = { maxLives: 3, addLife: () => calls.push("addLife") };
   const game = facade.model;
   const brick = game.bricks.find((candidate) => candidate.type === "extraLife");
   // Special bricks pulse, so pin the phase to make the brick active on hit.
@@ -1993,7 +1991,8 @@ test("a solo Breakout extra-life brick leaves no stale per-pilot count", () => {
   ball.vy = 0;
   game.balls = [ball];
   game.update(0.016, { mode: "keyboard", keyDirection: 0, pointer: pointer() });
-  assert.deepEqual(calls, ["addLife"], "the solo extra life is delegated to the engine");
+  assert.deepEqual(facade.lifecycle.takeRewards(), [{ type: "extra-life" }], "the solo extra life is exposed to the host");
+  assert.deepEqual(facade.lifecycle.takeRewards(), [], "the host consumes the reward only once");
   assert.equal(facade.playerLives, null, "solo mode still reports no per-pilot lives afterwards");
 });
 
@@ -3015,19 +3014,15 @@ test("Asteroids versus restores both ships on a life loss", () => {
 test("Asteroids versus starts the duel from the configured lives, for every value 1-9", () => {
   for (let lives = 1; lives <= 9; lives += 1) {
     const game = new AsteroidsGame();
-    // The engine hands the facade its reference on load; set it directly here
-    // so the model reads a real configured value.
-    game.engine = { maxLives: lives };
     game.setSide("versus");
-    game.reset();
+    game.lifecycle.startRound({ startingLives: lives, reason: "load" });
     assert.deepEqual(game.playerLives, { human: lives, computer: lives }, `Lives ${lives} is honoured by both pilots`);
   }
 
-  // And the facade really passes the engine through to the model, which is
-  // what makes the above meaningful rather than a coincidence.
+  // Configuration is value-only; neither facade nor model retains a host.
   const game = new AsteroidsGame();
-  game.engine = { maxLives: 5 };
-  assert.equal(game.model.engine.maxLives, 5, "the facade forwards the engine to the model");
+  assert.equal("engine" in game, false);
+  assert.equal("engine" in game.model, false);
 
   // Without a configured value the duel still starts playable.
   const bare = new AsteroidsGame();
@@ -3036,26 +3031,21 @@ test("Asteroids versus starts the duel from the configured lives, for every valu
   assert.deepEqual(bare.playerLives, { human: 3, computer: 3 }, "the default is three");
 });
 
-test("Asteroids versus matches the engine's life budget end to end", () => {
-  // The engine assigns game.engine before reset(), so the duel picks up the
-  // configured value through the real load path. This needs a DOM, so it is
-  // checked in the browser suite; here we confirm the model reads whatever the
-  // engine reference says at the moment reset() runs.
+test("Asteroids versus receives a fresh value-only life budget per round", () => {
   const game = new AsteroidsGame();
-  const engine = { maxLives: 6 };
-  game.engine = engine;
-  engine.maxLives = 8;
   game.setSide("versus");
+  game.lifecycle.startRound({ startingLives: 6, reason: "load" });
+  assert.deepEqual(game.playerLives, { human: 6, computer: 6 });
+  game.lifecycle.startRound({ startingLives: 8, reason: "restart" });
   game.reset();
-  assert.deepEqual(game.playerLives, { human: 8, computer: 8 }, "the duel reads the engine value at reset time");
+  assert.deepEqual(game.playerLives, { human: 8, computer: 8 }, "preview resets preserve the configured round context");
 });
 
 test("Asteroids versus resolves every loss source against the same counters", () => {
   const duel = (lives = 3) => {
     const game = new AsteroidsGame();
-    game.engine = { maxLives: lives };
     game.setSide("versus");
-    game.reset();
+    game.lifecycle.startRound({ startingLives: lives, reason: "load" });
     game.model.computerShip.x = 700;
     game.model.computerShip.y = 60;
     game.model.invulnerable = 0;
@@ -3108,9 +3098,8 @@ test("Asteroids versus resolves every loss source against the same counters", ()
 test("Asteroids versus ends at zero however the last life is lost", () => {
   const duel = (humanLives, computerLives) => {
     const game = new AsteroidsGame();
-    game.engine = { maxLives: Math.max(humanLives, computerLives) };
     game.setSide("versus");
-    game.reset();
+    game.lifecycle.startRound({ startingLives: Math.max(humanLives, computerLives), reason: "load" });
     game.model.playerLives.human = humanLives;
     game.model.playerLives.computer = computerLives;
     game.model.computerShip.x = 700;
@@ -3149,9 +3138,8 @@ test("Asteroids versus ends at zero however the last life is lost", () => {
 
 test("Asteroids versus does not double-charge a bullet that already decremented", () => {
   const game = new AsteroidsGame();
-  game.engine = { maxLives: 3 };
   game.setSide("versus");
-  game.reset();
+  game.lifecycle.startRound({ startingLives: 3, reason: "load" });
   game.model.invulnerable = 0;
   game.model.computerShotClock = 99;
   game.model.computerShip.x = 700;
@@ -3315,9 +3303,8 @@ test("Splat Builder is a puzzle with an outcome, not a win for the navigating ac
 
 test("Splat Builder spends lives from its own budget", () => {
   const game = new SplatGame();
-  game.engine = { maxLives: 2 };
   game.setSide("builder");
-  game.reset();
+  game.lifecycle.startRound({ startingLives: 2, reason: "load" });
   assert.deepEqual(game.model.raceLives, { human: 2, computer: 2 }, "Builder starts from the configured budget");
   assert.equal(game.playerLives, null, "Builder is a single puzzle owner, not a two-pilot game");
 

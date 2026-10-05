@@ -20,6 +20,7 @@ export async function checkModelBoundary() {
     if (/\b(?:window|document|requestAnimationFrame|cancelAnimationFrame|CanvasRenderingContext2D)\b|\b(?:getContext|fillText|fillRect|strokeRect)\s*\(/.test(source)) {
       throw new Error(`Model-safe module uses host or rendering APIs: ${name}`);
     }
+    if (/\bthis\.engine\b/.test(source)) throw new Error(`Model retains an engine backreference: ${name}`);
     const imports = source.matchAll(/(?:\b(?:import|export)\s+(?:[^;]*?\s+from\s*)?|\bimport\s*\(\s*)["']([^"']+)["']/g);
     for (const [, specifier] of imports) {
       if (!specifier.startsWith(".")) throw new Error(`Model-safe module has an external dependency: ${name} -> ${specifier}`);
@@ -29,9 +30,12 @@ export async function checkModelBoundary() {
   for (const game of games) await visit(resolve(root, `src/games/${game}/model.js`));
   for (const game of games) {
     const facade = await readFile(resolve(root, `src/games/${game}/index.js`), "utf8");
+    if (/\b(?:get|set)\s+engine\b|\bthis\.model\.engine\b/.test(facade)) throw new Error(`Facade exposes an engine backreference: ${game}`);
     const view = await readFile(resolve(root, `src/games/${game}/view.js`), "utf8");
     if (/\bfrom\s*["'][^"']*engine\.js["']/.test(view)) throw new Error(`View imports rendering from the host: ${game}`);
   }
+  const engine = await readFile(resolve(root, "src/engine.js"), "utf8");
+  if (/\b(?:this\.)?game\.(?:id|snake|engine)\b/.test(engine)) throw new Error("Engine knows a concrete game identity, state, or backreference");
   return visited.size;
 }
 
