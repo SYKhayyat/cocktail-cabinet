@@ -24,13 +24,18 @@ jobs:
             curl -sf http://127.0.0.1:8765/index.html >/dev/null && break
             sleep 0.2
           done
+          curl -fsS http://127.0.0.1:8765/index.html >/dev/null
       # Chrome for Testing, rather than the distro chromium package, which on
       # Ubuntu is a snap stub and does not expose a usable binary to CI.
       - uses: browser-actions/setup-chrome@v1
+        id: chrome
         with:
           chrome-version: stable
       - name: Start Chrome with remote debugging
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
         run: |
+          test -x "$CHROME_PATH"
           "$CHROME_PATH" --headless=new --disable-gpu --no-sandbox \
             --remote-debugging-port=9223 --user-data-dir=/tmp/smoke-profile \
             about:blank &
@@ -38,6 +43,7 @@ jobs:
             curl -sf http://127.0.0.1:9223/json/version >/dev/null && break
             sleep 0.2
           done
+          curl -fsS http://127.0.0.1:9223/json/version >/dev/null
       - run: npm run test:browser
         env:
           REQUIRE_BROWSER: "1"
