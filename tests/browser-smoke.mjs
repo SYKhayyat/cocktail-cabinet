@@ -12,12 +12,23 @@
 const pageUrl = process.env.COCKTAIL_URL || "http://127.0.0.1:8765/";
 const cdpUrl = process.env.CDP_URL || "http://127.0.0.1:9223";
 const required = process.env.REQUIRE_BROWSER === "1";
+let browser;
+let browserContextId;
+let hostileContextId;
+const pageConnections = new Set();
 
 class Cdp {
   constructor(url) {
     this.socket = new WebSocket(url);
     this.nextId = 1;
     this.pending = new Map();
+    this.socket.addEventListener("close", () => {
+      for (const entry of this.pending.values()) {
+        clearTimeout(entry.timer);
+        entry.reject(new Error("CDP connection closed"));
+      }
+      this.pending.clear();
+    });
   }
   async open() {
     await new Promise((resolve, reject) => {
@@ -29,14 +40,26 @@ class Cdp {
       const entry = this.pending.get(message.id);
       if (!entry) return;
       this.pending.delete(message.id);
+      clearTimeout(entry.timer);
       if (message.error) entry.reject(new Error(message.error.message));
       else entry.resolve(message.result || {});
     });
   }
   command(method, params = {}) {
     const id = this.nextId++;
-    this.socket.send(JSON.stringify({ id, method, params }));
-    return new Promise((resolve, reject) => this.pending.set(id, { resolve, reject }));
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`CDP command timed out: ${method}`));
+      }, 30000);
+      this.pending.set(id, { resolve, reject, timer });
+      try { this.socket.send(JSON.stringify({ id, method, params })); }
+      catch (error) {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(error);
+      }
+    });
   }
   async evaluate(expression) {
     const result = await this.command("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
@@ -61,10 +84,18 @@ function assertMatch(actual, pattern, message) {
   if (!pattern.test(String(actual ?? ""))) throw new Error(`${message} (got ${JSON.stringify(actual)})`);
 }
 
-async function targetFor(url) {
-  const response = await fetch(`${cdpUrl}/json/new?${url}`, { method: "PUT" });
-  if (!response.ok) throw new Error(`Could not create browser target: ${response.status}`);
-  return response.json();
+async function targetFor(contextId) {
+  if (!contextId) throw new Error("The smoke browser context is not ready");
+  const { targetId } = await browser.command("Target.createTarget", { url: "about:blank", browserContextId: contextId });
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const response = await fetch(`${cdpUrl}/json/list`);
+    if (response.ok) {
+      const target = (await response.json()).find((entry) => entry.id === targetId);
+      if (target) return target;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`Could not find browser target ${targetId}`);
 }
 
 async function waitFor(page, expression, description, attempts = 200) {
@@ -75,9 +106,10 @@ async function waitFor(page, expression, description, attempts = 200) {
   throw new Error(`Timed out waiting for ${description}`);
 }
 
-async function openPage(url) {
-  const target = await targetFor(url);
+async function openPage(url, contextId = browserContextId) {
+  const target = await targetFor(contextId);
   const page = new Cdp(target.webSocketDebuggerUrl);
+  pageConnections.add(page);
   await page.open();
   await page.command("Page.enable");
   await page.command("Runtime.enable");
@@ -90,8 +122,38 @@ async function openPage(url) {
   return { target, page };
 }
 
-async function closeTarget(id) {
-  await fetch(`${cdpUrl}/json/close/${id}`);
+async function openBrowser() {
+  const response = await fetch(`${cdpUrl}/json/version`);
+  if (!response.ok) throw new Error(`Could not inspect browser: ${response.status}`);
+  const version = await response.json();
+  if (!version.webSocketDebuggerUrl) throw new Error("The browser does not expose a WebSocket debugger endpoint");
+  const connection = new Cdp(version.webSocketDebuggerUrl);
+  await connection.open();
+  return connection;
+}
+
+async function createSmokeContext() {
+  browser ||= await openBrowser();
+  ({ browserContextId } = await browser.command("Target.createBrowserContext", { disposeOnDetach: true }));
+}
+
+async function disposeSmokeContext() {
+  try {
+    if (browser && browserContextId) {
+      await browser.command("Target.disposeBrowserContext", { browserContextId });
+    }
+  } finally {
+    try {
+      if (browser && hostileContextId) await browser.command("Target.disposeBrowserContext", { browserContextId: hostileContextId });
+    } finally {
+      pageConnections.forEach((page) => page.close());
+      pageConnections.clear();
+      browserContextId = null;
+      hostileContextId = null;
+      browser?.close();
+      browser = null;
+    }
+  }
 }
 
 // Installs deterministic randomness and freezes requestAnimationFrame so the
@@ -727,6 +789,55 @@ async function testImitationProviderLoadFlow(page) {
   }
 }
 
+async function seedHostileLeftover() {
+  // Simulate a still-live page leaked by an earlier run, not a page in this
+  // run's context. We own its separate context; existing user tabs are neither
+  // inspected nor closed. Each single-page suite and the cross-tab group get
+  // their own fresh context, with only that group's pages sharing storage.
+  ({ browserContextId: hostileContextId } = await browser.command("Target.createBrowserContext", { disposeOnDetach: true }));
+  const leftover = await openPage(pageUrl, hostileContextId);
+  await makeDeterministic(leftover.page);
+  await leftover.page.evaluate(`(async () => {
+    const { CHANNEL_NAME } = await import('./src/games/imitation/controller.js');
+    const channel = globalThis.__hostileChannel = new BroadcastChannel(CHANNEL_NAME);
+    globalThis.__hostileSent = 0;
+    globalThis.__hostileReceived = 0;
+    globalThis.__hostileProbes = 0;
+    globalThis.__hostileMarker = 'leftover-still-alive';
+    channel.onmessage = ({ data }) => {
+      if (data.type === 'fixture-probe') { globalThis.__hostileProbes += 1; return; }
+      globalThis.__hostileReceived += 1;
+      channel.postMessage({ type: 'hello-ack', from: 'hostile-leftover', to: data.from, mode: data.mode === 'provide' ? 'guess' : 'provide' });
+    };
+    const poison = () => {
+      channel.postMessage({ type: 'hello', from: 'hostile-leftover', mode: 'guess' });
+      channel.postMessage({ type: 'hello', from: 'hostile-leftover', mode: 'provide' });
+      globalThis.__hostileSent += 2;
+    };
+    poison();
+    globalThis.__hostileTimer = setInterval(poison, 50);
+    // Prove the fixture's channel is functioning, not merely constructed.
+    globalThis.__hostileProbe = new BroadcastChannel(CHANNEL_NAME);
+    globalThis.__hostileProbe.postMessage({ type: 'fixture-probe' });
+  })()`);
+  await waitFor(leftover.page, "globalThis.__hostileProbes === 1", "the hostile leftover's same-origin channel probe");
+  return leftover;
+}
+
+async function verifyHostileIsolation(leftover, first, second) {
+  const origin = await leftover.page.evaluate("location.origin");
+  assertEqual(await first.page.evaluate("location.origin"), origin, "the hostile tab really is on the test origin");
+  assertEqual(await second.page.evaluate("location.origin"), origin, "both test tabs share the hostile tab's origin");
+  const { targetInfo } = await browser.command("Target.getTargetInfo", { targetId: leftover.target.id });
+  assertEqual(targetInfo.browserContextId, hostileContextId, "the leftover remains in its original context");
+  assert(targetInfo.browserContextId !== browserContextId, "the leftover is outside the fresh run context");
+  const report = await leftover.page.evaluate(`({ marker: globalThis.__hostileMarker, sent: globalThis.__hostileSent, received: globalThis.__hostileReceived, probes: globalThis.__hostileProbes, open: Boolean(globalThis.__hostileTimer) })`);
+  assertEqual(report.marker, "leftover-still-alive", "running the cross-tab suite does not navigate or replace the leftover");
+  assert(report.open && report.sent > 0, "the hostile leftover is still alive and announcing");
+  assertEqual(report.probes, 1, "the hostile channel has a verified local listener");
+  assertEqual(report.received, 0, "the hostile leftover never sees the isolated suite's peer traffic");
+}
+
 async function testGuessProvideAcrossTabs(first, second, step) {
   for (const page of [first, second]) {
     await page.evaluate(`(() => {
@@ -1016,13 +1127,38 @@ async function testSwitchingDisposesTheOldGame(first, second) {
   assertMatch(String(stillWorks.status), /connected|searching|Waiting|Guess|AI/i, "the remaining tab stays coherent after the other leaves");
 }
 
+async function testImitationPageLifecycle(first, second) {
+  await first.evaluate("window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true })); true");
+  const hidden = await first.evaluate(`(() => {
+    const game = globalThis.__cocktailCabinet.games.get('imitation');
+    return { channel: Boolean(game.controller.channel), announce: game.controller.announceTimer, heartbeat: game.controller.heartbeatTimer, peer: game.model.peerId };
+  })()`);
+  assertEqual(hidden.channel, false, "pagehide closes the BFCache page's transport");
+  assertEqual(hidden.announce, null, "pagehide stops matchmaking announcements");
+  assertEqual(hidden.heartbeat, null, "pagehide stops peer heartbeats");
+  assertEqual(hidden.peer, null, "pagehide releases the local peer slot");
+  await waitFor(second, "!globalThis.__cocktailCabinet.games.get('imitation').model.peerId", "the survivor receives the pagehide bye");
+  await first.evaluate("window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })); true");
+  const firstId = await first.evaluate("globalThis.__cocktailCabinet.games.get('imitation').matchId");
+  const secondId = await second.evaluate("globalThis.__cocktailCabinet.games.get('imitation').matchId");
+  await waitFor(first, `globalThis.__cocktailCabinet.games.get('imitation').model.peerId === ${JSON.stringify(secondId)}`, "the restored provider re-pairs");
+  await waitFor(second, `globalThis.__cocktailCabinet.games.get('imitation').model.peerId === ${JSON.stringify(firstId)}`, "the restored Guess peer re-pairs");
+  await second.evaluate("globalThis.__cocktailCabinet.games.get('imitation').sendMessage('After BFCache restoration'); true");
+  await waitFor(first, "globalThis.__cocktailCabinet.games.get('imitation').model.prompt === 'After BFCache restoration'", "restored callbacks deliver a new prompt");
+}
+
 async function main() {
   const passed = [];
   let first;
   let second;
+  let leftover;
+  let step;
   try {
-    first = await openPage(pageUrl);
-    const step = await makeDeterministic(first.page);
+    // Dedicated contexts keep peers from previous or unrelated suites out.
+    // finally disposes all owned targets;
+    // disposeOnDetach also handles abrupt termination of the runner process.
+    browser = await openBrowser();
+    leftover = await seedHostileLeftover();
 
     const suites = [
       ["boot, descriptors, and mode catalogue", () => testBootAndDescriptors(first.page)],
@@ -1042,15 +1178,23 @@ async function main() {
     ];
 
     for (const [name, run] of suites) {
+      console.log(`Running CDP suite: ${name}`);
+      await createSmokeContext();
+      first = await openPage(pageUrl);
+      step = await makeDeterministic(first.page);
       await run();
       passed.push(name);
+      first.page.close();
+      pageConnections.delete(first.page);
+      await browser.command("Target.disposeBrowserContext", { browserContextId });
+      browserContextId = null;
+      first = null;
     }
 
     // Cross-tab protocol needs a second page, and a fresh first page: the
     // suites above leave the cabinet on another game, and switching away
     // disposes the outgoing Imitation controller.
-    await first.page.close();
-    await closeTarget(first.target.id);
+    await createSmokeContext();
     first = await openPage(pageUrl);
     await makeDeterministic(first.page);
     second = await openPage(pageUrl);
@@ -1064,6 +1208,10 @@ async function main() {
 
     await testGuessProvideAcrossTabs(first.page, second.page, secondStep);
     passed.push("cross-tab Guess and Provide protocol");
+    await verifyHostileIsolation(leftover, first, second);
+    passed.push("hostile leftover isolation without disturbing its tab");
+    await testImitationPageLifecycle(first.page, second.page);
+    passed.push("pagehide cleanup and pageshow peer restoration");
     await testSwitchingDisposesTheOldGame(first.page, second.page);
     passed.push("switching games disposes the outgoing controller");
 
@@ -1077,10 +1225,7 @@ async function main() {
     }
     throw error;
   } finally {
-    first?.page.close();
-    second?.page.close();
-    if (first) await closeTarget(first.target.id);
-    if (second) await closeTarget(second.target.id);
+    await disposeSmokeContext();
   }
 }
 
