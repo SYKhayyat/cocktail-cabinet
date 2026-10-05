@@ -160,7 +160,13 @@ async function disposeSmokeContext() {
 // suite can step the engine explicitly. Returns a stepper that advances the
 // engine by a fixed number of 1/60s frames.
 async function makeDeterministic(page) {
-  await page.evaluate(`(() => {
+  await page.evaluate(`(async () => {
+    const engine = globalThis.__cocktailCabinet.engine;
+    const nativeFrame = globalThis.requestAnimationFrame.bind(globalThis);
+    // Cancel the frame that boot already queued BEFORE replacing cancellation.
+    // Otherwise that native callback can arrive after virtual ticks and move
+    // lastTime backwards, producing negative dt/cooldowns in fast CI runs.
+    globalThis.cancelAnimationFrame(engine.animationFrame);
     let seed = 20260101 >>> 0;
     Math.random = () => {
       seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -175,7 +181,6 @@ async function makeDeterministic(page) {
     // Keep the engine running but stop frames from arriving on their own:
     // the real loop already re-schedules through the stub above, so the
     // page advances only when step() calls frame() explicitly.
-    const engine = globalThis.__cocktailCabinet.engine;
     engine.running = true;
     // Virtual clock. Every frame must come from this monotonic source: reusing
     // performance.now() per call would hand frame() a timestamp behind its own
@@ -189,6 +194,9 @@ async function makeDeterministic(page) {
       }
       return true;
     };
+    const frozenTime = engine.lastTime;
+    await new Promise((resolve) => nativeFrame(resolve));
+    if (engine.lastTime !== frozenTime) throw new Error('A native frame escaped the deterministic clock');
     return true;
   })()`);
   return async (frames = 1) => page.evaluate(`globalThis.__tick(${frames})`);
