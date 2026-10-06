@@ -90,6 +90,7 @@ export class GameEngine {
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) {
         event.preventDefault();
       }
+      if (this.game?.side === "builder" && ["PageUp", "PageDown", "Home", "End", "Delete"].includes(event.key)) event.preventDefault();
       this.input.mode = "keyboard";
       if (!this.input.keys.has(event.key)) this.input.pressed.add(event.key);
       this.input.keys.add(event.key);
