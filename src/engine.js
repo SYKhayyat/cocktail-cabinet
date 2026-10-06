@@ -67,9 +67,23 @@ export class GameEngine {
       pointer.lastY = pointer.y;
     };
 
+    this.clearInput = () => {
+      this.input.keys.clear();
+      this.input.pressed.clear();
+      this.cancelPointer();
+    };
+    this.handleBlur = () => this.clearInput();
+    this.inputDocument = canvas.ownerDocument || globalThis.document;
+    this.handleVisibilityChange = () => {
+      if (this.inputDocument?.hidden) this.clearInput();
+    };
+
     this.handleKeyDown = (event) => {
       const tagName = event.target?.tagName;
       if (["INPUT", "TEXTAREA", "SELECT"].includes(tagName) || event.target?.isContentEditable) return;
+      // A repeat from a key held across a round/focus boundary is not a fresh
+      // press. Wait for release and a real keydown before accepting it again.
+      if (event.repeat && !this.input.keys.has(event.key)) return;
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) {
         event.preventDefault();
       }
@@ -140,6 +154,8 @@ export class GameEngine {
 
     window.addEventListener("keydown", this.handleKeyDown);
     window.addEventListener("keyup", this.handleKeyUp);
+    window.addEventListener("blur", this.handleBlur);
+    this.inputDocument?.addEventListener("visibilitychange", this.handleVisibilityChange);
     canvas.addEventListener("pointermove", this.handlePointerMove);
      canvas.addEventListener("pointerdown", this.handlePointerDown);
      canvas.addEventListener("dblclick", this.handleDoubleClick);
@@ -167,6 +183,7 @@ export class GameEngine {
   }
 
   stop() {
+    this.clearInput();
     this.running = false;
     this.stopped = true;
     cancelAnimationFrame(this.animationFrame);
@@ -233,6 +250,7 @@ export class GameEngine {
   }
 
   handleLifeLoss() {
+    this.clearInput();
     const loss = this.lifecycle.resolveLifeLoss();
     const life = this.lifecycle.lifeState();
     if (life.owner === "host") {
@@ -306,6 +324,7 @@ export class GameEngine {
 
   restart() {
     if (!this.game) return;
+    this.clearInput();
     this.stopped = false;
     this.paused = false;
     this.ready = false;
@@ -317,6 +336,7 @@ export class GameEngine {
 
   setSide(side) {
     if (!this.game) return;
+    this.clearInput();
     this.game.setSide(side);
     this.stopped = false;
     this.paused = false;
@@ -334,6 +354,8 @@ export class GameEngine {
     this.lifecycle = null;
     window.removeEventListener("keydown", this.handleKeyDown);
     window.removeEventListener("keyup", this.handleKeyUp);
+    window.removeEventListener("blur", this.handleBlur);
+    this.inputDocument?.removeEventListener("visibilitychange", this.handleVisibilityChange);
     this.canvas.removeEventListener("pointermove", this.handlePointerMove);
      this.canvas.removeEventListener("pointerdown", this.handlePointerDown);
      this.canvas.removeEventListener("dblclick", this.handleDoubleClick);
