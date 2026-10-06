@@ -1356,6 +1356,36 @@ async function testNarrowLayout(page) {
   await page.command("Emulation.clearDeviceMetricsOverride");
 }
 
+async function testNarrowSplatControls(page) {
+  for (const width of [320, 375]) {
+    await page.command('Emulation.setDeviceMetricsOverride', { width, height: 812, deviceScaleFactor: 2, mobile: true });
+    await selectMode(page, 2, 'builder');
+    const report = await page.evaluate(`(() => {
+      const frame = document.querySelector('.machine').getBoundingClientRect();
+      const controls = [...document.querySelectorAll('#sideSelect, #gameActions button, #splatTools button')].map((node) => {
+        const box = node.getBoundingClientRect();
+        node.scrollIntoView({ block: 'center' });
+        const visible = node.getBoundingClientRect();
+        const hit = document.elementFromPoint(visible.left + visible.width / 2, visible.top + visible.height / 2);
+        return { id: node.id, left: box.left, right: box.right, height: box.height, hittable: hit === node || node.contains(hit) };
+      });
+      return { controls, left: frame.left, right: frame.right, scrollWidth: document.documentElement.scrollWidth, viewport: innerWidth };
+    })()`);
+    assert(report.scrollWidth <= width + 1, `Splat Builder has no horizontal page overflow at ${width}px (${report.scrollWidth} vs ${width})`);
+    for (const control of report.controls) {
+      assert(control.left >= report.left && control.right <= report.right, `${control.id} stays inside the Splat panel at ${width}px`);
+      assert(control.height >= 24 && control.hittable, `${control.id} remains hittable at ${width}px`);
+    }
+    await page.evaluate("document.querySelector('#splatAddGap').focus()");
+    await pressNativeKey(page, ' ', 'Space', 32);
+    assertEqual(await page.evaluate("globalThis.__cocktailCabinet.engine.game.tool"), 'gap', `the gap button is keyboard-operable at ${width}px`);
+    await page.evaluate("document.querySelector('#splatAddColumn').focus()");
+    await pressNativeKey(page, 'Enter', 'Enter', 13);
+    assertEqual(await page.evaluate("globalThis.__cocktailCabinet.engine.game.tool"), 'column', `the column button is keyboard-operable at ${width}px`);
+  }
+  await page.command('Emulation.clearDeviceMetricsOverride');
+}
+
 function assertNotOverflow(report, context) {
   assertEqual(report.overflowX, true, `${context} do not overflow the viewport`);
 }
@@ -1437,7 +1467,8 @@ async function main() {
       ["Imitation provider fallback without a model", () => testImitationProviderFallback(first.page)],
       ["Imitation public provider controls and renamed Guess label", () => testImitationPublicControls(first.page, step)],
       ["Imitation provider load and chat form flow with a local fixture", () => testImitationProviderLoadFlow(first.page)],
-      ["narrow viewport layout", () => testNarrowLayout(first.page)]
+      ["narrow viewport layout", () => testNarrowLayout(first.page)],
+      ["narrow Splat Builder controls and native tool buttons", () => testNarrowSplatControls(first.page)]
     ];
 
     for (const [name, run] of suites) {

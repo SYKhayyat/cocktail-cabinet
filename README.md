@@ -119,7 +119,7 @@ a third tab replace an active peer. BFCache restoration reopens discovery.
 | --- | --- |
 | `npm test` | Model/host contracts, event accounting, seeded computer-policy bands/tuning, and independent bounded HUMAN-input experience proxies |
 | `npm run check` | Syntax, architectural dependencies, dead code and README control descriptors |
-| `npm run test:browser` | 22 CDP suites: boot, twenty modes and mode hints, settings/lives, pause/countdown, keyboard/pointer input, native keyboard buttons, focused announcements at 240 Hz, retained retry pressure/delayed recovery, loss/restart, builder tools, provider fallback/load/chat fixtures, renamed labels, narrow layouts, cross-tab Guess/Provide, hostile-leftover isolation, pagehide/pageshow and disposal |
+| `npm run test:browser` | 23 CDP suites: boot, twenty modes and mode hints, settings/lives, pause/countdown, keyboard/pointer input, native keyboard buttons, focused announcements at 240 Hz, retained retry pressure/delayed recovery, loss/restart, builder tools, provider fallback/load/chat fixtures, renamed labels, narrow Imitation/Splat layouts and tool buttons, cross-tab Guess/Provide, hostile-leftover isolation, pagehide/pageshow and disposal |
 
 Computer tuning is documented in [tests/ai/TUNING.md](tests/ai/TUNING.md), and
 explicit event denominators/calibration in [tests/ai/ACCOUNTING.md](tests/ai/ACCOUNTING.md).
