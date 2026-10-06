@@ -1,3 +1,5 @@
+import { abortable, abortError } from "./cancellation.js";
+
 const WEBGPU_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-q4f16";
 const WASM_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-ONNX";
 const OLLAMA_MODEL = "llama3.2:1b";
@@ -17,7 +19,7 @@ export function localModelSupport() {
   return { ok: true, device: "wasm", reason: "" };
 }
 
-let enginePromise = null;
+let engineLoad = null;
 let engineValue = null;
 const progressSubscribers = new Set();
 
@@ -64,94 +66,108 @@ function markModelReady(modelId, device) {
 async function fetchJson(url, options = {}, milliseconds = 10000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), milliseconds);
+  const signal = options.signal;
+  const abort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", abort, { once: true });
   try {
     const response = await fetch(url, { ...options, signal: controller.signal });
     if (!response.ok) throw new Error(`Local runtime returned HTTP ${response.status}.`);
     return await response.json();
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
   }
 }
 
-async function loadChromeModel() {
+async function loadChromeModel(signal) {
   const api = globalThis.LanguageModel;
   if (!api?.availability || !api.create) throw new Error("Chrome built-in AI is unavailable.");
   const options = {
     expectedInputs: [{ type: "text", languages: ["en"] }],
     expectedOutputs: [{ type: "text", languages: ["en"] }],
   };
-  const availability = await api.availability(options);
+  const availability = await abortable(api.availability(options), signal);
   if (availability === "unavailable") throw new Error("Chrome built-in AI is unavailable on this device.");
   emitProgress({ device: "chrome", progress: 0, text: availability === "available" ? "Connected to Chrome built-in AI." : "Downloading Chrome built-in AI…" });
-  const session = await api.create({
+  const session = await abortable(api.create({
     ...options,
+    signal,
     monitor(monitor) {
-      monitor.addEventListener("downloadprogress", (event) => emitProgress({ device: "chrome", progress: event.loaded, text: "Downloading Chrome built-in AI…" }));
+      monitor.addEventListener("downloadprogress", (event) => { if (!signal?.aborted) emitProgress({ device: "chrome", progress: event.loaded, text: "Downloading Chrome built-in AI…" }); });
     },
-  });
+  }).then((session) => {
+    if (signal?.aborted) { session.destroy?.(); throw abortError(); }
+    return session;
+  }), signal);
   markModelReady(CHROME_MODEL_ID, "chrome");
   return {
     device: "chrome",
-    chat: async ({ messages, format }) => {
-      const response = await session.prompt(messages, format ? { responseConstraint: format } : undefined);
+    chat: async ({ messages, format, signal }) => {
+      if (signal?.aborted) throw abortError();
+      const response = await abortable(session.prompt(messages, { ...(format ? { responseConstraint: format } : {}), signal }), signal);
       return { choices: [{ message: { content: response } }] };
     },
   };
 }
 
-async function loadOllamaModel() {
+async function loadOllamaModel(signal) {
   const failures = [];
   for (const baseUrl of OLLAMA_BASE_URLS) {
     try {
-      const tags = await fetchJson(`${baseUrl}/api/tags`);
+      const tags = await fetchJson(`${baseUrl}/api/tags`, { signal });
       const installed = (tags.models || []).some((entry) => entry.name === OLLAMA_MODEL || entry.name === `${OLLAMA_MODEL}:latest`);
       if (!installed) continue;
       emitProgress({ device: "ollama", progress: 1, text: "Connected to Ollama." });
       markModelReady(OLLAMA_MODEL, "ollama");
       return {
         device: "ollama",
-    chat: async ({ messages, temperature, max_tokens, format, tools }) => {
-      const data = await fetchJson(`${baseUrl}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: OLLAMA_MODEL, messages, stream: false, format, tools, options: { temperature, num_predict: max_tokens } }),
-      }, 120000);
+        chat: async ({ messages, temperature, max_tokens, format, tools, signal }) => {
+          const data = await fetchJson(`${baseUrl}/api/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model: OLLAMA_MODEL, messages, stream: false, format, tools, options: { temperature, num_predict: max_tokens } }),
+            signal,
+          }, 120000);
           return { choices: [{ message: { content: data.message?.content || "" } }] };
         },
       };
     } catch (error) {
+      if (signal?.aborted) throw abortError();
       failures.push(`${baseUrl}: ${error.message}`);
     }
   }
   throw new Error(`Ollama unavailable (${failures.join("; ")})`);
 }
 
-// Every caller registers its own progress callback, so concurrent
-// consumers each see the load rather than only the first one. Returns an
-// unsubscribe function; the callback receives a final terminal report so a
-// late subscriber is not left showing a stalled progress bar.
-export function loadLocalModel(onProgress) {
+// Concurrent consumers share the model load but own their subscriptions and
+// cancellation. Abort the expensive load only after the last consumer leaves.
+export function loadLocalModel(onProgress, { signal } = {}) {
+  if (signal?.aborted) return Promise.reject(abortError());
   if (onProgress) progressSubscribers.add(onProgress);
   const unsubscribe = () => { progressSubscribers.delete(onProgress); };
 
   if (engineValue?.cancelled) {
     engineValue = null;
-    enginePromise = null;
   }
-  if (engineValue && onProgress) {
-    // Already loaded: report the terminal state immediately.
-    queueMicrotask(() => onProgress({ device: engineValue.device, progress: 1, text: "The local AI model is ready." }));
+  if (engineValue) {
+    if (onProgress) queueMicrotask(() => { if (!signal?.aborted) onProgress({ device: engineValue.device, progress: 1, text: "The local AI model is ready." }); });
+    return abortable(Promise.resolve(engineValue), signal).finally(unsubscribe);
   }
-  if (!enginePromise) {
+  if (!engineLoad || engineLoad.controller.signal.aborted) {
+    const load = { controller: new AbortController(), consumers: new Set() };
+    engineLoad = load;
+    const loadSignal = load.controller.signal;
     void requestPersistentStorage();
-    enginePromise = (async () => {
+    load.promise = (async () => {
       try {
-        return await loadChromeModel();
-      } catch { }
+        return await loadChromeModel(loadSignal);
+      } catch (error) { if (loadSignal.aborted) throw error; }
       let ollamaError = null;
       try {
-        return await loadOllamaModel();
+        return await loadOllamaModel(loadSignal);
       } catch (error) {
+        if (loadSignal.aborted) throw error;
         ollamaError = error;
         emitProgress({ device: "browser", progress: 0, text: "Ollama is unavailable; using the browser model…" });
       }
@@ -160,75 +176,86 @@ export function loadLocalModel(onProgress) {
         if (!support.ok) throw new Error(support.reason);
         if (support.device === "webgpu") {
           try {
-            const adapter = await navigator.gpu.requestAdapter();
-            if (adapter) return await loadModelWorker("webgpu");
-          } catch { }
+            const adapter = await abortable(navigator.gpu.requestAdapter(), loadSignal);
+            if (adapter) return await loadModelWorker("webgpu", loadSignal);
+          } catch (error) { if (loadSignal.aborted) throw error; }
           emitProgress({ device: "wasm", progress: 0, text: "WebGPU is unavailable; using the local fallback…" });
         }
-        return await loadModelWorker("wasm");
+        return await loadModelWorker("wasm", loadSignal);
       } catch (error) {
+        if (loadSignal.aborted) throw error;
         if (ollamaError) throw new Error(`Ollama unavailable: ${ollamaError.message}; browser fallback failed: ${error.message}`);
         throw error;
       }
     })().then((engine) => {
+      if (loadSignal.aborted) { engine.cancel?.(); throw abortError(); }
       engineValue = engine;
       emitProgress({ device: engine.device, progress: 1, text: "The local AI model is ready." });
       return engine;
     }).catch((error) => {
-      engineValue = null;
-      enginePromise = null;
-      emitProgress({ device: "none", progress: 0, text: error.message, failed: true });
+      if (!loadSignal.aborted) emitProgress({ device: "none", progress: 0, text: error.message, failed: true });
       throw error;
-    });
+    }).finally(() => { if (engineLoad === load) engineLoad = null; });
   }
-  return enginePromise.then(
-    (engine) => { unsubscribe(); return engine; },
-    (error) => { unsubscribe(); throw error; }
-  );
+  const load = engineLoad;
+  const consumer = {};
+  load.consumers.add(consumer);
+  return abortable(load.promise, signal).finally(() => {
+    unsubscribe();
+    load.consumers.delete(consumer);
+    if (!load.consumers.size && engineLoad === load) load.controller.abort();
+  });
 }
 
-function loadModelWorker(device) {
+function loadModelWorker(device, signal) {
+  if (signal?.aborted) return Promise.reject(abortError());
   if (typeof Worker === "undefined") return Promise.reject(new Error("AI workers are unavailable in this browser."));
   const worker = new Worker(new URL("./wasm-worker.js", import.meta.url), { type: "module" });
   return new Promise((resolve, reject) => {
-     const pending = new Map();
-     let ready = false;
-     let cancelled = false;
-     let engine;
-     let sequence = 0;
-     const rejectPending = (error) => {
-       for (const entry of pending.values()) entry.reject(error);
-       pending.clear();
-     };
-     const cancel = () => {
-       if (cancelled) return;
-       cancelled = true;
-       if (engine) engine.cancelled = true;
-       worker.terminate();
-       rejectPending(new Error("The local AI request was cancelled."));
-     };
-     const request = (payload) => new Promise((requestResolve, requestReject) => {
-       if (cancelled) { requestReject(new Error("The local AI worker is unavailable.")); return; }
-       const id = ++sequence;
-       pending.set(id, { resolve: requestResolve, reject: requestReject });
-       worker.postMessage({ ...payload, id });
-     });
+    const pending = new Map();
+    let ready = false;
+    let cancelled = false;
+    let engine;
+    let sequence = 0;
+    const cancel = (error = abortError()) => {
+      if (!(error instanceof Error)) error = abortError();
+      if (cancelled) return;
+      cancelled = true;
+      if (engine) engine.cancelled = true;
+      worker.terminate();
+      signal?.removeEventListener("abort", cancel);
+      for (const entry of pending.values()) entry.reject(error);
+      pending.clear();
+      if (!ready) reject(error);
+    };
+    signal?.addEventListener("abort", cancel, { once: true });
+    const request = (payload) => new Promise((requestResolve, requestReject) => {
+      if (cancelled) { requestReject(new Error("The local AI worker is unavailable.")); return; }
+      const id = ++sequence;
+      pending.set(id, { resolve: requestResolve, reject: requestReject });
+      try { worker.postMessage({ ...payload, id }); } catch (error) { pending.delete(id); requestReject(error); }
+    });
     worker.onmessage = (event) => {
+      if (cancelled) return;
       const message = event.data;
       if (message.type === "progress") emitProgress({ ...message, device });
-       if (message.type === "error") {
-         const error = new Error(message.error || "The local AI model failed.");
-         cancelled = true;
-         rejectPending(error);
-         if (!ready) reject(error);
-         worker.terminate();
-         return;
-       }
+      if (message.type === "error") {
+        cancel(new Error(message.error || "The local AI model failed."));
+        return;
+      }
       if (message.type === "ready") {
         ready = true;
-         markModelReady(message.device === "webgpu" ? WEBGPU_MODEL_ID : WASM_MODEL_ID, device);
-         engine = { device, cancelled: false, cancel, chat: (requestPayload) => request({ ...requestPayload, type: "generate" }) };
-         resolve(engine);
+        signal?.removeEventListener("abort", cancel);
+        markModelReady(message.device === "webgpu" ? WEBGPU_MODEL_ID : WASM_MODEL_ID, device);
+        engine = { device, cancelled: false, cancel, chat: ({ signal: requestSignal, ...requestPayload }) => {
+          if (requestSignal?.aborted) return Promise.reject(abortError());
+          // Transformers generation does not offer reliable interruption in
+          // this pinned runtime; terminate the worker to stop compute, then
+          // the next caller transparently reloads the cached model.
+          requestSignal?.addEventListener("abort", cancel, { once: true });
+          return request({ ...requestPayload, type: "generate" }).finally(() => requestSignal?.removeEventListener("abort", cancel));
+        } };
+        resolve(engine);
       }
       if (message.type === "response") {
         const entry = pending.get(message.id);
@@ -238,13 +265,7 @@ function loadModelWorker(device) {
         else entry.resolve({ choices: [{ message: { content: message.text } }] });
       }
     };
-     worker.onerror = (event) => {
-       const error = new Error(event.message || "The local AI worker failed.");
-       cancelled = true;
-       rejectPending(error);
-       if (!ready) reject(error);
-       worker.terminate();
-     };
-    worker.postMessage({ type: "load", modelId: device === "webgpu" ? WEBGPU_MODEL_ID : WASM_MODEL_ID, device });
+    worker.onerror = (event) => cancel(new Error(event.message || "The local AI worker failed."));
+    try { worker.postMessage({ type: "load", modelId: device === "webgpu" ? WEBGPU_MODEL_ID : WASM_MODEL_ID, device }); } catch (error) { cancel(error); }
   });
 }

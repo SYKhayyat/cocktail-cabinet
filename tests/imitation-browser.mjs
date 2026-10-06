@@ -135,6 +135,32 @@ try {
   await submit(provide, "Same browser response");
   await waitFor(guess, `${game}.phase === 'guess'`);
   console.log("PASS BroadcastChannel Guess/Provide without an AI model");
+
+  const { page: ai } = await openPage(browser, "ai");
+  await ai.evaluate(`(() => {
+    Object.defineProperty(globalThis, 'LanguageModel', { configurable: true, value: {
+      availability: async () => 'available',
+      create: async () => ({ prompt: (_, { signal }) => new Promise(resolve => {
+        globalThis.__imitationRequestFixture = { signal, resolve };
+      }) })
+    } });
+    document.querySelector('#downloadModelButton').click();
+    return true;
+  })()`);
+  await waitFor(ai, `${game}.publicState().aiReady`);
+  await submit(ai, "Request that will be retired");
+  await waitFor(ai, "Boolean(globalThis.__imitationRequestFixture)");
+  const retired = await ai.evaluate(`(async () => {
+    globalThis.__cocktailCabinet.loadGame('snake');
+    const aborted = globalThis.__imitationRequestFixture.signal.aborted;
+    const revision = ${game}.chatRevision;
+    globalThis.__imitationRequestFixture.resolve('Late response that must be ignored');
+    await new Promise(resolve => setTimeout(resolve, 25));
+    return { aborted, disposed: ${game}.model.disposed, revisionUnchanged: ${game}.chatRevision === revision,
+      lateReply: ${game}.chatLog.some(({text}) => text === 'Late response that must be ignored') };
+  })()`);
+  assert.deepEqual(retired, { aborted: true, disposed: true, revisionUnchanged: true, lateReply: false });
+  console.log("PASS real shell game switch aborts AI and ignores late provider replies");
 } finally {
   for (const contextId of contexts) await browser.command("Target.disposeBrowserContext", { browserContextId: contextId });
   pages.forEach(page => page.close());

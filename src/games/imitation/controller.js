@@ -19,6 +19,7 @@ export class ImitationController {
     this.handlePageHide = () => {
       if (!this.active) return;
       this.pageHidden = true;
+      this.model.invalidatePendingRequests();
       this.closeChannel();
       this.model.dropPeer();
     };

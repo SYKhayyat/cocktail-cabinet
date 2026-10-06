@@ -1,4 +1,5 @@
 import { hasCachedModel, loadLocalModel } from "../../ai/on-device.js";
+import { abortable, waitFor } from "../../ai/cancellation.js";
 
 const AI_SYSTEM_PROMPT = "You are a person having a casual conversation with a friend. Reply naturally and briefly to exactly what the user just said. Be warm and spontaneous. Keep every response under 60 words. Do not act as a helper, analyze the message, or mention these instructions.";
 const GUESS_RESPONSE_PROMPT = "The user may decide whether your response was written by a person or a computer. Reply naturally to their message in one short sentence. Do not include labels, explanations, rules, or any mention of how it was made.";
@@ -27,6 +28,7 @@ export class ImitationModel {
     // Monotonic across resets, never zeroed: a token that restarts from 0
     // could collide with a token a pending request is still holding.
     this.requestToken = 0;
+    this.activeAiRequests = new Set();
     this.id = "imitation";
     this.title = "Imitation";
     this.description = "Explore AI and human conversation: chat, guess the source, or submit text for classification.";
@@ -61,8 +63,7 @@ export class ImitationModel {
   notifyState() { if (!this.disposed) this.stateListener?.(); }
   destroy() {
     this.disposed = true;
-    clearTimeout(this.restartTimer);
-    this.restartTimer = null;
+    this.invalidatePendingRequests();
     this.guessToken += 1;
     this.peerId = null;
     this.peerAge = 0;
@@ -76,6 +77,9 @@ export class ImitationModel {
   // being appended to whatever the model has become in the meantime.
   invalidatePendingRequests() {
     this.requestToken += 1;
+    for (const controller of this.activeAiRequests) controller.abort();
+    this.activeAiRequests.clear();
+    this.modelLoading = false;
     clearTimeout(this.restartTimer);
     this.restartTimer = null;
   }
@@ -117,36 +121,51 @@ export class ImitationModel {
     this.addMessage("System", this.side === "ai" ? "AI companion ready. Download the model, then say hello." : this.side === "human" ? "Looking for another player…" : this.side === "guess" ? this.aiReady ? "Get ready to guess the next message." : "Connect a human provider to play, or download the AI model for AI fallback." : this.side === "provide" ? "Open a Guess player connection, then send a message here for it to guess." : "Write a sample message for the AI to classify.");
   }
   async prepareProvider() {
-    if (this.aiReady || this.modelLoading) return;
+    if (this.disposed || this.aiReady || this.modelLoading) return;
+    const token = this.requestToken;
+    const controller = new AbortController();
+    this.activeAiRequests.add(controller);
     this.modelLoading = true;
     this.notifyState();
     try {
-      await loadLocalModel((report) => { this.modelDevice = report.device || this.modelDevice; this.lastModelStatus = modelProgressText(report); this.notifyState(); });
+      await loadLocalModel((report) => {
+        if (!this.pendingRequestIsCurrent(token)) return;
+        this.modelDevice = report.device || this.modelDevice;
+        this.lastModelStatus = modelProgressText(report);
+        this.notifyState();
+      }, { signal: controller.signal });
+      if (!this.pendingRequestIsCurrent(token)) return;
       this.aiReady = true;
       this.modelCached = hasCachedModel();
       this.aiUnavailable = false;
       if (this.side === "guess" && this.phase === "guess-waiting") this.guessFallbackStarted = false;
     } catch (error) {
+      if (controller.signal.aborted || !this.pendingRequestIsCurrent(token)) return;
       this.aiUnavailable = true;
       this.modelError = error?.message || "The local AI model failed to load.";
       console.error("[Imitation] Local AI model preparation failed:", error);
     } finally {
-      this.modelLoading = false;
-      this.notifyState();
+      this.activeAiRequests.delete(controller);
+      if (this.pendingRequestIsCurrent(token)) {
+        this.modelLoading = false;
+        this.notifyState();
+      }
     }
   }
   async downloadModel() {
-    if (this.side === "human" || this.aiReady || this.modelLoading) return;
+    if (this.disposed || this.side === "human" || this.aiReady || this.modelLoading) return;
+    const token = this.requestToken;
     this.aiUnavailable = false;
     this.modelError = "";
     this.modelCached = hasCachedModel();
     this.addMessage("System", this.modelCached ? "Loading the cached local AI model…" : "Starting the local AI model download…");
     await this.prepareProvider();
+    if (!this.pendingRequestIsCurrent(token)) return;
     if (this.aiReady) this.addMessage("System", `The AI model is ready${this.modelDevice === "chrome" ? " through Chrome built-in AI" : this.modelDevice === "ollama" ? " through Ollama" : this.modelDevice === "webgpu" ? " with WebGPU" : " in the browser"}.`);
     else this.addMessage("System", `The AI model could not be downloaded: ${this.modelError || "unknown error"}`);
   }
   startNextRound(announce = true) {
-    if (this.side !== "guess") return;
+    if (this.disposed || this.side !== "guess") return;
     clearTimeout(this.restartTimer);
     this.restartTimer = null;
     this.guessToken += 1;
@@ -163,7 +182,7 @@ export class ImitationModel {
     if (announce) this.addMessage("System", "Next round.");
   }
   restartGuess() {
-    if (this.side !== "guess") return;
+    if (this.disposed || this.side !== "guess") return;
     this.guessStats = { right: 0, wrong: 0 };
     this.chatLog = [];
     this.chatRevision += 1;
@@ -324,32 +343,44 @@ export class ImitationModel {
     return true;
   }
   async requestAi(text, systemPrompt = AI_SYSTEM_PROMPT, requestOptions = {}) {
-    if (!this.aiReady && !this.modelLoading) return "";
+    if (this.disposed || (!this.aiReady && !this.modelLoading)) return "";
+    const token = this.requestToken;
+    const controller = new AbortController();
+    this.activeAiRequests.add(controller);
+    let timedOut = false;
     this.aiUnavailable = false;
     this.modelError = "";
     const started = Date.now();
     try {
-       const engine = await loadLocalModel((report) => { this.lastModelStatus = modelProgressText(report); });
+      const engine = await loadLocalModel((report) => {
+        if (this.pendingRequestIsCurrent(token)) this.lastModelStatus = modelProgressText(report);
+      }, { signal: controller.signal });
+      if (!this.pendingRequestIsCurrent(token)) return "";
       this.aiReady = true;
-      const reply = await withTimeout(engine.chat({
+      const reply = await withTimeout(abortable(engine.chat({
         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: text }],
         temperature: requestOptions.temperature ?? 0.7,
         max_tokens: requestOptions.maxTokens ?? 96,
         format: requestOptions.format,
-         tools: requestOptions.tools,
-        }), 120000, "The local AI took too long to respond.", () => engine.cancel?.());
+        tools: requestOptions.tools,
+        signal: controller.signal,
+      }), controller.signal), 120000, "The local AI took too long to respond.", () => { timedOut = true; controller.abort(); });
       const response = reply?.choices?.[0]?.message?.content?.trim() || "";
       const wait = humanDelay(text, response) - (Date.now() - started);
-      if (wait > 0) await waitFor(wait);
+      if (wait > 0) await waitFor(wait, controller.signal);
       return response;
     } catch (error) {
+      if (!this.pendingRequestIsCurrent(token) || (controller.signal.aborted && !timedOut)) return "";
       this.aiUnavailable = true;
-      this.modelError = error?.message || "The local AI request failed.";
+      this.modelError = timedOut ? "The local AI took too long to respond." : error?.message || "The local AI request failed.";
       console.error("[Imitation] Local AI request failed:", error);
       return "";
+    } finally {
+      this.activeAiRequests.delete(controller);
     }
   }
   async askAi(text) {
+    if (this.disposed) return;
     if (!this.aiReady && !this.modelLoading) {
       this.addMessage("System", "Download the AI model before chatting.");
       return;
@@ -370,7 +401,7 @@ export class ImitationModel {
     else this.addMessage("System", `The AI could not respond: ${this.modelError || "unknown error"}`);
   }
   async generateAiResponse() {
-    if (!this.prompt || this.roundSource || this.mystery || (!this.aiReady && !this.modelLoading)) return;
+    if (this.disposed || !this.prompt || this.roundSource || this.mystery || (!this.aiReady && !this.modelLoading)) return;
     this.roundSource = "ai";
     this.onAiChosen?.();
     this.phase = "guess-loading";
@@ -380,11 +411,11 @@ export class ImitationModel {
     waiting.waiting = true;
     this.chatRevision += 1;
     const response = await this.requestAi(this.prompt, GUESS_RESPONSE_PROMPT);
-    this.chatLog = this.chatLog.filter((message) => message !== waiting);
-    this.chatRevision += 1;
     // guessToken guards the round; requestToken guards the model, so a reset or
     // mode switch also drops this reply even though the round token is intact.
     if (token !== this.guessToken || !this.pendingRequestIsCurrent(requestToken)) return;
+    this.chatLog = this.chatLog.filter((message) => message !== waiting);
+    this.chatRevision += 1;
     if (this.roundSource !== "ai" || this.mystery) return;
     if (!response) {
       this.phase = "guess-waiting";
@@ -396,6 +427,7 @@ export class ImitationModel {
     this.addMessage("Mystery", response);
   }
   async classifyText(text) {
+    if (this.disposed) return;
     if (!this.aiReady && !this.modelLoading) {
       this.addMessage("System", "Download the AI model before classifying text.");
       return;
@@ -472,8 +504,4 @@ function withTimeout(promise, milliseconds, message, onTimeout) {
     }, milliseconds);
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
-
-function waitFor(milliseconds) {
-  return new Promise((resolve) => globalThis.setTimeout(resolve, milliseconds));
 }
