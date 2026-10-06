@@ -41,6 +41,20 @@ test("#71: unauthored ready previews still regenerate with the requested spacing
   assert.equal(game.model.columns.length, 50);
 });
 
+test("authored Builder work also survives cabinet reload and a temporary play-mode switch", () => {
+  const game = builder();
+  game.model.updateBuilderKeyboard({ gapMove: 30, move: 10 });
+  const route = game.model.columns.map(({ passed, ...geometry }) => geometry);
+  game.lifecycle.startRound({ startingLives: 3, reason: "load" });
+  assert.deepEqual(game.model.columns.map(({ passed, ...geometry }) => geometry), route, "returning to the cabinet game must not discard a puzzle");
+  game.setSide("climber");
+  game.lifecycle.startRound({ startingLives: 3, reason: "side" });
+  assert.equal(game.model.columns[0].x, 190, "solo receives its independent generated route");
+  game.setSide("builder");
+  game.lifecycle.startRound({ startingLives: 3, reason: "side" });
+  assert.deepEqual(game.model.columns.map(({ passed, ...geometry }) => geometry), route, "returning from solo restores the authored puzzle");
+});
+
 test("#67: empty-canvas panning is bounded and never authors a column or gap", () => {
   for (const tool of ["column", "gap"]) {
     const game = builder();

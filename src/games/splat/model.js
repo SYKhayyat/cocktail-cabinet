@@ -68,9 +68,16 @@ export class SplatModel {
   }
   sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || SPLAT_MODES[0].label; }
   setSide(side) {
-    if (this.sides.includes(side) && side !== this.side) {
+    if (!this.sides.includes(side)) return;
+    if (side !== this.side) {
+      // A temporary play-mode switch is not a destructive editor command.
+      if (this.side === "builder" && this.layoutAuthored && this.columns) this.authoredRoute = this.columns.map((column) => ({ ...column }));
       this.side = side;
       this.layoutAuthored = false;
+      if (side === "builder" && this.authoredRoute) {
+        this.columns = this.authoredRoute.map((column) => ({ ...column }));
+        this.layoutAuthored = true;
+      }
     }
     this.tool = "column";
   }

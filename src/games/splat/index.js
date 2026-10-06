@@ -8,7 +8,7 @@ export class SplatGame {
     this.model = new SplatModel();
     this.controller = new SplatController(this.model);
     this.lifecycle = createGameLifecycle(this, {
-      startRound: (context) => this.model.reset(false, context.reason === "restart", context),
+      startRound: (context) => this.model.reset(false, context.reason === "restart" || this.model.side === "builder" && this.model.layoutAuthored, context),
       clampLives: (max) => this.clampLives(max),
       restartAfterLife: () => this.model.resetAfterLife(),
       lifeState: () => this.model.raceLives
