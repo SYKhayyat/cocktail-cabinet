@@ -371,6 +371,9 @@ export class BreakoutModel {
       if (this.side === "versus") {
         const lifeOwner = owner || ball.owner || "human";
         this.playerLives[lifeOwner] = Math.min(9, this.playerLives[lifeOwner] + 1);
+        // The model owns the recipient's budget; the host owns the shared cap.
+        // Report the reward so a duel can never display an earned life > cap.
+        this.pendingRewards.push({ type: "extra-life", owner: lifeOwner });
       } else this.pendingRewards.push({ type: "extra-life" });
     }
     if (brick.type === "speed") for (const other of this.balls) { other.vx *= 1.12; other.vy *= 1.12; }

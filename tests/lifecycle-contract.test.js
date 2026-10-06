@@ -59,6 +59,31 @@ function play(engine) {
 
 function step(engine) { engine.frame(engine.lastTime + 16); }
 
+test("earned Breakout duel lives raise the shared cap without restoring the other owner's spent lives", () => {
+  withHost(({ engine, lives }) => {
+    const game = new BreakoutGame();
+    game.setSide("versus");
+    engine.load(game);
+    play(engine);
+    engine.setLives(1);
+    const award = (owner) => {
+      game.model.hitBrick({ owner, lastPaddle: owner, vy: 10 }, { type: "extraLife", active: true });
+      step(engine);
+    };
+    award("computer");
+    assert.deepEqual(game.playerLives, { human: 1, computer: 2 });
+    assert.equal(engine.maxLives, 2);
+    assert.equal(engine.pendingLives, 2);
+    assert.deepEqual(lives.at(-1), [1, 2], "computer reward must not grant the human a free life");
+    award("human");
+    assert.deepEqual(game.playerLives, { human: 2, computer: 2 });
+    assert.equal(engine.maxLives, 3);
+    assert.deepEqual(lives.at(-1), [2, 3]);
+    engine.restart();
+    assert.deepEqual(game.playerLives, { human: 3, computer: 3 }, "earned cap carries to the next round");
+  });
+});
+
 test("facades declare boot, life restart, ownership, and result capabilities", () => {
   withHost(({ engine }) => {
     for (const Game of [SnakeGame, BreakoutGame, AsteroidsGame, SplatGame, StarfallGame, MissileCommandGame, ImitationGame]) {
@@ -166,7 +191,8 @@ test("solo Breakout rewards are observable headlessly and consumed once by the h
     game.model.hitBrick(game.model.balls[0], brick);
     step(engine);
     assert.equal(game.model.playerLives.human, 5);
-    assert.equal(engine.lives, 4, "duel rewards stay with their scoring pilot");
+    assert.equal(game.model.playerLives.computer, 4, "duel rewards stay with their scoring pilot");
+    assert.deepEqual([engine.lives, engine.maxLives, engine.pendingLives], [5, 5, 5], "host mirrors earned human lives and their shared cap");
   });
 });
 
