@@ -145,6 +145,24 @@ test("failed manual submissions return null and do not appear as sent", (t) => {
   assert.equal(provide.model.chatLog.some(({ sender }) => sender === "You"), false);
 });
 
+test("Guess human-provider status remains playable without, during loading, or after a failed AI load", () => {
+  const model = new ImitationModel();
+  model.setSide("guess");
+  model.reset();
+  assert.match(model.chatLog.at(-1).text, /human provider.*AI fallback/);
+  model.receive({ type: "hello", from: "provider", mode: "provide" });
+  for (const loading of [false, true]) {
+    model.modelLoading = loading;
+    model.modelError = "AI unavailable";
+    assert.match(model.publicState().status, /Human provider connected/);
+    assert.doesNotMatch(model.publicState().status, /Download.*play/);
+  }
+  model.modelLoading = false;
+  model.receive({ type: "bye", from: "provider" });
+  assert.match(model.publicState().status, /AI fallback unavailable/);
+  model.destroy();
+});
+
 for (const [inviterMode, joiningMode] of [["human", "human"], ["guess", "provide"], ["provide", "guess"]]) {
   test(`manual ${inviterMode} invite accepts a complementary ${joiningMode} answer`, async (t) => {
     const fixture = manualFixture(t);

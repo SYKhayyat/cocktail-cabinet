@@ -114,7 +114,7 @@ export class ImitationModel {
     this.guessClock = 4;
     this.guessToken = 0;
     this.guessFallbackStarted = false;
-    this.addMessage("System", this.side === "ai" ? "AI companion ready. Download the model, then say hello." : this.side === "human" ? "Looking for another player…" : this.side === "guess" ? this.aiReady ? "Get ready to guess the next message." : "Download the AI model before playing Guess." : this.side === "provide" ? "Open a Guess player connection, then send a message here for it to guess." : "Write a sample message for the AI to classify.");
+    this.addMessage("System", this.side === "ai" ? "AI companion ready. Download the model, then say hello." : this.side === "human" ? "Looking for another player…" : this.side === "guess" ? this.aiReady ? "Get ready to guess the next message." : "Connect a human provider to play, or download the AI model for AI fallback." : this.side === "provide" ? "Open a Guess player connection, then send a message here for it to guess." : "Write a sample message for the AI to classify.");
   }
   async prepareProvider() {
     if (this.aiReady || this.modelLoading) return;
@@ -335,8 +335,8 @@ export class ImitationModel {
         temperature: requestOptions.temperature ?? 0.7,
         max_tokens: requestOptions.maxTokens ?? 96,
         format: requestOptions.format,
-        tools: requestOptions.tools,
-       }), 120000, "The local AI took too long to respond.", () => engine.cancel?.());
+         tools: requestOptions.tools,
+        }), 120000, "The local AI took too long to respond.", () => engine.cancel?.());
       const response = reply?.choices?.[0]?.message?.content?.trim() || "";
       const wait = humanDelay(text, response) - (Date.now() - started);
       if (wait > 0) await waitFor(wait);
@@ -440,7 +440,7 @@ export class ImitationModel {
       side: this.sideLabel(), mode: this.side,
       aiReady: Boolean(this.aiReady), modelLoading: Boolean(this.modelLoading),
       modelCached: Boolean(this.modelCached), modelError: this.modelError,
-      status: this.side === "ai" ? this.modelLoading ? "Loading the local AI model" : this.aiReady ? `AI companion ready${this.modelDevice === "chrome" ? " via Chrome AI" : this.modelDevice === "ollama" ? " via Ollama" : this.modelDevice === "webgpu" ? " via WebGPU" : ""}` : this.modelError ? "The AI model needs attention" : this.modelCached ? "Load the cached AI model" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two players are connected" : "Open another player connection to join" : this.side === "guess" ? this.modelLoading ? "Downloading the AI model" : this.aiReady ? "Guess AI or human" : "Download the AI model to play" : this.side === "provide" ? this.peerId ? "Guess player connected" : "Waiting for a Guess player" : "Submit text for AI classification",
+       status: this.side === "ai" ? this.modelLoading ? "Loading the local AI model" : this.aiReady ? `AI companion ready${this.modelDevice === "chrome" ? " via Chrome AI" : this.modelDevice === "ollama" ? " via Ollama" : this.modelDevice === "webgpu" ? " via WebGPU" : ""}` : this.modelError ? "The AI model needs attention" : this.modelCached ? "Load the cached AI model" : "Download the AI model to begin" : this.side === "human" ? this.peerId ? "Two players are connected" : "Open another player connection to join" : this.side === "guess" ? this.peerId ? "Human provider connected — ready for a round" : this.modelLoading ? "Downloading the AI model" : this.aiReady ? "Guess AI or human" : this.modelError ? "AI fallback unavailable — download the model" : "Download the AI model to play" : this.side === "provide" ? this.peerId ? "Guess player connected" : "Waiting for a Guess player" : "Submit text for AI classification",
       chatRevision: this.chatRevision, modelDevice: this.modelDevice, modelStatus: this.lastModelStatus,
       phase: this.phase, guessResult: this.guessResult, guessStats: this.guessStats
     };
