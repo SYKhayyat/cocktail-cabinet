@@ -79,6 +79,7 @@ redirect with:
 
 ```sh
 node scripts/verify-security.mjs
+node scripts/verify-deployed-assets.mjs
 ```
 
 This check fails on stale or missing headers instead of treating checked-in
@@ -90,3 +91,8 @@ For repeatable local CSP checks, `node scripts/serve-with-headers.mjs` serves th
 actual `_headers` rule at `http://127.0.0.1:8880/` (override with `PORT`). Set
 `COCKTAIL_URL` to that URL when running browser tests. It is a test server only;
 HSTS persistence itself must be verified over deployed HTTPS.
+
+The asset check compares every tracked HTML/CSS/source/runtime file with its
+deployed bytes, including the 21.6 MB WASM file and its MIME type. It checks the
+current checkout, not merely an HTML title or a successful HTTP status, so wait
+for that revision's deployment before running it.
