@@ -59,6 +59,34 @@ function play(engine) {
 
 function step(engine) { engine.frame(engine.lastTime + 16); }
 
+test("life-free modes also omit fictitious lives from the canvas overlay", () => {
+  withHost(({ engine, text }) => {
+    engine.load(new MissileCommandGame());
+    step(engine);
+    assert.ok(text.some((value) => String(value).includes("No life budget")));
+    assert.ok(!text.some((value) => /Lives: \d/.test(String(value))));
+  });
+});
+
+test("older or invalid frame timestamps cannot reverse countdowns or poison physics", () => {
+  withHost(({ engine }) => {
+    const game = new BreakoutGame();
+    engine.load(game);
+    engine.restart();
+    const time = engine.lastTime;
+    engine.frame(time - 1000);
+    assert.equal(engine.countdown, 3);
+    assert.equal(engine.lastTime, time);
+    engine.countdown = 0;
+    const ball = { ...game.model.balls[0] };
+    for (const timestamp of [time - 1, NaN, Infinity]) engine.frame(timestamp);
+    assert.deepEqual(game.model.balls[0], ball);
+    assert.equal(engine.lastTime, time);
+    engine.frame(time + 16);
+    assert.ok(game.model.balls[0].x > ball.x, "a later valid frame still advances normally");
+  });
+});
+
 test("Pause and Continue cannot resume an already won round", () => {
   withHost(({ engine }) => {
     const game = new BreakoutGame();

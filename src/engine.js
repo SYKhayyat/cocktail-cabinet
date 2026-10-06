@@ -337,8 +337,9 @@ export class GameEngine {
 
   frame(time) {
     if (!this.running) return;
-    const delta = Math.min((time - this.lastTime) / 1000, 0.05);
-    this.lastTime = time;
+    const frameTime = Number.isFinite(time) ? Math.max(time, this.lastTime) : this.lastTime;
+    const delta = Math.min((frameTime - this.lastTime) / 1000, 0.05);
+    this.lastTime = frameTime;
     if (this.countdown > 0 && !this.paused && !this.assistance) {
       this.countdown -= delta;
       if (this.countdown <= 0) this.onMessage?.("Go!");
@@ -361,7 +362,7 @@ export class GameEngine {
       const life = this.lifecycle.lifeState();
       const heading = this.ready ? "READY" : this.countdown > 0 ? "GET READY" : result.ended ? result.heading : "PAUSED";
       const instruction = this.ready ? "Press New game to start" : this.countdown > 0 ? `Starting in ${Math.ceil(this.countdown)}…` : result.ended ? result.instruction : "Press Continue to resume";
-      const lifeText = life.players ? `You: ${life.players.human}    Computer: ${life.players.computer}` : `Lives: ${life.owner === "game" ? life.remaining : this.lives}/${this.maxLives}`;
+      const lifeText = life.owner === "none" ? "No life budget" : life.players ? `You: ${life.players.human}    Computer: ${life.players.computer}` : `Lives: ${life.owner === "game" ? life.remaining : this.lives}/${this.maxLives}`;
       drawText(this.context, heading, 400, 275, 24, CANVAS_PALETTE.warning, "center");
       drawText(this.context, `Score: ${this.game.score}    ${lifeText}`, 400, 310, 16, CANVAS_PALETTE.text, "center");
       drawText(this.context, instruction, 400, 340, 14, CANVAS_PALETTE.secondary, "center");

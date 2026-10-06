@@ -186,6 +186,10 @@ async function makeDeterministic(page) {
     // performance.now() per call would hand frame() a timestamp behind its own
     // lastTime and produce a negative delta, which silently skips updates.
     globalThis.__now = performance.now() + 1000;
+    // load/restart/continue also read performance.now(). They must use the
+    // same clock as frame(): expensive DOM/rendering work can otherwise move
+    // wall time ahead of __now and make the next virtual delta negative.
+    Object.defineProperty(performance, 'now', { configurable: true, value: () => globalThis.__now });
     globalThis.__tick = (frames = 1) => {
       for (let frame = 0; frame < frames; frame += 1) {
         globalThis.__now += 1000 / 60;
@@ -434,7 +438,7 @@ async function testFocusedAnnouncements(page, step) {
   assertEqual(await page.evaluate("globalThis.__liveChanges.length"), 0, 'frame/score churn does not mutate the focused live region');
   await page.evaluate("document.querySelector('#continueButton').click()");
   await step(200);
-  assertMatch(await page.evaluate("document.querySelector('#announcements').textContent"), /Round in progress/, 'countdown completion announces the current running lifecycle');
+  assertMatch(await page.evaluate("document.querySelector('#announcements').textContent"), /Round in progress/, `countdown completion announces the current running lifecycle (${await describeState(page)})`);
   await page.evaluate(`(() => {
     const engine = globalThis.__cocktailCabinet.engine;
     engine.game.model.won = true;
