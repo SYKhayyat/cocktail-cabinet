@@ -94,6 +94,11 @@ visitor. The provider ladder tries Chrome's built-in AI, then a local Ollama
 server, then a WebGPU or WASM worker — no key at any tier. If no model is
 available, Imitation says so rather than faking a reply.
 
+The browser runtime and WASM are vendored, SHA-256 checked, and reconstructed
+from integrity-locked npm archives; model downloads use immutable revisions.
+See [the AI runtime dependency boundary](docs/ai-runtime.md) for provenance,
+remaining large downloads, offline limitations, CSP requirements, and checks.
+
 Imitation pairs tabs in one browser over `BroadcastChannel`, and separate
 browsers via a manual WebRTC offer/answer that the players copy between
 themselves. It remains a static page with no application server.

@@ -1774,7 +1774,9 @@ test("the cached-model marker must be a valid versioned record, not a bare strin
     assert.equal(hasCachedModel(), false, "unparseable storage does not throw or pass");
 
     store.set(key, JSON.stringify({ version: 6, modelId: "onnx-community/Llama-3.2-1B-Instruct-q4f16", device: "webgpu", at: Date.now() }));
-    assert.equal(hasCachedModel(), true, "a complete versioned record is accepted");
+    assert.equal(hasCachedModel(), false, "a formerly loaded floating model revision is not the pinned model");
+    store.set(key, JSON.stringify({ version: 6, modelId: "onnx-community/Llama-3.2-1B-Instruct-q4f16", revision: "056c2877d2a38b1bbe39f10f145ad8cde5f1e24b", device: "webgpu", at: Date.now() }));
+    assert.equal(hasCachedModel(), true, "a complete versioned and revision-pinned record is accepted");
     assert.equal(cachedModelRecord().device, "webgpu");
   });
 });

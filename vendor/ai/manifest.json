@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "packages": {
+    "@huggingface/transformers": "3.0.2",
+    "onnxruntime-web": "1.21.0-dev.20241024-d9ca84ef96"
+  },
+  "files": [
+    {
+      "path": "transformers-3.0.2.min.js",
+      "package": "@huggingface/transformers",
+      "member": "package/dist/transformers.min.js",
+      "bytes": 748496,
+      "sha256": "495b03b846b315baab6ff2e2f048085e45684b910799e36c4d7f2b4be00cff72"
+    },
+    {
+      "path": "ort-wasm-simd-threaded.jsep.mjs",
+      "package": "onnxruntime-web",
+      "member": "package/dist/ort-wasm-simd-threaded.jsep.mjs",
+      "bytes": 47026,
+      "sha256": "4af7e6357fb43c77cda750544afd8677f12ed5009fc5168d1a0ae4afb44a37b6"
+    },
+    {
+      "path": "ort-wasm-simd-threaded.jsep.wasm",
+      "package": "onnxruntime-web",
+      "member": "package/dist/ort-wasm-simd-threaded.jsep.wasm",
+      "bytes": 21643825,
+      "sha256": "0f6fe5c40378504d1a25a77f766133464bb15705af23e01c994f185719fb080e"
+    },
+    {
+      "path": "ORT-LICENSE",
+      "url": "https://raw.githubusercontent.com/microsoft/onnxruntime/d9ca84ef96bae72da9ebcac5c591faca8dd52e78/LICENSE",
+      "bytes": 1073,
+      "sha256": "2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c"
+    },
+    {
+      "path": "TRANSFORMERS-LICENSE",
+      "package": "@huggingface/transformers",
+      "member": "package/LICENSE",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    }
+  ]
+}

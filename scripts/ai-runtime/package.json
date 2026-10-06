@@ -1,0 +1,9 @@
+{
+  "name": "cocktail-cabinet-ai-runtime-provenance",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "@huggingface/transformers": "3.0.2",
+    "onnxruntime-web": "1.21.0-dev.20241024-d9ca84ef96"
+  }
+}

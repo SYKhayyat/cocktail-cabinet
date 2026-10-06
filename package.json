@@ -6,7 +6,9 @@
   "scripts": {
     "test": "node --test",
     "test:browser": "node tests/browser-smoke.mjs",
-    "check": "node --check src/main.js && node --check src/engine.js && node scripts/check-model-boundary.mjs && python3 scripts/dead-code-check.py && node scripts/check-readme-controls.mjs",
+    "test:ai-runtime:browser": "node tests/ai-runtime-browser.mjs",
+    "check:ai-runtime": "node scripts/vendor-ai-runtime.mjs",
+    "check": "node --check src/main.js && node --check src/engine.js && node scripts/check-model-boundary.mjs && python3 scripts/dead-code-check.py && node scripts/check-readme-controls.mjs && node scripts/vendor-ai-runtime.mjs",
     "check:readme": "node scripts/check-readme-controls.mjs",
     "serve": "python3 -m http.server 4173"
   }

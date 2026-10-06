@@ -47,3 +47,6 @@ jobs:
       - run: npm run test:browser
         env:
           REQUIRE_BROWSER: "1"
+      - run: npm run test:ai-runtime:browser
+        env:
+          CDP_URL: http://127.0.0.1:9223

@@ -1,7 +1,8 @@
 import { abortable, abortError } from "./cancellation.js";
+import { BROWSER_MODELS } from "./runtime-config.js";
 
-const WEBGPU_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-q4f16";
-const WASM_MODEL_ID = "onnx-community/Llama-3.2-1B-Instruct-ONNX";
+const WEBGPU_MODEL_ID = BROWSER_MODELS.webgpu.id;
+const WASM_MODEL_ID = BROWSER_MODELS.wasm.id;
 const OLLAMA_MODEL = "llama3.2:1b";
 const CHROME_MODEL_ID = "chrome-built-in";
 const OLLAMA_BASE_URLS = ["http://127.0.0.1:11435", "http://localhost:11435", "http://127.0.0.1:11434", "http://localhost:11434"];
@@ -45,6 +46,7 @@ export function hasCachedModel() {
   if (record.version !== MODEL_CACHE_VERSION) return false;
   const modelForDevice = { chrome: CHROME_MODEL_ID, ollama: OLLAMA_MODEL, webgpu: WEBGPU_MODEL_ID, wasm: WASM_MODEL_ID };
   if (!SUPPORTED_DEVICES.includes(record.device) || record.modelId !== modelForDevice[record.device]) return false;
+  if (BROWSER_MODELS[record.device] && record.revision !== BROWSER_MODELS[record.device].revision) return false;
   return Number.isFinite(record.at) && record.at > 0;
 }
 
@@ -58,7 +60,7 @@ export async function requestPersistentStorage() {
 
 function markModelReady(modelId, device) {
   try {
-    localStorage.setItem(MODEL_CACHE_KEY, JSON.stringify({ version: MODEL_CACHE_VERSION, modelId, device, at: Date.now() }));
+    localStorage.setItem(MODEL_CACHE_KEY, JSON.stringify({ version: MODEL_CACHE_VERSION, modelId, device, revision: BROWSER_MODELS[device]?.revision, at: Date.now() }));
     for (const key of LEGACY_MODEL_CACHE_KEYS) localStorage.removeItem(key);
   } catch { }
 }

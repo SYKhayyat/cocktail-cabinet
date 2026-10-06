@@ -1,0 +1,5 @@
+# Published runtime files are integrity-checked byte-for-byte, including upstream
+# whitespace. Do not format them or silently normalize their line endings.
+vendor/ai/transformers-3.0.2.min.js -text -whitespace
+vendor/ai/ort-wasm-simd-threaded.jsep.mjs -text -whitespace
+vendor/ai/ort-wasm-simd-threaded.jsep.wasm -text

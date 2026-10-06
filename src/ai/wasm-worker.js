@@ -1,7 +1,7 @@
-import { env, pipeline } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2/+esm";
+import { env, pipeline } from "../../vendor/ai/transformers-3.0.2.min.js";
+import { BROWSER_MODELS, configureRuntime, verifiedWasm } from "./runtime-config.js";
 
-env.allowLocalModels = false;
-env.useBrowserCache = true;
+configureRuntime(env);
 
 let generator = null;
 
@@ -9,9 +9,13 @@ self.onmessage = async (event) => {
   const message = event.data;
   try {
     if (message.type === "load") {
-      generator = await pipeline("text-generation", message.modelId, {
+      const model = BROWSER_MODELS[message.device];
+      if (!model || message.modelId !== model.id) throw new Error("Unsupported local AI model.");
+      env.backends.onnx.wasm.wasmBinary = await verifiedWasm();
+      generator = await pipeline("text-generation", model.id, {
         device: message.device,
-        dtype: message.device === "webgpu" ? "q4f16" : "q4",
+        revision: model.revision,
+        dtype: model.dtype,
         progress_callback: (report) => self.postMessage({ type: "progress", ...report }),
       });
       self.postMessage({ type: "ready", device: message.device });
