@@ -204,6 +204,7 @@ export class ImitationModel {
     // arrive from an unauthenticated broadcast, so a wrong shape is noise
     // rather than something to report to the player.
     if (message.text !== undefined && typeof message.text !== "string") return;
+    if (["chat", "guess-prompt", "guess-response", "guess-sample"].includes(message.type) && (typeof message.text !== "string" || !message.text.trim() || message.text.length > 2000)) return;
     if (message.to !== undefined && typeof message.to !== "string") return;
     if (message.mode !== undefined && typeof message.mode !== "string") return;
     if (typeof message.from !== "string" || !message.from) return;

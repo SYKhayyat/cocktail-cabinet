@@ -20,6 +20,85 @@ function manualFixture(t) {
   return transportFixture(t);
 }
 
+function linkManualChannels(left, right) {
+  const channels = [left, right].map(() => ({
+    readyState: "open", sent: [],
+    send(data) {
+      assert.equal(typeof data, "string", "RTCDataChannel requires a string, not an object");
+      this.sent.push(data);
+      const remote = channels.find((candidate) => candidate !== this);
+      queueMicrotask(() => remote.onmessage?.({ data }));
+    },
+    close() { this.readyState = "closed"; }
+  }));
+  for (const [index, controller] of [left, right].entries()) {
+    controller.closeChannel();
+    controller.model.dropPeer();
+    controller.manualActive = true;
+    controller.manualRemoteId = [right, left][index].model.matchId;
+    controller.bindManualChannel(channels[index]);
+  }
+  return channels;
+}
+
+test("manual string-only channels carry chat, Unicode and departure", async (t) => {
+  const fixture = transportFixture(t);
+  const left = fixture.create("human");
+  const right = fixture.create("human");
+  const [channel] = linkManualChannels(left, right);
+  left.sendMessage("Hello 👋 שלום");
+  await flush();
+  assert.equal(right.model.chatLog.at(-1).text, "Hello 👋 שלום");
+  assert.equal(right.model.score, 5);
+  left.handlePageHide();
+  await flush();
+  assert.equal(JSON.parse(channel.sent.at(-1)).type, "bye");
+  assert.equal(right.model.peerId, null);
+});
+
+for (const inviter of ["guess", "provide"]) test(`manual ${inviter} channel carries prompt, response and round controls`, async (t) => {
+  const fixture = transportFixture(t);
+  const left = fixture.create(inviter);
+  const right = fixture.create(inviter === "guess" ? "provide" : "guess");
+  linkManualChannels(left, right);
+  const guess = inviter === "guess" ? left : right;
+  const provide = inviter === "provide" ? left : right;
+  guess.sendMessage("A question?");
+  await flush();
+  assert.equal(provide.model.prompt, "A question?");
+  provide.sendMessage("A human response.");
+  await flush();
+  assert.equal(guess.model.mystery.text, "A human response.");
+  guess.model.startNextRound();
+  await flush();
+  assert.equal(provide.model.phase, "provide-waiting");
+  guess.model.onAiChosen();
+  await flush();
+  assert.equal(provide.model.aiLocked, true);
+});
+
+test("manual wire messages ignore malformed JSON, envelopes and non-peer senders", (t) => {
+  const fixture = transportFixture(t);
+  const left = fixture.create("human");
+  const right = fixture.create("human");
+  const [channel] = linkManualChannels(left, right);
+  const revision = left.model.chatRevision;
+  for (const data of ["[object Object]", "null", "{}", "[]", JSON.stringify({ type: "chat", from: right.model.matchId }), JSON.stringify({ type: "chat", from: "intruder", text: "bad" })]) channel.onmessage({ data });
+  assert.equal(left.model.chatRevision, revision);
+});
+
+test("a failed manual delivery drops the usable connection and reports failure", (t) => {
+  const fixture = transportFixture(t);
+  const left = fixture.create("human");
+  const right = fixture.create("human");
+  const [channel] = linkManualChannels(left, right);
+  channel.send = () => { throw new Error("RTC send failure"); };
+  assert.equal(left.sendPayload({ type: "chat", from: left.model.matchId, text: "retry" }), false);
+  assert.equal(left.model.peerId, null);
+  assert.match(left.model.publicState().status, /join/);
+  assert.match(left.model.chatLog.at(-1).text, /not sent/);
+});
+
 for (const [inviterMode, joiningMode] of [["human", "human"], ["guess", "provide"], ["provide", "guess"]]) {
   test(`manual ${inviterMode} invite accepts a complementary ${joiningMode} answer`, async (t) => {
     const fixture = manualFixture(t);

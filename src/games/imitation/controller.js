@@ -31,8 +31,8 @@ export class ImitationController {
   }
   bindModelCallbacks() {
     const model = this.model;
-    model.onAiChosen = () => this.sendPayload({ type: "ai-writing", from: this.model.matchId });
-    model.onRoundStart = () => this.sendPayload({ type: "round-start", from: this.model.matchId });
+    model.onAiChosen = () => { if (model.peerId) this.sendPayload({ type: "ai-writing", from: model.matchId, to: model.peerId }); };
+    model.onRoundStart = () => { if (model.peerId) this.sendPayload({ type: "round-start", from: model.matchId, to: model.peerId }); };
     model.onPeerChange = () => this.syncPresence();
   }
   attachLifecycle() {
@@ -72,7 +72,7 @@ export class ImitationController {
     // event covers the manual path; sending here is best effort because a
     // document may be in the middle of being torn down.
     if (this.manualChannel?.readyState === "open" && this.manualRemoteId) {
-      try { this.manualChannel.send({ type: "bye", from: this.model.matchId, to: this.manualRemoteId }); } catch { }
+      try { this.manualChannel.send(JSON.stringify({ type: "bye", from: this.model.matchId, to: this.manualRemoteId })); } catch { }
     }
   }
   closeChannel() {
@@ -89,7 +89,7 @@ export class ImitationController {
   }
   closeManualPeer(sendBye = false) {
     if (sendBye && this.manualChannel?.readyState === "open" && this.manualRemoteId) {
-      try { this.manualChannel.send({ type: "bye", from: this.model.matchId, to: this.manualRemoteId }); } catch { }
+      try { this.manualChannel.send(JSON.stringify({ type: "bye", from: this.model.matchId, to: this.manualRemoteId })); } catch { }
     }
     // Closing a retired transport must not deliver callbacks into a restored
     // or reset round that reuses this controller and the same matchId.
@@ -97,6 +97,7 @@ export class ImitationController {
       this.manualChannel.onopen = null;
       this.manualChannel.onmessage = null;
       this.manualChannel.onclose = null;
+      this.manualChannel.onerror = null;
     }
     if (this.manualPeer) this.manualPeer.ondatachannel = null;
     this.manualChannel?.close();
@@ -144,13 +145,20 @@ export class ImitationController {
     }
   }
   sendPayload(payload) {
-    if (this.manualActive) {
-      if (this.manualChannel?.readyState === "open") {
-        try { this.manualChannel.send(payload); } catch { }
+    try {
+      if (this.manualActive) {
+        if (this.manualChannel?.readyState !== "open") throw new Error("The manual connection is not open.");
+        this.manualChannel.send(JSON.stringify(payload));
+      } else {
+        if (!this.channel) throw new Error("No player connection is available.");
+        this.channel.postMessage(payload);
       }
-      return;
+      return true;
+    } catch {
+      this.model.dropPeer();
+      this.model.addMessage("System", "The player connection failed. Your message was not sent; reconnect and try again.");
+      return false;
     }
-    this.channel?.postMessage(payload);
   }
   bindManualChannel(channel, remoteId = this.manualRemoteId) {
     this.manualChannel = channel;
@@ -158,12 +166,16 @@ export class ImitationController {
       this.model.addMessage("System", "Manual connection opened.");
       this.connectManualPeer(this.manualRemoteId || remoteId);
     };
-    channel.onmessage = (event) => this.model.receive(event.data);
-    channel.onclose = () => {
+    channel.onmessage = (event) => {
+      if (!this.active || this.pageHidden || this.manualChannel !== channel) return;
+      try { this.model.receive(JSON.parse(event.data)); } catch { /* Ignore malformed wire data. */ }
+    };
+    channel.onclose = channel.onerror = () => {
       const currentRemoteId = this.manualRemoteId || remoteId;
       this.model.addMessage("System", "Manual connection closed.");
       if (this.model.peerId === currentRemoteId) this.model.receive({ type: "bye", from: currentRemoteId });
     };
+    if (channel.readyState === "open") channel.onopen();
   }
   connectManualPeer(remoteId) {
     if (!remoteId) return;
