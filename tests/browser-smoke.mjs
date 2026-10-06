@@ -10,7 +10,7 @@
 // REQUIRE_BROWSER=1 in CI to make a missing browser a failure.
 
 const pageUrl = process.env.COCKTAIL_URL || "http://127.0.0.1:8765/";
-const cdpUrl = process.env.CDP_URL || "http://127.0.0.1:9223";
+const cdpUrl = process.env.CDP_URL || "http://127.0.0.1:9321";
 const required = process.env.REQUIRE_BROWSER === "1";
 let browser;
 let browserContextId;
@@ -1623,7 +1623,7 @@ async function main() {
   } catch (error) {
     const unavailable = error.message.includes("fetch failed") || error.message.includes("ECONNREFUSED");
     if (!required && unavailable) {
-      console.log("CDP smoke skipped: start Chromium with --remote-debugging-port=9223 and a local static server");
+      console.log("CDP smoke skipped: start dedicated Chromium with --remote-debugging-port=9321 and a local static server");
       return;
     }
     throw error;

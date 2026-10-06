@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 
 const endpoint = process.env.CDP_URL || "http://127.0.0.1:9321";
-const url = process.env.COCKTAIL_URL || "http://127.0.0.1:8768/";
+const url = process.env.COCKTAIL_URL || "http://127.0.0.1:8765/";
 const contexts = [];
 const pages = [];
 class Cdp {

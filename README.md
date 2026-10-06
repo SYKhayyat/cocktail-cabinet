@@ -5,8 +5,8 @@ human side and a machine side, starts gently, and gets more active as the score
 rises. There is no build step, no server code, and no API key.
 
 **This file is the current source of truth** for controls, architecture,
-testing, and deployment. Anything else in the repository is either a design
-record or a historical audit — see [Historical documents](#historical-documents).
+testing, and deployment. Current supporting guides and verification evidence are
+linked below; older design records are listed under [Historical documents](#historical-documents).
 
 ## Running it
 
@@ -47,6 +47,11 @@ every active owner's remaining lives immediately, without restoring spent lives;
 raising it takes effect from the next game, so a
 change can never hand you a free life mid-round. Breakout's `extraLife` brick
 raises the cap permanently.
+
+Missile Command has no retry-life budget: cities and batteries determine its
+outcome, so its Lives controls are hidden. Earned duel lives stay with the pilot
+who earned them while increasing the cabinet cap; they do not restore the other
+pilot's spent lives.
 
 Breakout retries preserve earned score difficulty on replacement balls; surviving
 duel balls are not scaled twice. Starfall's human mode ramps through score 150,
@@ -119,7 +124,12 @@ a third tab replace an active peer. BFCache restoration reopens discovery.
 | --- | --- |
 | `npm test` | Model/host contracts, event accounting, seeded computer-policy bands/tuning, and independent bounded HUMAN-input experience proxies |
 | `npm run check` | Syntax, architectural dependencies, dead code and README control descriptors |
-| `npm run test:browser` | 23 CDP suites: boot, twenty modes and mode hints, settings/lives, pause/countdown, keyboard/pointer input, native keyboard buttons, focused announcements at 240 Hz, retained retry pressure/delayed recovery, loss/restart, builder tools, provider fallback/load/chat fixtures, renamed labels, narrow Imitation/Splat layouts and tool buttons, cross-tab Guess/Provide, hostile-leftover isolation, pagehide/pageshow and disposal |
+| `npm run test:browser` | 26 CDP suites: all twenty modes, hints, lifecycle/input, low-frequency announcements, native keyboard and emulated touch editing, capped Builder workload, race ties, narrow layouts, provider fixtures, cross-tab protocol and isolation |
+| `npm run test:imitation:browser` | Real RTCDataChannels in both invite directions, human chat, no-model Guess/Provide and cancellation; `CDP_PEER_URL` selects a second browser process |
+| `npm run test:nonvisual-browser` | Accessibility tree and native keyboard flow in all twenty modes |
+| `npm run test:canvas:browser` | Actual canvas text and full-size companions across 60 mode/viewport cases |
+| `npm run test:ai-runtime:browser` | Vendored runtime/WASM execution under CSP and real download cancellation |
+| `npm run test:browser:all` | All five browser runners; required in CI with the actual security headers |
 
 Computer tuning is documented in [tests/ai/TUNING.md](tests/ai/TUNING.md), and
 explicit event denominators/calibration in [tests/ai/ACCOUNTING.md](tests/ai/ACCOUNTING.md).
@@ -141,8 +151,8 @@ To run it locally:
 ```sh
 python3 -m http.server 8765 --bind 127.0.0.1 &
 chromium --headless=new --disable-gpu --no-sandbox \
-  --remote-debugging-port=9223 --user-data-dir=/tmp/smoke about:blank &
-npm run test:browser
+  --remote-debugging-port=9321 --user-data-dir=/tmp/opencode/smoke about:blank &
+REQUIRE_BROWSER=1 npm run test:browser:all
 ```
 
 ## Deployment
@@ -153,8 +163,11 @@ from `_headers`. Connect the repository once in the Cloudflare dashboard and
 pushes to `main` deploy automatically. See [DEPLOYMENT.md](DEPLOYMENT.md) for the
 local `wrangler pages dev` equivalent.
 
-`.github/workflows/verify.yml` runs `npm test`, `npm run check`, and the browser
-smoke suite on every push and pull request.
+`.github/workflows/verify.yml` runs `npm test`, `npm run check`, and all five browser
+runners on every push and pull request, with two dedicated Chromium processes.
+To verify the deployment, run `node scripts/verify-security.mjs` and
+`node scripts/verify-deployed-assets.mjs`. See [HANDOFF.md](HANDOFF.md) for the
+issue-to-commit map, actual verification and remaining manual gates.
 
 ## Historical documents
 
@@ -165,7 +178,7 @@ this file and the code win.
 | Document | Status |
 | --- | --- |
 | [WALKTHROUGH.org](WALKTHROUGH.org) | A file-by-file reading of the codebase, written before the mode/settings descriptors were centralized and before the browser suite was expanded. Still useful as an orientation to the per-game structure. |
-| [PLAN.md](PLAN.md) | The original design brief. Its one-file-per-game layout, `netlify.toml` deploy, and planned `AiController` are all superseded. |
+| [PLAN.md](PLAN.md) | Current remediation plan for #61–#82, including post-deployment and manual acceptance gates; the original brief is in git history. |
 | [REFERENCE_NOTES.md](REFERENCE_NOTES.md) | Gameplay research from 2026-09-24 and its source links. Its Missile Command row describes the controls as they are today. |
 | [DELEGATION_LOG.md](DELEGATION_LOG.md) | Per-task record of past changes and how they were verified. Accumulates; each entry is accurate as of its date. |
 | [issues.md](issues.md) | The 2026-09-25 gameplay audit that produced the GitHub issues tracked here. A point-in-time report, not a status list. |

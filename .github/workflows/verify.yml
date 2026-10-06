@@ -8,6 +8,11 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      CDP_URL: http://127.0.0.1:9321
+      CDP_PEER_URL: http://127.0.0.1:9322
+      COCKTAIL_URL: http://127.0.0.1:8765/
+      REQUIRE_BROWSER: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,7 +24,7 @@ jobs:
       # Browser smoke suite: Chromium with CDP enabled, plus a static server.
       - name: Start the static server
         run: |
-          python3 -m http.server 8765 --bind 127.0.0.1 &
+          PORT=8765 node scripts/serve-with-headers.mjs &
           for _ in $(seq 1 50); do
             curl -sf http://127.0.0.1:8765/index.html >/dev/null && break
             sleep 0.2
@@ -37,16 +42,15 @@ jobs:
         run: |
           test -x "$CHROME_PATH"
           "$CHROME_PATH" --headless=new --disable-gpu --no-sandbox \
-            --remote-debugging-port=9223 --user-data-dir=/tmp/smoke-profile \
+            --remote-debugging-port=9321 --user-data-dir=/tmp/smoke-profile \
+            about:blank &
+          "$CHROME_PATH" --headless=new --disable-gpu --no-sandbox \
+            --remote-debugging-port=9322 --user-data-dir=/tmp/smoke-peer-profile \
             about:blank &
           for _ in $(seq 1 50); do
-            curl -sf http://127.0.0.1:9223/json/version >/dev/null && break
+            curl -sf http://127.0.0.1:9321/json/version >/dev/null && curl -sf http://127.0.0.1:9322/json/version >/dev/null && break
             sleep 0.2
           done
-          curl -fsS http://127.0.0.1:9223/json/version >/dev/null
-      - run: npm run test:browser
-        env:
-          REQUIRE_BROWSER: "1"
-      - run: npm run test:ai-runtime:browser
-        env:
-          CDP_URL: http://127.0.0.1:9223
+          curl -fsS http://127.0.0.1:9321/json/version >/dev/null
+          curl -fsS http://127.0.0.1:9322/json/version >/dev/null
+      - run: npm run test:browser:all

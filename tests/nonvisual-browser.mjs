@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 const origin = process.env.CDP_URL || "http://127.0.0.1:9321";
 if (new URL(origin).port === "9223") throw new Error("Refusing Electron debugging port 9223; use dedicated Chromium.");
-const url = process.env.COCKTAIL_URL || "http://127.0.0.1:8777/";
+const url = process.env.COCKTAIL_URL || "http://127.0.0.1:8765/";
 class Cdp {
   constructor(url) { this.ws = new WebSocket(url); this.id = 0; this.pending = new Map(); }
   async open() {

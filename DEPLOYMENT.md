@@ -49,12 +49,14 @@ CI runs it in `verify.yml`, and locally it needs a browser and a static server:
 ```sh
 python3 -m http.server 8765 --bind 127.0.0.1 &
 chromium --headless=new --disable-gpu --no-sandbox \
-  --remote-debugging-port=9223 --user-data-dir=/tmp/smoke about:blank &
-npm run test:browser
+  --remote-debugging-port=9321 --user-data-dir=/tmp/opencode/smoke about:blank &
+REQUIRE_BROWSER=1 npm run test:browser:all
 ```
 
-It skips cleanly when no browser is listening on `CDP_URL` (default port 9223);
-set `REQUIRE_BROWSER=1` to make a missing browser a failure instead.
+The smoke runner can skip when no browser is listening on `CDP_URL` (default port
+9321); use `REQUIRE_BROWSER=1` for verification. The other browser runners fail
+when their prerequisites are missing. All application-page runners default to
+`http://127.0.0.1:8765/`. Never reuse the desktop application's browser endpoint.
 
 ## Browser security policy
 

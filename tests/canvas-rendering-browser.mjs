@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 
 const cdpUrl = process.env.CDP_URL || "http://127.0.0.1:9321";
-const pageUrl = process.env.COCKTAIL_URL || "http://127.0.0.1:8781/";
+const pageUrl = process.env.COCKTAIL_URL || "http://127.0.0.1:8765/";
 
 class Connection {
   constructor(url) { this.socket = new WebSocket(url); this.pending = new Map(); this.id = 0; }
