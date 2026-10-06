@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { getEventListeners } from "node:events";
 import { ImitationModel } from "../src/games/imitation/model.js";
 import { ImitationController } from "../src/games/imitation/controller.js";
 import { abortable, waitFor } from "../src/ai/cancellation.js";
@@ -121,16 +122,167 @@ function workerFixture(t, ready = true) {
   globalThis.fetch = async () => { throw new Error("No Ollama in fixture"); };
   const workers = [];
   globalThis.Worker = class {
-    constructor() { workers.push(this); this.terminated = false; this.sent = []; }
+    constructor(url, options) { workers.push(this); this.url = url.href; this.options = options; this.terminated = false; this.sent = []; }
     postMessage(message) {
       assert.equal(message.signal, undefined, "AbortSignals must not be structured-cloned into workers");
       this.sent.push(message);
-      if (message.type === "load" && ready) queueMicrotask(() => this.onmessage({ data: { type: "ready", device: "wasm" } }));
+      if (message.type === "load" && ready) queueMicrotask(() => this.onmessage?.({ data: { type: "ready", device: "wasm" } }));
     }
     terminate() { this.terminated = true; }
   };
   return workers;
 }
+
+for (const cancelledFirst of [true, false]) {
+  for (const abortWhileActive of [true, false]) {
+    test(`worker request abort is isolated: cancelled ${cancelledFirst ? "first" : "second"}, ${abortWhileActive ? "active" : "queued"}`, async t => {
+      const workers = workerFixture(t);
+      const { loadLocalModel } = await freshProvider();
+      const engine = await loadLocalModel();
+      const controller = new AbortController();
+      const survivorController = new AbortController();
+      const request = (text, signal) => engine.chat({ messages: [{ role: "user", content: text }], signal });
+      const complete = (worker, text) => {
+        const message = worker.sent.findLast(entry => entry.type === "generate");
+        assert.ok(message, "one request owns the worker");
+        worker.onmessage({ data: { type: "response", id: message.id, text } });
+      };
+      let cancelled;
+      let survivor;
+      if (cancelledFirst && !abortWhileActive) {
+        // A completed predecessor lets both requests enter the queued order.
+        const blocker = request("blocker");
+        cancelled = request("cancelled", controller.signal);
+        survivor = request("survivor", survivorController.signal);
+        assert.equal(workers[0].sent.filter(entry => entry.type === "generate").length, 1, "generation is serialized");
+        const rejection = assert.rejects(cancelled, { name: "AbortError" });
+        controller.abort();
+        await rejection;
+        assert.equal(workers[0].terminated, false, "queued cancellation must not stop another active request");
+        complete(workers[0], "blocker finished");
+        await blocker;
+      } else {
+        if (cancelledFirst) { cancelled = request("cancelled", controller.signal); survivor = request("survivor", survivorController.signal); }
+        else { survivor = request("survivor", survivorController.signal); cancelled = request("cancelled", controller.signal); }
+        assert.equal(workers[0].sent.filter(entry => entry.type === "generate").length, 1, "generation is serialized");
+        if (!cancelledFirst && abortWhileActive) { complete(workers[0], "survivor finished"); await survivor; }
+        const rejection = assert.rejects(cancelled, { name: "AbortError" });
+        controller.abort();
+        await rejection;
+        assert.equal(workers[0].terminated, abortWhileActive, "only active cancellation terminates compute");
+      }
+      await flush();
+      if (cancelledFirst || !abortWhileActive) {
+        const worker = workers.at(-1);
+        const message = worker.sent.at(-1);
+        assert.equal(message.messages[0].content, "survivor");
+        complete(worker, "survivor finished");
+      }
+      assert.equal((await survivor).choices[0].message.content, "survivor finished");
+      assert.equal(getEventListeners(controller.signal, "abort").length, 0);
+      assert.equal(getEventListeners(survivorController.signal, "abort").length, 0);
+      survivorController.abort();
+      for (const worker of workers.slice(1)) {
+        assert.equal(worker.url, workers[0].url, "restarts retain the verified runtime entry point");
+        assert.deepEqual(worker.options, workers[0].options);
+        assert.deepEqual(worker.sent[0], workers[0].sent[0], "restarts load the same pinned model/device");
+      }
+      const restored = await loadLocalModel();
+      const later = restored.chat({ messages: [{ role: "user", content: "later" }] });
+      complete(workers.at(-1), "later finished");
+      assert.equal((await later).choices[0].message.content, "later finished");
+    });
+  }
+}
+
+test("worker active abort ignores retired callbacks and survives an abort during replacement loading", async t => {
+  const workers = workerFixture(t, false);
+  const { loadLocalModel } = await freshProvider();
+  const loading = loadLocalModel();
+  await flush();
+  workers[0].onmessage({ data: { type: "ready", device: "wasm" } });
+  const engine = await loading;
+  const first = new AbortController();
+  const second = new AbortController();
+  const a = engine.chat({ messages: [], signal: first.signal });
+  const b = engine.chat({ messages: [], signal: second.signal });
+  const c = engine.chat({ messages: [] });
+  const retiredMessage = workers[0].onmessage;
+  const retiredError = workers[0].onerror;
+  const rejectionA = assert.rejects(a, { name: "AbortError" });
+  first.abort();
+  await rejectionA;
+  assert.equal(workers.length, 2);
+  const rejectionB = assert.rejects(b, { name: "AbortError" });
+  second.abort();
+  await rejectionB;
+  assert.equal(workers[1].terminated, false, "the replacement download is still owned by the remaining request");
+  retiredMessage({ data: { type: "error", error: "stale load failure" } });
+  retiredError({ message: "stale worker crash" });
+  workers[1].onmessage({ data: { type: "ready", device: "wasm" } });
+  const message = workers[1].sent.at(-1);
+  retiredMessage({ data: { type: "response", id: message.id, text: "stale reply" } });
+  workers[1].onmessage({ data: { type: "response", id: message.id, text: "survived" } });
+  assert.equal((await c).choices[0].message.content, "survived");
+  assert.equal(await loadLocalModel(), engine);
+});
+
+test("worker response and payload errors reject only their owner and release listeners", async t => {
+  const workers = workerFixture(t);
+  const { loadLocalModel } = await freshProvider();
+  const engine = await loadLocalModel();
+  const controller = new AbortController();
+  const a = engine.chat({ messages: [], signal: controller.signal });
+  const rejectionA = assert.rejects(a, /generation failed/);
+  const b = engine.chat({ messages: [] });
+  workers[0].onmessage({ data: { type: "response", id: workers[0].sent.at(-1).id, error: "generation failed" } });
+  await rejectionA;
+  workers[0].onmessage({ data: { type: "response", id: workers[0].sent.at(-1).id, text: "next succeeds" } });
+  assert.equal((await b).choices[0].message.content, "next succeeds");
+  assert.equal(getEventListeners(controller.signal, "abort").length, 0);
+  const postMessage = workers[0].postMessage;
+  workers[0].postMessage = () => { throw new Error("payload clone failed"); };
+  await assert.rejects(engine.chat({ messages: [], signal: controller.signal }), /payload clone failed/);
+  assert.equal(getEventListeners(controller.signal, "abort").length, 0);
+  workers[0].postMessage = postMessage;
+  const c = engine.chat({ messages: [] });
+  workers[0].onmessage({ data: { type: "response", id: workers[0].sent.at(-1).id, text: "still usable" } });
+  assert.equal((await c).choices[0].message.content, "still usable");
+});
+
+test("replacement worker load failure rejects remaining owners with the real error and later loads recover", async t => {
+  const workers = workerFixture(t);
+  const { loadLocalModel } = await freshProvider();
+  const engine = await loadLocalModel();
+  const first = new AbortController();
+  const second = new AbortController();
+  const a = engine.chat({ messages: [], signal: first.signal });
+  const b = engine.chat({ messages: [], signal: second.signal });
+  const rejectionA = assert.rejects(a, { name: "AbortError" });
+  const rejectionB = assert.rejects(b, /replacement integrity failure/);
+  first.abort();
+  workers[1].onmessage({ data: { type: "error", error: "replacement integrity failure" } });
+  await Promise.all([rejectionA, rejectionB]);
+  assert.equal(getEventListeners(second.signal, "abort").length, 0);
+  assert.equal(engine.cancelled, true);
+  assert.equal(workers[1].terminated, true);
+  assert.notEqual(await loadLocalModel(), engine);
+});
+
+test("shared worker load retains the remaining consumer when one aborts", async t => {
+  const workers = workerFixture(t, false);
+  const { loadLocalModel } = await freshProvider();
+  const first = new AbortController();
+  const a = loadLocalModel(null, { signal: first.signal });
+  const b = loadLocalModel();
+  await flush();
+  const rejectionA = assert.rejects(a, { name: "AbortError" });
+  first.abort();
+  await rejectionA;
+  assert.equal(workers[0].terminated, false);
+  workers[0].onmessage({ data: { type: "ready", device: "wasm" } });
+  assert.equal((await b).cancelled, false);
+});
 
 test("worker generation cancellation terminates compute and the next request reloads", async t => {
   const workers = workerFixture(t);

@@ -212,62 +212,107 @@ export function loadLocalModel(onProgress, { signal } = {}) {
 function loadModelWorker(device, signal) {
   if (signal?.aborted) return Promise.reject(abortError());
   if (typeof Worker === "undefined") return Promise.reject(new Error("AI workers are unavailable in this browser."));
-  const worker = new Worker(new URL("./wasm-worker.js", import.meta.url), { type: "module" });
   return new Promise((resolve, reject) => {
-    const pending = new Map();
-    let ready = false;
-    let cancelled = false;
-    let engine;
+    const queue = [];
+    let worker = null;
+    let active = null;
+    let workerReady = false;
+    let resolved = false;
     let sequence = 0;
+    const settle = (entry, error, reply) => {
+      entry.signal?.removeEventListener("abort", entry.abort);
+      if (error) entry.reject(error);
+      else entry.resolve(reply);
+    };
+    const retireWorker = () => {
+      if (worker) {
+        worker.onmessage = null;
+        worker.onerror = null;
+        worker.terminate();
+      }
+      worker = null;
+      workerReady = false;
+    };
     const cancel = (error = abortError()) => {
       if (!(error instanceof Error)) error = abortError();
-      if (cancelled) return;
-      cancelled = true;
-      if (engine) engine.cancelled = true;
-      worker.terminate();
+      if (engine.cancelled) return;
+      engine.cancelled = true;
+      retireWorker();
       signal?.removeEventListener("abort", cancel);
-      for (const entry of pending.values()) entry.reject(error);
-      pending.clear();
-      if (!ready) reject(error);
+      if (active) settle(active, error);
+      active = null;
+      for (const entry of queue.splice(0)) settle(entry, error);
+      if (!resolved) reject(error);
+    };
+    const pump = () => {
+      if (engine.cancelled || active || !queue.length) return;
+      if (!worker) { startWorker(); return; }
+      if (!workerReady) return;
+      active = queue.shift();
+      try { worker.postMessage({ ...active.payload, type: "generate", id: active.id }); } catch (error) {
+        const entry = active;
+        active = null;
+        settle(entry, error);
+        pump();
+      }
+    };
+    const engine = { device, cancelled: false, cancel, chat: ({ signal: requestSignal, ...payload }) => {
+      if (requestSignal?.aborted) return Promise.reject(abortError());
+      if (engine.cancelled) return Promise.reject(new Error("The local AI worker is unavailable."));
+      return new Promise((requestResolve, requestReject) => {
+        const entry = { id: ++sequence, payload, signal: requestSignal, resolve: requestResolve, reject: requestReject };
+        entry.abort = () => {
+          const wasActive = active === entry;
+          if (wasActive) {
+            active = null;
+            // Only this request has been sent to the pinned runtime. Stopping
+            // its worker really stops compute; queued consumers survive and
+            // resume on a fresh worker using the same integrity-locked loader.
+            retireWorker();
+          } else {
+            const index = queue.indexOf(entry);
+            if (index === -1) return;
+            queue.splice(index, 1);
+          }
+          settle(entry, abortError());
+          if (!queue.length && !active && !workerReady) cancel();
+          else pump();
+        };
+        queue.push(entry);
+        requestSignal?.addEventListener("abort", entry.abort, { once: true });
+        pump();
+      });
+    } };
+    const startWorker = () => {
+      let current;
+      try { current = new Worker(new URL("./wasm-worker.js", import.meta.url), { type: "module" }); } catch (error) { cancel(error); return; }
+      worker = current;
+      current.onmessage = (event) => {
+        if (engine.cancelled || worker !== current) return;
+        const message = event.data;
+        if (message.type === "progress") emitProgress({ ...message, device });
+        if (message.type === "error") { cancel(new Error(message.error || "The local AI model failed.")); return; }
+        if (message.type === "ready") {
+          workerReady = true;
+          signal?.removeEventListener("abort", cancel);
+          markModelReady(message.device === "webgpu" ? WEBGPU_MODEL_ID : WASM_MODEL_ID, device);
+          resolved = true;
+          resolve(engine);
+          pump();
+        }
+        if (message.type === "response" && active?.id === message.id) {
+          const entry = active;
+          active = null;
+          settle(entry, message.error ? new Error(message.error) : null, { choices: [{ message: { content: message.text } }] });
+          pump();
+        }
+      };
+      current.onerror = (event) => {
+        if (worker === current) cancel(new Error(event.message || "The local AI worker failed."));
+      };
+      try { current.postMessage({ type: "load", modelId: device === "webgpu" ? WEBGPU_MODEL_ID : WASM_MODEL_ID, device }); } catch (error) { cancel(error); }
     };
     signal?.addEventListener("abort", cancel, { once: true });
-    const request = (payload) => new Promise((requestResolve, requestReject) => {
-      if (cancelled) { requestReject(new Error("The local AI worker is unavailable.")); return; }
-      const id = ++sequence;
-      pending.set(id, { resolve: requestResolve, reject: requestReject });
-      try { worker.postMessage({ ...payload, id }); } catch (error) { pending.delete(id); requestReject(error); }
-    });
-    worker.onmessage = (event) => {
-      if (cancelled) return;
-      const message = event.data;
-      if (message.type === "progress") emitProgress({ ...message, device });
-      if (message.type === "error") {
-        cancel(new Error(message.error || "The local AI model failed."));
-        return;
-      }
-      if (message.type === "ready") {
-        ready = true;
-        signal?.removeEventListener("abort", cancel);
-        markModelReady(message.device === "webgpu" ? WEBGPU_MODEL_ID : WASM_MODEL_ID, device);
-        engine = { device, cancelled: false, cancel, chat: ({ signal: requestSignal, ...requestPayload }) => {
-          if (requestSignal?.aborted) return Promise.reject(abortError());
-          // Transformers generation does not offer reliable interruption in
-          // this pinned runtime; terminate the worker to stop compute, then
-          // the next caller transparently reloads the cached model.
-          requestSignal?.addEventListener("abort", cancel, { once: true });
-          return request({ ...requestPayload, type: "generate" }).finally(() => requestSignal?.removeEventListener("abort", cancel));
-        } };
-        resolve(engine);
-      }
-      if (message.type === "response") {
-        const entry = pending.get(message.id);
-        if (!entry) return;
-        pending.delete(message.id);
-        if (message.error) entry.reject(new Error(message.error));
-        else entry.resolve({ choices: [{ message: { content: message.text } }] });
-      }
-    };
-    worker.onerror = (event) => cancel(new Error(event.message || "The local AI worker failed."));
-    try { worker.postMessage({ type: "load", modelId: device === "webgpu" ? WEBGPU_MODEL_ID : WASM_MODEL_ID, device }); } catch (error) { cancel(error); }
+    startWorker();
   });
 }
