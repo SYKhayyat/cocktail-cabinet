@@ -287,6 +287,7 @@ export class ImitationModel {
     if (!clean || this.phase === "result") return null;
     if (this.side === "human" && !this.peerId) return null;
     if (this.side === "provide" && (!this.peerId || this.aiLocked || this.phase !== "provide-ready")) return null;
+    if (this.side === "provide") this.phase = "provide-sent";
     this.addMessage("You", clean);
     if (this.side === "ai") void this.askAi(clean);
     if (this.side === "guess") {

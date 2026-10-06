@@ -192,6 +192,7 @@ export class ImitationController {
     if (!this.canUseManualConnection()) throw new Error("Choose Human, Guess, or Provide before creating an invite.");
     if (typeof RTCPeerConnection === "undefined") throw new Error("This browser does not support WebRTC.");
     this.closeChannel();
+    this.model.dropPeer();
     this.closeManualPeer();
     this.manualActive = true;
     this.manualPeer = new RTCPeerConnection({ iceServers: ICE_SERVERS });
@@ -207,6 +208,7 @@ export class ImitationController {
     const signal = decodeSignal(text);
     if (signal.type !== "offer" || signal.mode !== expectedPeerMode(this.model.side) || signal.from === this.model.matchId) throw new Error("That invite is not for this Imitation mode.");
     this.closeChannel();
+    this.model.dropPeer();
     this.closeManualPeer();
     this.manualActive = true;
     this.manualRemoteId = signal.from;
@@ -247,7 +249,6 @@ export class ImitationController {
       this.model.notifyState();
       return null;
     }
-    if (clean && this.model.side === "provide") this.model.phase = "provide-sent";
     return clean;
   }
   update(dt) { this.model.update(dt); }

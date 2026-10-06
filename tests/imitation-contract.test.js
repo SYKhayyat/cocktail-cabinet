@@ -112,7 +112,24 @@ test("Provide refuses unavailable, waiting and AI-locked text without appending 
   model.aiLocked = true;
   assert.equal(model.sendMessage("locked"), null);
   assert.equal(model.chatLog.some(({ text }) => text === "locked"), false);
+  model.aiLocked = false;
+  assert.equal(model.sendMessage("one response"), "one response");
+  assert.equal(model.sendMessage("duplicate response"), null);
   model.destroy();
+});
+
+test("starting a manual invite releases the old BroadcastChannel pairing before opening", async (t) => {
+  const fixture = manualFixture(t);
+  const inviter = fixture.create("human");
+  const peer = fixture.create("human");
+  await flush();
+  assert.equal(inviter.model.peerId, peer.model.matchId);
+  await inviter.createManualInvite();
+  await flush();
+  assert.equal(inviter.model.peerId, null);
+  assert.equal(peer.model.peerId, null);
+  assert.equal(inviter.sendMessage("not connected yet"), null);
+  assert.equal(inviter.model.chatLog.some(({ sender }) => sender === "You"), false);
 });
 
 test("controller rejects and preserves Provide submissions and prevents duplicate replies", async (t) => {
