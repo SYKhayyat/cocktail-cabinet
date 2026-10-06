@@ -11,10 +11,11 @@ export function semanticState(game, engine) {
   const result = engine.lifecycle.resultState();
   const life = engine.lifecycle.lifeState();
   const lifeLabel = ["apples", "rocks", "stars"].includes(game.side) ? "Computer lives" : game.side === "builder" ? "Puzzle retries" : "Lives";
+  const lifeSummary = life.owner === "none" ? "No life budget in this mode" : life.players ? `Your lives ${life.players.human}; computer lives ${life.players.computer}` : `${lifeLabel} ${life.owner === "game" ? life.remaining : engine.lives} of ${engine.maxLives}`;
   const snapshot = {
     mode: `${game.title}: ${game.sideLabel()}`,
     objective: "", players: [], hazards: [], targets: [], actions: [],
-    outcome: `${result.ended ? result.heading : engine.ready ? "Ready — choose New game" : engine.paused ? "Paused — choose Continue" : "Round in progress"}. Score ${game.score}. ${life.players ? `Your lives ${life.players.human}; computer lives ${life.players.computer}` : `${lifeLabel} ${life.owner === "game" ? life.remaining : engine.lives} of ${engine.maxLives}`}. ${engine.assistanceOutcome || ""}`,
+    outcome: `${result.ended ? result.heading : engine.ready ? "Ready — choose New game" : engine.paused ? "Paused — choose Continue" : "Round in progress"}. Score ${game.score}. ${lifeSummary}. ${engine.assistanceOutcome || ""}`,
     coordinates: "Coordinates are pixels: x 0–800 from left to right; y 0–560 from top to bottom. Velocity is pixels per second. Time advances only after an action when assistance is enabled."
   };
   const wait = action("wait", "Advance without input");

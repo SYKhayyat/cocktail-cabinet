@@ -15,7 +15,8 @@ function host(Game, side) {
   game.setSide(side || game.side);
   const engine = Object.assign(Object.create(GameEngine.prototype), {
     game, lifecycle: game.lifecycle, assistance: true, assistanceOutcome: "", ready: false, paused: false, stopped: false,
-    maxLives: 3, pendingLives: 3, lives: 3, countdown: 0
+    maxLives: 3, pendingLives: 3, lives: 3, countdown: 0,
+    clearInput() {} // This rules-only host has no ambient keyboard/pointer state.
   });
   engine.startRound("restart");
   return engine;
@@ -34,7 +35,11 @@ for (const Game of [SnakeGame, BreakoutGame, SplatGame, AsteroidsGame, MissileCo
       assert.ok(state.objective.length > 30);
       assert.ok(state.players.length);
       assert.ok(state.actions.length > 1);
-      assert.match(state.outcome, /Score.*Lives|Score.*lives|Score.*Puzzle retries/);
+      assert.match(state.outcome, /Score.*Lives|Score.*lives|Score.*Puzzle retries|Score.*No life budget/);
+      if (catalogue.id === "missile") {
+        assert.match(state.outcome, /No life budget/);
+        assert.doesNotMatch(state.outcome, /Lives \d/);
+      }
       assert.match(perform(engine, "wait"), /performed/);
     });
   }

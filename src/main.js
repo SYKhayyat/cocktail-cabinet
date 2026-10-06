@@ -314,6 +314,9 @@ function loadGame(id) {
 
 const engine = new GameEngine(canvas, {
   onState: (state) => {
+    const usesLives = engine.lifecycle.lifeState().owner !== "none";
+    livesInput.closest("label").hidden = !usesLives;
+    lives.closest("div").hidden = !usesLives;
     renderControlHint(engine.game);
     title.textContent = state.title;
     description.textContent = state.description;
