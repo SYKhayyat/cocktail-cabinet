@@ -115,6 +115,7 @@ export class SplatModel {
     this.won = false;
     this.gameOver = false;
     this.winner = null;
+    this.versusTie = false;
     this.lifeLost = false;
     this.eventLog = [];
     this.nextColumnId = 1;
@@ -171,6 +172,9 @@ export class SplatModel {
     }
   }
   updateRace(dt, input) {
+    if (this.won || this.gameOver) return;
+    const previousHumanX = this.player.x;
+    const previousComputerX = this.computerPlayer.x;
     this.player.vy += GRAVITY * dt;
     this.applyPlayerInput(input);
     this.computerPlayer.vy += GRAVITY * dt;
@@ -181,12 +185,15 @@ export class SplatModel {
     this.computerPlayer.y = clamp(this.computerPlayer.y + this.computerPlayer.vy * dt, 18, 542);
     this.resolvePlayer(this.player, true);
     this.resolvePlayer(this.computerPlayer);
-    if (this.player.x >= this.columns.at(-1).x + 100) {
+    const finishX = this.columns.at(-1).x + 100;
+    const crossingTime = (player, previousX, speed) => player.x >= finishX && !this.lostPlayers.includes(player)
+      ? Math.max(0, (finishX - previousX) / speed) : Infinity;
+    const humanTime = crossingTime(this.player, previousHumanX, HORIZONTAL_SPEED);
+    const computerTime = crossingTime(this.computerPlayer, previousComputerX, this.aiTuning.horizontalSpeed);
+    if (Number.isFinite(humanTime) || Number.isFinite(computerTime)) {
       this.won = true;
-      this.winner = "human";
-    } else if (this.computerPlayer.x >= this.columns.at(-1).x + 100) {
-      this.won = true;
-      this.winner = "computer";
+      this.versusTie = Number.isFinite(humanTime) && Number.isFinite(computerTime) && Math.abs(humanTime - computerTime) < 1e-9;
+      this.winner = this.versusTie ? null : humanTime < computerTime ? "human" : "computer";
     }
   }
   handleBuilderInput(input) { this.updateBuilderInput(input); }
@@ -445,6 +452,11 @@ export class SplatModel {
     const eliminated = owners.find((owner) => this.raceLives[owner] === 0);
     if (eliminated) {
       this.gameOver = true;
+      if (this.raceLives.human === 0 && this.raceLives.computer === 0) {
+        this.versusTie = true;
+        this.winner = null;
+        return { gameOver: true, message: "Race tie — both balls lost their final life." };
+      }
       this.winner = eliminated === "human" ? "computer" : "human";
       return { gameOver: true, message: `${eliminated === "human" ? "You" : "Computer"} lost all lives.` };
     }
@@ -479,6 +491,7 @@ export class SplatModel {
   }
   publicState() {
     const status = this.side === "race" ? "Race the computer; the first ball to finish wins." : this.side === "builder" ? `Design a route the computer can clear: every column needs a reachable gap. Route: ${this.columns?.length || 0}/${SPLAT_MAX_COLUMNS} columns.${this.routeLimitReached ? " Route limit reached — remove a column before adding another." : ""}` : "Clear the gaps to score; reach the far right to win.";
-    return { title: this.title, description: this.description, side: this.sideLabel(), status };
+    const raceStatus = this.versusTie ? "Race tie — both balls finished together or lost their final life together." : this.winner ? `${this.winner === "human" ? "You win" : "Computer wins"} the race.` : "Race the computer; the first ball to finish wins. Simultaneous finishers tie.";
+    return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "race" ? raceStatus : status };
   }
 }

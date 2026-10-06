@@ -26,6 +26,7 @@ export class SplatGame {
   get won() { return this.model.won; }
   set won(value) { this.model.won = value; }
   get winner() { return this.model.winner; }
+  get versusTie() { return this.model.versusTie; }
   get gameOver() { return this.model.gameOver; }
   // Only Race has two owners. Builder keeps an internal retry budget for the
   // puzzle, but it is not a second pilot and must use the engine's single-owner
@@ -70,7 +71,7 @@ export class SplatGame {
     return this.model.puzzleResult === "solved" ? "SOLVED" : this.model.puzzleResult === "unsolved" ? "UNSOLVED" : null;
   }
   winMessage() {
-    if (this.model.side === "race") return this.model.winner === "computer" ? "Computer wins the race!" : "You win the race!";
+    if (this.model.side === "race") return this.model.versusTie ? "Race tie — both balls finished together." : this.model.winner === "computer" ? "Computer wins the race!" : "You win the race!";
     return this.model.puzzleResult === "solved" ? "Solved — your route works." : "Solved";
   }
   sideLabel() { return this.model.sideLabel(); }
