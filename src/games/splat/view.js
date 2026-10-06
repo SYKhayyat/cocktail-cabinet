@@ -1,4 +1,4 @@
-import { drawText } from "../../rendering.js";
+import { CANVAS_PALETTE, drawText } from "../../rendering.js";
 import { SPLAT_MAX_COLUMNS } from "./model.js";
 
 function drawColumns(context, model, cameraX, offset, width) {
@@ -35,7 +35,7 @@ function drawDraftGap(context, model, cameraX, offset) {
 }
 
 export function draw(model, context) {
-  context.fillStyle = "#080d18";
+  context.fillStyle = CANVAS_PALETTE.background;
   context.fillRect(0, 0, 800, 560);
   if (model.side === "race") {
     const distance = Math.abs(model.player.x - model.computerPlayer.x);
@@ -46,29 +46,29 @@ export function draw(model, context) {
       drawPlayer(context, model.computerPlayer, model.computerPlayer.x - 110, 402, "#fb7185");
       context.fillStyle = "#f8fafc";
       context.fillRect(399, 0, 2, 560);
-      drawText(context, "YOU", 24, 28, 14, "#fbbf24");
-      drawText(context, "COMPUTER", 426, 28, 14, "#fb7185");
+      drawText(context, "YOU", 24, 28, 14, CANVAS_PALETTE.warning);
+      drawText(context, "COMPUTER", 426, 28, 14, CANVAS_PALETTE.human);
     } else {
       const cameraX = Math.max(0, Math.min(model.player.x, model.computerPlayer.x) - 110);
       drawColumns(context, model, cameraX, 0, 800);
       drawPlayer(context, model.player, cameraX, 0, "#fbbf24");
       drawPlayer(context, model.computerPlayer, cameraX, 0, "#fb7185");
-      drawText(context, "YOU", 16, 28, 14, "#fbbf24");
-      drawText(context, "COMPUTER", 112, 28, 14, "#fb7185");
+      drawText(context, "YOU", 16, 28, 14, CANVAS_PALETTE.warning);
+      drawText(context, "COMPUTER", 112, 28, 14, CANVAS_PALETTE.human);
     }
-    drawText(context, `You: ${model.player.columnsPassed} columns · Lives ${model.raceLives.human}    Computer: ${model.computerPlayer.columnsPassed} columns · Lives ${model.raceLives.computer}`, 16, 542, 12, "#64748b");
+    drawText(context, `You: ${model.player.columnsPassed} columns · Lives ${model.raceLives.human}    Computer: ${model.computerPlayer.columnsPassed} columns · Lives ${model.raceLives.computer}`, 16, 542, 12, CANVAS_PALETTE.muted);
   } else {
     drawColumns(context, model, model.cameraX, 0, 800);
     drawDraftGap(context, model, model.cameraX, 0);
     drawPlayer(context, model.player, model.cameraX, 0, model.side === "climber" ? "#fbbf24" : "#fb7185");
     if (model.side === "builder") {
-      drawText(context, `Builder: ${model.tool === "gap" ? "draw a gap" : "add/move columns"} · drag empty canvas to pan`, 16, 28, 14, "#cbd5e1");
-      drawText(context, "←→ select · A/D move · ↑↓ gap · Q/E size · C/G tool · N add · Delete remove · PgUp/PgDn pan", 16, 48, 12, "#cbd5e1");
-      if (model.routeLimitReached) drawText(context, `Route limit reached (${SPLAT_MAX_COLUMNS}) — Delete removes the selected column`, 16, 68, 12, "#fbbf24");
+      drawText(context, `Builder: ${model.tool === "gap" ? "draw a gap" : "add/move columns"} · drag empty canvas to pan`, 16, 28, 14, CANVAS_PALETTE.secondary);
+      drawText(context, "←→ select · A/D move · ↑↓ gap · Q/E size · C/G tool · N add · Delete remove · PgUp/PgDn pan", 16, 48, 12, CANVAS_PALETTE.secondary);
+      if (model.routeLimitReached) drawText(context, `Route limit reached (${SPLAT_MAX_COLUMNS}) — Delete removes the selected column`, 16, 68, 12, CANVAS_PALETTE.warning);
     } else {
-      drawText(context, "Hold Up/Down to drift · tap/click the upper/lower half to bounce", 16, 28, 14, "#cbd5e1");
+      drawText(context, "Hold Up/Down to drift · tap/click the upper/lower half to bounce", 16, 28, 14, CANVAS_PALETTE.secondary);
     }
-    drawText(context, model.side === "builder" ? `Route: ${model.columns.length}/${SPLAT_MAX_COLUMNS} columns` : `Furthest: ${model.furthestColumns} columns`, 400, 516, 14, "#22d3ee", "center");
-    drawText(context, `Score: ${model.score} · reach the far right to win`, 16, 542, 12, "#64748b");
+    drawText(context, model.side === "builder" ? `Route: ${model.columns.length}/${SPLAT_MAX_COLUMNS} columns` : `Furthest: ${model.furthestColumns} columns`, 400, 516, 14, CANVAS_PALETTE.accent, "center");
+    drawText(context, `Score: ${model.score} · reach the far right to win`, 16, 542, 12, CANVAS_PALETTE.muted);
   }
 }

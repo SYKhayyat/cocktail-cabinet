@@ -1,4 +1,4 @@
-import { drawText } from "./rendering.js";
+import { beginCanvasTextFrame, CANVAS_PALETTE, drawText, endCanvasTextFrame } from "./rendering.js";
 import { createGameLifecycle } from "./game-lifecycle.js";
 
 // Compatibility for existing consumers; models and views import their own layer.
@@ -348,6 +348,7 @@ export class GameEngine {
     }
     if (!this.assistance && this.ready) this.game.handleReadyInput?.(this.input);
     else if (!this.assistance && this.paused) this.game.handlePausedInput?.(this.input);
+    beginCanvasTextFrame(this.context);
     this.game.draw(this.context);
     if (this.ready || this.countdown > 0 || this.stopped) {
       this.context.fillStyle = "#111827ee";
@@ -361,10 +362,11 @@ export class GameEngine {
       const heading = this.ready ? "READY" : this.countdown > 0 ? "GET READY" : result.ended ? result.heading : "PAUSED";
       const instruction = this.ready ? "Press New game to start" : this.countdown > 0 ? `Starting in ${Math.ceil(this.countdown)}…` : result.ended ? result.instruction : "Press Continue to resume";
       const lifeText = life.players ? `You: ${life.players.human}    Computer: ${life.players.computer}` : `Lives: ${life.owner === "game" ? life.remaining : this.lives}/${this.maxLives}`;
-      drawText(this.context, heading, 400, 275, 24, "#fbbf24", "center");
-      drawText(this.context, `Score: ${this.game.score}    ${lifeText}`, 400, 310, 16, "#f8fafc", "center");
-      drawText(this.context, instruction, 400, 340, 14, "#cbd5e1", "center");
+      drawText(this.context, heading, 400, 275, 24, CANVAS_PALETTE.warning, "center");
+      drawText(this.context, `Score: ${this.game.score}    ${lifeText}`, 400, 310, 16, CANVAS_PALETTE.text, "center");
+      drawText(this.context, instruction, 400, 340, 14, CANVAS_PALETTE.secondary, "center");
     }
+    endCanvasTextFrame(this.context);
     this.input.pressed.clear();
     this.clearTransientPointer();
     this.onState?.(this.game.publicState());
