@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { SplatGame } from "../src/games/splat/index.js";
+import { SPLAT_MAX_COLUMNS } from "../src/games/splat/model.js";
+import { draw } from "../src/games/splat/view.js";
 
 const pointer = (values) => ({ x: 0, y: 0, down: false, released: false, dragDistance: 0, ...values });
 function builder() {
@@ -134,4 +136,53 @@ test("#69: running keyboard edits use the same path and keep gaps bounded", () =
   solo.reset();
   assert.ok(!solo.controlHint().some(({ label }) => label.includes("column")));
   assert.ok(game.controlHint().some(({ label }) => label === "select column"));
+});
+
+test("#75: route cap rejects repeated pointer/keyboard additions without consuming IDs", () => {
+  const game = builder();
+  const model = game.model;
+  while (model.columns.length < SPLAT_MAX_COLUMNS) model.addColumn(model.columns.at(-1).x + 130);
+  const nextId = model.nextColumnId;
+  const route = structuredClone(model.columns);
+  for (let index = 0; index < 10000; index += 1) assert.equal(model.addColumn(500), null);
+  game.handleReadyInput({ pointer: pointer({ x: 500, y: 280, released: true }) });
+  game.handleReadyInput({ pressed: new Set(["n"]) });
+  assert.deepEqual(model.columns, route);
+  assert.equal(model.nextColumnId, nextId);
+  assert.match(game.publicState().status, /256\/256.*Route limit reached/);
+  game.handleReadyInput({ pressed: new Set(["Delete"]) });
+  assert.equal(model.routeLimitReached, false);
+  game.handleReadyInput({ pressed: new Set(["n"]) });
+  assert.equal(model.columns.length, SPLAT_MAX_COLUMNS);
+  assert.equal(model.nextColumnId, nextId + 1);
+});
+
+test("#75: maximum route hit-testing and steady-state updates stay bounded", (t) => {
+  const game = builder();
+  const model = game.model;
+  while (model.columns.length < SPLAT_MAX_COLUMNS) model.addColumn(model.columns.at(-1).x + 130);
+  let reads = 0;
+  model.columns = model.columns.map((column) => new Proxy(column, {
+    get(target, key) { reads += 1; return target[key]; }
+  }));
+  const lastX = model.columns.at(-1).x;
+  reads = 0;
+  assert.equal(model.columnAt(lastX).x, lastX);
+  assert.ok(reads < 20, `binary hit-test used ${reads} property reads`);
+  model.player.x = lastX - 120;
+  model.player.y = model.columns.at(-1).gapY + 56;
+  reads = 0;
+  game.update(0, { keys: new Set(), pressed: new Set() });
+  assert.ok(reads <= SPLAT_MAX_COLUMNS * 8, `update used ${reads} reads at the cap`);
+  const start = performance.now();
+  for (let index = 0; index < 2000; index += 1) game.update(0, { keys: new Set(), pressed: new Set() });
+  const elapsed = performance.now() - start;
+  t.diagnostic(`256-column update average: ${(elapsed / 2000).toFixed(3)}ms (proxy-instrumented)`);
+  assert.ok(elapsed < 4000, `2000 capped updates took ${elapsed.toFixed(1)}ms`);
+  let rectangles = 0;
+  const text = [];
+  const context = { fillRect() { rectangles += 1; }, strokeRect() {}, beginPath() {}, arc() {}, fill() {}, fillText(value) { text.push(value); }, save() {}, restore() {} };
+  draw(model, context);
+  assert.ok(rectangles < 30, `only visible columns should render, got ${rectangles} rectangles`);
+  assert.ok(text.includes(`Route: ${SPLAT_MAX_COLUMNS}/${SPLAT_MAX_COLUMNS} columns`));
 });

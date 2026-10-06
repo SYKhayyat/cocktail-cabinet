@@ -3,6 +3,8 @@ import { recordDecision } from "../../decisions.js";
 
 const COLUMN_WIDTH = 30;
 const COLUMN_COUNT = 50;
+// Supported editor workload: finite routes, with no unbounded pointer/key growth.
+export const SPLAT_MAX_COLUMNS = 256;
 const DEFAULT_COLUMN_SPACING = 130;
 const GAP_HEIGHT = 112;
 const HORIZONTAL_SPEED = 120;
@@ -51,6 +53,8 @@ export class SplatModel {
     this.gameOver = false;
     this.eventLog = [];
     this.nextColumnId = 1;
+    this.layoutAuthored = false;
+    this.routeLimitReached = false;
   }
   get modes() { return SPLAT_MODES; }
   get sides() { return SPLAT_MODES.map((mode) => mode.value); }
@@ -114,6 +118,7 @@ export class SplatModel {
     this.lifeLost = false;
     this.eventLog = [];
     this.nextColumnId = 1;
+    this.routeLimitReached = false;
     // Builder is a puzzle, so it reports an outcome rather than a winner. The
     // old copy called it a win for the human while the mode label said the
     // computer navigates, which left the objective ambiguous.
@@ -193,7 +198,7 @@ export class SplatModel {
     else if (column.x + column.width > this.builderCameraX + 740) this.panBuilder(column.x + column.width - 740);
   }
   updateBuilderKeyboard(actions) {
-    if (!actions) return;
+    if (!actions || !Object.values(actions).some(Boolean)) return;
     if (actions.tool) this.setTool(actions.tool);
     if (actions.pan) this.panBuilder(this.builderCameraX + actions.pan);
     let column = this.selectedColumn;
@@ -215,6 +220,7 @@ export class SplatModel {
     if (actions.remove && this.columns.length > 1) {
       const index = this.columns.indexOf(column);
       this.columns.splice(index, 1);
+      this.routeLimitReached = false;
       this.selectedColumnId = this.columns[Math.min(index, this.columns.length - 1)].id;
       this.layoutAuthored = true;
       this.nextColumn = this.columns.find((candidate) => !candidate.passed) || null;
@@ -223,7 +229,7 @@ export class SplatModel {
     }
     if (actions.move) {
       column.x = clamp(column.x + actions.move, this.player.x + 60, this.columns.at(-1).x + 300);
-      this.columns.sort((a, b) => a.x - b.x);
+      this.reorderColumn(column);
       this.layoutAuthored = true;
       this.revealColumn(column);
     }
@@ -275,7 +281,7 @@ export class SplatModel {
       const x = clamp(this.builderCameraX + pointer.x - this.dragOffsetX, this.player.x + 60, this.columns.at(-1).x + 300);
       if (x !== gesture.column.x) {
         gesture.column.x = x;
-        this.columns.sort((a, b) => a.x - b.x);
+        this.reorderColumn(gesture.column);
         this.layoutAuthored = true;
       }
     } else if (gesture.kind === "gap") this.draftGap.currentY = pointer.y;
@@ -289,15 +295,36 @@ export class SplatModel {
     if (pointer.released) this.clearBuilderGesture();
   }
   columnAt(x, maxDistance = 50) {
-    const closest = this.columns.reduce((current, column) => !current || Math.abs(column.x - x) < Math.abs(current.x - x) ? column : current, null);
+    const index = this.columnInsertionIndex(x);
+    const left = this.columns[index - 1];
+    const right = this.columns[index];
+    const closest = !left ? right : !right || Math.abs(left.x - x) <= Math.abs(right.x - x) ? left : right;
     return closest && Math.abs(closest.x - x) <= maxDistance ? closest : null;
   }
+  columnInsertionIndex(x) {
+    let low = 0;
+    let high = this.columns.length;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (this.columns[middle].x < x) low = middle + 1;
+      else high = middle;
+    }
+    return low;
+  }
+  reorderColumn(column) {
+    this.columns.splice(this.columns.indexOf(column), 1);
+    this.columns.splice(this.columnInsertionIndex(column.x), 0, column);
+    this.nextColumn = this.columns.find((candidate) => !candidate.passed) || null;
+  }
   addColumn(x, gapY = 280) {
+    if (this.columns.length >= SPLAT_MAX_COLUMNS) {
+      this.routeLimitReached = true;
+      return null;
+    }
     const minimumX = this.player.x + 60;
     const column = { id: this.nextColumnId++, x: clamp(x, minimumX, this.columns.at(-1).x + 300), y: 0, width: COLUMN_WIDTH, height: 560, gapY: clamp(gapY, 60, 420), gapHeight: GAP_HEIGHT, passed: false };
-    this.columns.push(column);
+    this.columns.splice(this.columnInsertionIndex(column.x), 0, column);
     this.layoutAuthored = true;
-    this.columns.sort((a, b) => a.x - b.x);
     this.selectedColumnId = column.id;
     if (!this.nextColumn) this.nextColumn = column;
     return column;
@@ -451,7 +478,7 @@ export class SplatModel {
     this.lifeLost = false;
   }
   publicState() {
-    const status = this.side === "race" ? "Race the computer; the first ball to finish wins." : this.side === "builder" ? "Design a route the computer can clear: every column needs a gap it can reach." : "Clear the gaps to score; reach the far right to win.";
+    const status = this.side === "race" ? "Race the computer; the first ball to finish wins." : this.side === "builder" ? `Design a route the computer can clear: every column needs a reachable gap. Route: ${this.columns?.length || 0}/${SPLAT_MAX_COLUMNS} columns.${this.routeLimitReached ? " Route limit reached — remove a column before adding another." : ""}` : "Clear the gaps to score; reach the far right to win.";
     return { title: this.title, description: this.description, side: this.sideLabel(), status };
   }
 }

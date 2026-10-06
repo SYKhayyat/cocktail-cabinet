@@ -1,9 +1,11 @@
 import { drawText } from "../../rendering.js";
+import { SPLAT_MAX_COLUMNS } from "./model.js";
 
 function drawColumns(context, model, cameraX, offset, width) {
-  model.columns.forEach((column) => {
+  for (const column of model.columns) {
     const x = offset + column.x - cameraX;
-    if (x + column.width < offset || x > offset + width) return;
+    if (x + column.width < offset) continue;
+    if (x > offset + width) break;
     context.fillStyle = column.passed ? "#1e293b" : "#475569";
     context.fillRect(x, column.y, column.width, column.gapY);
     context.fillRect(x, column.gapY + column.gapHeight, column.width, column.height - column.gapY - column.gapHeight);
@@ -12,7 +14,7 @@ function drawColumns(context, model, cameraX, offset, width) {
       context.lineWidth = 2;
       context.strokeRect(x - 2, column.gapY - 2, column.width + 4, column.gapHeight + 4);
     }
-  });
+  }
 }
 
 function drawPlayer(context, player, cameraX, offset, color) {
@@ -62,10 +64,11 @@ export function draw(model, context) {
     if (model.side === "builder") {
       drawText(context, `Builder: ${model.tool === "gap" ? "draw a gap" : "add/move columns"} · drag empty canvas to pan`, 16, 28, 14, "#cbd5e1");
       drawText(context, "←→ select · A/D move · ↑↓ gap · Q/E size · C/G tool · N add · Delete remove · PgUp/PgDn pan", 16, 48, 12, "#cbd5e1");
+      if (model.routeLimitReached) drawText(context, `Route limit reached (${SPLAT_MAX_COLUMNS}) — Delete removes the selected column`, 16, 68, 12, "#fbbf24");
     } else {
       drawText(context, "Hold Up/Down to drift · tap/click the upper/lower half to bounce", 16, 28, 14, "#cbd5e1");
     }
-    drawText(context, `Furthest: ${model.furthestColumns} columns`, 400, 516, 14, "#22d3ee", "center");
+    drawText(context, model.side === "builder" ? `Route: ${model.columns.length}/${SPLAT_MAX_COLUMNS} columns` : `Furthest: ${model.furthestColumns} columns`, 400, 516, 14, "#22d3ee", "center");
     drawText(context, `Score: ${model.score} · reach the far right to win`, 16, 542, 12, "#64748b");
   }
 }
