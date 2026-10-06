@@ -24,6 +24,7 @@ export class AsteroidsGame {
   get won() { return this.model.won; }
   set won(value) { this.model.won = value; }
   get winner() { return this.model.winner; }
+  get versusTie() { return this.model.versusTie; }
   get gameOver() { return this.model.gameOver; }
   set gameOver(value) { this.model.gameOver = value; }
   get lifeLost() { return this.model.lifeLost; }
@@ -41,7 +42,7 @@ export class AsteroidsGame {
   update(dt, input) { this.controller.update(dt, input); }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }
-  winMessage() { return this.model.winner === "computer" ? "Computer wins the space duel!" : "You win the space duel!"; }
+  winMessage() { return this.model.versusTie ? "Space duel tie — both pilots are out of lives." : this.model.winner === "computer" ? "Computer wins the space duel!" : "You win the space duel!"; }
   sideLabel() { return this.model.sideLabel(); }
 }
 

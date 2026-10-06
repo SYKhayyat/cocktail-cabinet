@@ -108,6 +108,7 @@ export class AsteroidsModel {
     this.won = false;
     this.gameOver = false;
     this.winner = null;
+    this.versusTie = false;
     this.lifeLost = false;
     this.draggedAsteroid = null;
     this.dragVelocityX = 0;
@@ -432,6 +433,11 @@ export class AsteroidsModel {
     if (this.playerLives.human <= 0 || this.playerLives.computer <= 0) {
       this.gameOver = true;
       this.won = true;
+      if (this.playerLives.human <= 0 && this.playerLives.computer <= 0) {
+        this.versusTie = true;
+        this.winner = null;
+        return { gameOver: true, message: "Space duel tie — both pilots are out of lives." };
+      }
       this.winner = this.playerLives.human <= 0 ? "computer" : "human";
       return { gameOver: true, message: `${this.winner === "human" ? "You win" : "Computer wins"} the space duel!` };
     }
