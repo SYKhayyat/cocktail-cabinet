@@ -45,10 +45,10 @@ async function waitFor(page, expression) {
 async function openPage(browser, mode, contextId) {
   if (!contextId) {
     ({ browserContextId: contextId } = await browser.command("Target.createBrowserContext", { disposeOnDetach: true }));
-    contexts.push(contextId);
+    contexts.push({ browser, contextId });
   }
   const { targetId } = await browser.command("Target.createTarget", { url: "about:blank", browserContextId: contextId });
-  const targets = await (await fetch(`${endpoint}/json/list`)).json();
+  const targets = await (await fetch(`${browser.endpoint}/json/list`)).json();
   const page = new Cdp(targets.find(({ id }) => id === targetId).webSocketDebuggerUrl);
   await page.open();
   pages.push(page);
@@ -81,7 +81,7 @@ async function manualPair(browser, firstMode, secondMode) {
   // Different browser contexts have separate BroadcastChannel partitions. All
   // gameplay below therefore crosses real RTCDataChannels rather than a stub.
   const { page: first } = await openPage(browser, firstMode);
-  const { page: second } = await openPage(browser, secondMode);
+  const { page: second } = await openPage(partnerBrowser || browser, secondMode);
   assert.equal(await first.evaluate(`${game}.model.peerId`), null);
   const invite = await first.evaluate(`${game}.createManualInvite()`);
   const answer = await second.evaluate(`${game}.acceptManualInvite(${JSON.stringify(invite)})`);
@@ -92,7 +92,17 @@ async function manualPair(browser, firstMode, secondMode) {
 const version = await (await fetch(`${endpoint}/json/version`)).json();
 assert.doesNotMatch(version["User-Agent"] || "", /Electron|omnirush/i, "use a dedicated browser, not the desktop app");
 const browser = new Cdp(version.webSocketDebuggerUrl);
+browser.endpoint = endpoint;
 await browser.open();
+let partnerBrowser = null;
+if (process.env.CDP_PEER_URL) {
+  const peerVersion = await (await fetch(`${process.env.CDP_PEER_URL}/json/version`)).json();
+  assert.doesNotMatch(peerVersion["User-Agent"] || "", /Electron|omnirush/i);
+  assert.notEqual(peerVersion.webSocketDebuggerUrl, version.webSocketDebuggerUrl, "peer must be a separate browser process");
+  partnerBrowser = new Cdp(peerVersion.webSocketDebuggerUrl);
+  partnerBrowser.endpoint = process.env.CDP_PEER_URL;
+  await partnerBrowser.open();
+}
 try {
   const [left, right] = await manualPair(browser, "human", "human");
   assert.equal((await submit(left, "Hello 👋 שלום")).input, "");
@@ -100,7 +110,7 @@ try {
   await left.evaluate("dispatchEvent(new Event('pagehide')); true");
   await waitFor(right, `!${game}.model.peerId`);
   assert.equal((await submit(right, "keep disconnected chat")).input, "keep disconnected chat");
-  console.log("PASS real manual Human chat and disconnect");
+  console.log(`PASS real manual Human chat and disconnect (${partnerBrowser ? "separate browser processes" : "isolated contexts"})`);
 
   for (const firstMode of ["guess", "provide"]) {
     const [first, second] = await manualPair(browser, firstMode, firstMode === "guess" ? "provide" : "guess");
@@ -162,7 +172,8 @@ try {
   assert.deepEqual(retired, { aborted: true, disposed: true, revisionUnchanged: true, lateReply: false });
   console.log("PASS real shell game switch aborts AI and ignores late provider replies");
 } finally {
-  for (const contextId of contexts) await browser.command("Target.disposeBrowserContext", { browserContextId: contextId });
+  for (const { browser: owner, contextId } of contexts) await owner.command("Target.disposeBrowserContext", { browserContextId: contextId });
   pages.forEach(page => page.close());
   browser.close();
+  partnerBrowser?.close();
 }
