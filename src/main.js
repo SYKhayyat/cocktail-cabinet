@@ -26,6 +26,7 @@ const description = document.querySelector("#gameDescription");
 const score = document.querySelector("#score");
 const lives = document.querySelector("#lives");
 const livesInput = document.querySelector("#livesInput");
+let displayedPendingLives = Number(livesInput.value);
 const status = document.querySelector("#roundStatus");
 const message = document.querySelector("#message");
 const sideSelect = document.querySelector("#sideSelect");
@@ -331,7 +332,13 @@ const engine = new GameEngine(canvas, {
     }
   },
   onScore: (value) => { score.textContent = value; },
-  onLives: (value, maximum) => { lives.textContent = `${value}/${maximum}`; },
+  onLives: (value, maximum) => {
+    lives.textContent = `${value}/${maximum}`;
+    if (displayedPendingLives !== engine.pendingLives) {
+      displayedPendingLives = engine.pendingLives;
+      if (document.activeElement !== livesInput) livesInput.value = engine.pendingLives;
+    }
+  },
   onMessage: (value) => {
     message.textContent = value;
     // Lifecycle callbacks and the following frame describe the same transition.
@@ -365,7 +372,13 @@ splatAddGap.addEventListener("click", () => { games.get("splat").setTool("gap");
 restartButton.addEventListener("click", () => { engine.restart(); nonvisual.refresh(); });
 pauseButton.addEventListener("click", () => { engine.pauseGame(); nonvisual.refresh(); });
 continueButton.addEventListener("click", () => { engine.continueGame(); nonvisual.refresh(); });
-livesInput.addEventListener("change", () => { engine.setLives(livesInput.value); nonvisual.refresh(); });
+livesInput.addEventListener("change", () => {
+  engine.setLives(livesInput.value);
+  displayedPendingLives = engine.pendingLives;
+  livesInput.value = engine.pendingLives;
+  nonvisual.refresh();
+});
+livesInput.addEventListener("blur", () => { livesInput.value = engine.pendingLives; });
 downloadModelButton.addEventListener("click", () => engine.game.downloadModel?.());
 guessRestart.addEventListener("click", () => {
   if (activeId === "imitation") engine.game.restartGuess?.();

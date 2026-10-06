@@ -59,6 +59,25 @@ function play(engine) {
 
 function step(engine) { engine.frame(engine.lastTime + 16); }
 
+test("earned lives preserve a higher Lives setting already queued for the next game", () => {
+  withHost(({ engine }) => {
+    for (const side of ["bottom", "versus"]) {
+      engine.setLives(3);
+      const game = new BreakoutGame();
+      game.setSide(side);
+      engine.load(game);
+      play(engine);
+      engine.setLives(8);
+      game.model.hitBrick(game.model.balls[0], { type: "extraLife", active: true });
+      step(engine);
+      assert.equal(engine.maxLives, 4, "only the earned increase applies to this round");
+      assert.equal(engine.pendingLives, 8, "earning a life must not silently discard a saved setting");
+      engine.restart();
+      assert.equal(engine.maxLives, 8);
+    }
+  });
+});
+
 test("life-free modes also omit fictitious lives from the canvas overlay", () => {
   withHost(({ engine, text }) => {
     engine.load(new MissileCommandGame());

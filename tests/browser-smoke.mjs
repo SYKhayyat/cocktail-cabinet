@@ -580,6 +580,37 @@ async function testLivesSetting(page) {
   assertMatch(report["1"].message, /lowered straight away/, "lowering lives applies immediately");
   assertEqual(report.afterLower.display, "1/1", "the display never shows more lives than the maximum");
   assertEqual(report.afterRestart.maxLives, 1, "a lowered value persists into the next game");
+  await selectMode(page, 1, 'bottom');
+  const rewards = await page.evaluate(`(() => {
+    const engine = __cocktailCabinet.engine;
+    const input = document.querySelector('#livesInput');
+    const set = value => { input.value = value; input.dispatchEvent(new Event('change', { bubbles: true })); };
+    const award = () => { engine.game.model.hitBrick(engine.game.model.balls[0], { type: 'extraLife', active: true }); globalThis.__tick(1); };
+    set(3);
+    engine.restart();
+    engine.countdown = 0;
+    award();
+    const earned = input.value;
+    set(99);
+    const normalized = input.value;
+    set(8);
+    award();
+    const queued = { value: input.value, cap: engine.maxLives, pending: engine.pendingLives };
+    input.focus();
+    input.value = 7;
+    award();
+    const draft = input.value;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.blur();
+    return { earned, normalized, queued, draft, chosen: engine.pendingLives, cap: engine.maxLives };
+  })()`);
+  assertEqual(rewards.earned, '4', 'earned configuration changes are reflected in the Lives control');
+  assertEqual(rewards.normalized, '9', 'out-of-range settings are visibly normalized');
+  assertEqual(rewards.queued.pending, 8, 'earned lives preserve a higher saved budget');
+  assertEqual(rewards.queued.value, '8', 'the control shows the saved next-game budget');
+  assertEqual(rewards.draft, '7', 'life callbacks do not erase a focused input draft');
+  assertEqual(rewards.chosen, 7, 'the committed draft becomes the next-game budget');
+  assertEqual(rewards.cap, 6, 'saving a raised value does not grant a free life');
 }
 
 async function testPauseDuringCountdown(page, step) {

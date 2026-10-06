@@ -264,7 +264,7 @@ export class GameEngine {
     this.maxLives = Math.min(MAX_LIVES, this.maxLives + 1);
     const life = this.lifecycle?.lifeState();
     this.lives = life?.owner === "game" ? life.remaining : Math.min(this.maxLives, this.lives + 1);
-    this.pendingLives = this.maxLives;
+    this.pendingLives = Math.max(this.pendingLives, this.maxLives);
     this.onLives?.(this.lives, this.maxLives);
   }
 
