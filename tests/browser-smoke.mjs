@@ -965,6 +965,17 @@ async function testSplatNativeEditor(page, step) {
   await press('PageDown', 'PageDown', 34);
   assertEqual(await page.evaluate('window.scrollY'), scroll, 'editor pan key does not scroll the document');
   assertEqual(await page.evaluate('__cocktailCabinet.engine.game.model.builderCameraX'), 400, 'keyboard pans route');
+  const routeBeforeWheel = await page.evaluate('JSON.stringify(__cocktailCabinet.engine.game.model.columns)');
+  const wheelScrollBefore = await page.evaluate('window.scrollY');
+  await page.evaluate(`(() => {
+    const canvas = document.querySelector('#gameCanvas');
+    const r = canvas.getBoundingClientRect();
+    canvas.dispatchEvent(new WheelEvent('wheel', { deltaY: 180, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, cancelable: true }));
+  })()`);
+  await step(1);
+  assertEqual(await page.evaluate('__cocktailCabinet.engine.game.model.builderCameraX'), 580, 'the advertised wheel pans the route');
+  assertEqual(await page.evaluate('JSON.stringify(__cocktailCabinet.engine.game.model.columns) === ' + JSON.stringify(routeBeforeWheel)), true, 'wheel panning cannot author or edit a column');
+  assertEqual(await page.evaluate('window.scrollY'), wheelScrollBefore, 'wheel panning does not scroll the document');
   await page.evaluate(`(() => {
     __cocktailCabinet.engine.game.model.panBuilder(0);
     document.querySelector('#gameCanvas').scrollIntoView({ block: 'center' });

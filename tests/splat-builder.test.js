@@ -74,6 +74,25 @@ test("#67: empty-canvas panning is bounded and never authors a column or gap", (
   }
 });
 
+test("#67: advertised wheel panning moves the camera and never authors or edits a column", () => {
+  const game = builder();
+  const route = structuredClone(game.model.columns);
+  game.handleReadyInput({ pointer: pointer({ x: 400, y: 400 }), scrollDeltaX: 240 });
+  assert.equal(game.model.cameraX, 240);
+  assert.deepEqual(game.model.columns, route, "wheel panning must not add, resize or move a column");
+  assert.equal(game.model.layoutAuthored, false, "wheel panning must not mark the route authored");
+  // The advertised pan is clamped at both ends like every other pan input.
+  game.handleReadyInput({ pointer: pointer({ x: 400, y: 400 }), scrollDeltaX: 1e9 });
+  assert.equal(game.model.cameraX, game.model.builderCameraLimit());
+  game.handleReadyInput({ pointer: pointer({ x: 400, y: 400 }), scrollDeltaX: -1e9 });
+  assert.equal(game.model.cameraX, 0);
+  // Panning also works while paused and while the round is running.
+  game.handlePausedInput({ pointer: pointer({ x: 400, y: 400 }), scrollDeltaX: 120 });
+  assert.equal(game.model.cameraX, 120);
+  game.model.updateBuilder(0.01, { pointer: pointer({}), scrollDeltaX: 60 });
+  assert.equal(game.model.cameraX, 180);
+});
+
 test("#67: paused and running pans remain visible; cancellation clears the baseline", () => {
   const game = builder();
   const gesture = { dragStartX: 775, dragStartY: 280 };

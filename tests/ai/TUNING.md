@@ -52,7 +52,7 @@ explicit `aiTuning` wins if both are supplied. New experiments should use tuning
 | --- | ---: | --- |
 | `reactionMin`, `reactionMax` | 0.1, 0.18 | Blocks-mode seconds between looks |
 | `speed` | 600 | Blocks-mode paddle speed, px/s |
-| `versusReactionMin`, `versusReactionMax` | 0.14, 0.24 | Versus seconds to react/re-read an incoming ball |
+| `versusReactionMin`, `versusReactionMax` | 0.18, 0.28 | Versus seconds to react/re-read an incoming ball |
 | `versusSpeed` | 360 | Upper paddle speed, px/s |
 | `lookaheadBounces` | 1 | Wall-bounce foresight in both modes |
 | `arriveTolerance` | 22 | Landing-offset dead zone in both modes |

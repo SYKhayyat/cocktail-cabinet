@@ -160,6 +160,9 @@ export class GameEngine {
      };
      this.handleWheel = (event) => {
       this.input.scrollDeltaX += Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      // Builder advertises "Wheel to pan", so the wheel over the board pans the
+      // camera instead of scrolling the page out from under the player.
+      if (this.game?.side === "builder") event.preventDefault();
     };
 
     window.addEventListener("keydown", this.handleKeyDown);
@@ -170,7 +173,9 @@ export class GameEngine {
     canvas.addEventListener("pointermove", this.handlePointerMove);
      canvas.addEventListener("pointerdown", this.handlePointerDown);
      canvas.addEventListener("dblclick", this.handleDoubleClick);
-     canvas.addEventListener("wheel", this.handleWheel, { passive: true });
+     // Not passive: Builder uses the wheel to pan, so it must be able to stop
+    // the page scrolling behind it.
+    canvas.addEventListener("wheel", this.handleWheel, { passive: false });
     window.addEventListener("pointerup", this.handlePointerUp);
     window.addEventListener("pointercancel", this.handlePointerCancel);
   }

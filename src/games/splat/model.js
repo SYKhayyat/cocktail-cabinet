@@ -266,6 +266,10 @@ export class SplatModel {
   }
   updateBuilderInput(input) {
     this.updateBuilderKeyboard(input.builderActions);
+    // "Wheel to pan" is advertised in the control hint and the README, so the
+    // accumulated wheel delta has to reach the camera. It is a camera-only
+    // gesture: it never selects, moves, resizes or adds a column.
+    if (input.scrollDeltaX) this.panBuilder(this.builderCameraX + input.scrollDeltaX);
     const pointer = input.pointer;
     if (!pointer) return;
     if (!pointer.down && !pointer.released) {

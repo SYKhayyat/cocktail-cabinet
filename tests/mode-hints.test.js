@@ -71,3 +71,66 @@ test("mode hints correspond to real controller effects and inactive keys do noth
   stars.update(0, input(null, { doubleClicked: true, released: true }));
   assert.equal(stars.model.gems.length, 1);
 });
+
+// The Builder hint once advertised "Wheel" to pan while nothing in the codebase
+// read the accumulated wheel delta, which is exactly the drift issue #66 exists
+// to prevent. Every advertised Builder key must now have a real, observable
+// effect on the model.
+test("every advertised Splat Builder control has a real effect", () => {
+  const builder = () => { const game = new SplatGame(); game.model.side = "builder"; game.reset(); return game; };
+  const idle = (overrides) => ({ keys: new Set(), pressed: new Set(), mode: "keyboard", scrollDeltaX: 0, pointer: { x: 0, y: 0, down: false, clicked: false, released: false, dragDistance: 0, ...overrides } });
+  const key = (name) => ({ ...idle(), keys: new Set([name]), pressed: new Set([name]) });
+
+  const selection = builder();
+  const firstId = selection.model.selectedColumnId;
+  selection.update(0, key("ArrowRight"));
+  assert.notEqual(selection.model.selectedColumnId, firstId, "ArrowRight selects a column");
+  selection.update(0, key("End"));
+  assert.equal(selection.model.selectedColumnId, selection.model.columns.at(-1).id, "End selects the last column");
+  selection.update(0, key("Home"));
+  assert.equal(selection.model.selectedColumnId, selection.model.columns[0].id, "Home selects the first column");
+
+  const move = builder();
+  const movedX = move.model.selectedColumn.x;
+  move.update(0, key("d"));
+  assert.equal(move.model.selectedColumn.x, movedX + 10, "D moves the column");
+
+  const gap = builder();
+  const gapY = gap.model.selectedColumn.gapY;
+  gap.update(0, key("ArrowUp"));
+  assert.equal(gap.model.selectedColumn.gapY, gapY - 10, "ArrowUp moves the gap");
+  const gapHeight = gap.model.selectedColumn.gapHeight;
+  gap.update(0, key("q"));
+  assert.equal(gap.model.selectedColumn.gapHeight, gapHeight - 10, "Q resizes the gap");
+
+  const tool = builder();
+  const toolHint = tool.controlHint().map(({ keys, label }) => `${keys.join(" ")} ${label}`).join("; ");
+  assert.match(toolHint, /C G column\/gap tool/);
+  tool.update(0, key("g"));
+  assert.equal(tool.model.tool, "gap", "G selects the gap tool");
+  tool.update(0, key("c"));
+  assert.equal(tool.model.tool, "column", "C selects the column tool");
+
+  const add = builder();
+  const before = add.model.columns.length;
+  add.update(0, key("n"));
+  assert.equal(add.model.columns.length, before + 1, "N adds a column");
+  add.update(0, key("Delete"));
+  assert.equal(add.model.columns.length, before, "Delete removes a column");
+
+  const keyPan = builder();
+  keyPan.update(0, key("PageDown"));
+  assert.equal(keyPan.model.builderCameraX, 400, "PageDown pans the route");
+
+  const wheelPan = builder();
+  wheelPan.update(0, { ...idle(), scrollDeltaX: 240 });
+  assert.equal(wheelPan.model.builderCameraX, 240, "the advertised Wheel pans the route");
+
+  const drag = builder();
+  const column = drag.model.columns[0];
+  const dragX = column.x;
+  const grip = { x: dragX + 200, y: 100, down: true, dragStartX: dragX, dragStartY: 100, dragDistance: 200 };
+  drag.update(0, { ...idle(), pointer: { ...idle().pointer, ...grip } });
+  drag.update(0, { ...idle(), pointer: { ...idle().pointer, ...grip, down: false, released: true } });
+  assert.equal(column.x, dragX + 200, "Drag moves a column");
+});

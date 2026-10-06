@@ -43,7 +43,8 @@ export class SplatController {
         tool: pressed.has("c") ? "column" : pressed.has("g") ? "gap" : null,
         add: pressed.has("n"), remove: pressed.has("Delete"),
         pan: pressed.has("PageUp") ? -400 : pressed.has("PageDown") ? 400 : 0
-      }
+      },
+      scrollDeltaX: input.scrollDeltaX || 0
     };
   }
   handleReadyInput(input) { if (this.model.side === "builder") this.model.handleBuilderInput(this.builderInput(input)); }
