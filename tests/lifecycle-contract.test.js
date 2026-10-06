@@ -178,6 +178,7 @@ test("model-owned losses do not spend the host budget and result state drives th
     engine.load(game);
     play(engine);
     game.model.asteroids = [];
+    game.model.computerInvulnerable = 0;
     game.model.computerShotClock = 99;
     game.model.bullets = [{ x: game.model.computerShip.x, y: game.model.computerShip.y, vx: 0, vy: 0, life: 1, owner: "human" }];
     step(engine);

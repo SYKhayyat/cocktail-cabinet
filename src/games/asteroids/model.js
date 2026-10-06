@@ -99,6 +99,7 @@ export class AsteroidsModel {
     this.shotClock = 0;
     this.computerShotClock = this.aiTuning.initialShotDelay;
     this.invulnerable = 1;
+    this.computerInvulnerable = this.side === "versus" ? 1 : 0;
     this.decisionLog = [];
     this.lastDecision = null;
     this.eventLog = [];
@@ -244,6 +245,7 @@ export class AsteroidsModel {
   }
   update(dt, input) {
     this.invulnerable = Math.max(0, this.invulnerable - dt);
+    this.computerInvulnerable = Math.max(0, (this.computerInvulnerable || 0) - dt);
     if (this.side === "versus") {
       // Knockback bleeds off quickly so a bounce reads as a shove, not a drift.
       const bleed = Math.pow(0.9, dt * 60);
@@ -372,6 +374,7 @@ export class AsteroidsModel {
         }
         continue;
       }
+      if (this.computerInvulnerable > 0) continue;
       this.recordEvent("asteroid-collision", { asteroidId: asteroid.id ?? null, owner });
       this.chargeLifeLoss("computer", "asteroid");
       // Move the computer clear so it does not lose every remaining life to
@@ -395,12 +398,12 @@ export class AsteroidsModel {
   resolveDuelBullets() {
     for (const bullet of this.bullets) {
       if (bullet.life <= 0) continue;
-      if (bullet.owner === "human" && this.computerShip && wrapHitsCircle(bullet.x, bullet.y, 3, this.computerShip.x, this.computerShip.y, this.computerShip.radius)) {
+      if (bullet.owner === "human" && this.computerInvulnerable === 0 && this.computerShip && wrapHitsCircle(bullet.x, bullet.y, 3, this.computerShip.x, this.computerShip.y, this.computerShip.radius)) {
         bullet.life = 0;
         this.chargeLifeLoss("computer");
         continue;
       }
-      if (bullet.owner === "computer" && wrapHitsCircle(bullet.x, bullet.y, 3, this.ship.x, this.ship.y, this.ship.radius)) {
+      if (bullet.owner === "computer" && this.invulnerable === 0 && wrapHitsCircle(bullet.x, bullet.y, 3, this.ship.x, this.ship.y, this.ship.radius)) {
         bullet.life = 0;
         this.chargeLifeLoss("human");
       }
@@ -413,6 +416,8 @@ export class AsteroidsModel {
   // counter never moved while the round still restarted.
   chargeLifeLoss(owner, cause = "bullet") {
     this.playerLives[owner] = Math.max(0, this.playerLives[owner] - 1);
+    if (owner === "human") this.invulnerable = 1.2;
+    else this.computerInvulnerable = 1.2;
     this.lifeLost = true;
     this.lastDuelLossOwner = owner;
     this.recordEvent("life-loss", { owner, cause });
@@ -462,6 +467,7 @@ export class AsteroidsModel {
     this.ship.knockX = 0;
     this.ship.knockY = 0;
     this.invulnerable = 1.2;
+    this.computerInvulnerable = this.side === "versus" ? 1.2 : 0;
     this.lifeLost = false;
     this.lastLifeLossOwner = null;
     // Clear the respawn area. Repositioning the ship alone is not enough: a
@@ -487,6 +493,11 @@ export class AsteroidsModel {
     // The computer's position is restored alongside the human's, so a life
     // lost does not leave the duel with the computer displaced or missing.
     this.computerShip = this.newShip(400, 160);
+    this.asteroids = this.asteroids.filter((asteroid) => {
+      if (!wrapHitsCircle(this.computerShip.x, this.computerShip.y, this.computerShip.radius + RESPAWN_CLEARANCE, asteroid.x, asteroid.y, asteroid.radius)) return true;
+      this.recordEvent("asteroid-despawn", { asteroidId: asteroid.id ?? null, reason: "life-reset" });
+      return false;
+    });
   }
   publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "versus" ? "Shoot the opposing ship and protect your own." : "Asteroids vary in size, shape, speed, and rotation as the score rises." }; }
 }

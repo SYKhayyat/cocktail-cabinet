@@ -935,6 +935,8 @@ test("Asteroids versus gives both pilots scores and lives", () => {
   const game = new AsteroidsModel();
   game.setSide("versus");
   game.reset();
+  game.computerInvulnerable = 0;
+  game.invulnerable = 0;
   game.computerShotClock = 0;
   game.update(0, { pointer: null, fire: false });
   assert.ok(game.computerShotClock >= 1.1);
@@ -1857,6 +1859,7 @@ test("Asteroids versus applies the same ship-hit rule to both pilots", () => {
     const game = new AsteroidsModel();
     game.setSide("versus");
     game.reset();
+    game.invulnerable = game.computerInvulnerable = 0;
     game.asteroids = [];
     game.computerShotClock = 99;
     return game;
@@ -1891,6 +1894,7 @@ test("Asteroids versus ends immediately when either side runs out of lives", () 
     const game = new AsteroidsModel();
     game.setSide("versus");
     game.reset();
+    game.invulnerable = game.computerInvulnerable = 0;
     game.asteroids = [];
     game.computerShotClock = 99;
     const target = owner === "human" ? game.ship : game.computerShip;
@@ -1923,6 +1927,7 @@ test("Asteroids versus lets rocks damage the computer ship too", () => {
     game.setSide("versus");
     game.reset();
     game.invulnerable = 0;
+    game.computerInvulnerable = 0;
     game.computerShotClock = 99;
     return game;
   };
@@ -1979,6 +1984,7 @@ test("Asteroids versus ends when rocks alone exhaust the computer's lives", () =
   game.setSide("versus");
   game.reset();
   game.invulnerable = 0;
+  game.computerInvulnerable = 0;
   game.computerShotClock = 99;
   game.ship.x = 60;
   game.ship.y = 500;
@@ -3151,6 +3157,7 @@ test("Asteroids versus resolves every loss source against the same counters", ()
     game.model.computerShip.x = 700;
     game.model.computerShip.y = 60;
     game.model.invulnerable = 0;
+    game.model.computerInvulnerable = 0;
     game.model.computerShotClock = 99;
     // Isolate this scene from both future spawns and the three reset rocks.
     // Keep one harmless rock so the empty-field refill cannot add random noise.
@@ -3208,6 +3215,7 @@ test("Asteroids versus ends at zero however the last life is lost", () => {
     game.model.computerShip.x = 700;
     game.model.computerShip.y = 60;
     game.model.invulnerable = 0;
+    game.model.computerInvulnerable = 0;
     game.model.computerShotClock = 99;
     // A bullet-only outcome must not depend on unrelated reset rocks/refills.
     game.model.spawnClock = 99;
