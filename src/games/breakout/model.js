@@ -59,6 +59,7 @@ export class BreakoutModel {
     this.lifeLost = false;
     this.versusTie = false;
     this.versusRoundOver = false;
+    this.versusEndReason = null;
     if (this.side === "versus") {
       this.human = { x: 350, targetX: 350, y: 500, width: 112, height: 16, speed: 460 };
       this.computer = { x: 350, targetX: 350, y: 100, width: 112, height: 16 };
@@ -380,18 +381,16 @@ export class BreakoutModel {
     }
   }
   finishVersus() {
+    const winner = this.scores.human === this.scores.computer ? null : this.scores.human > this.scores.computer ? "human" : "computer";
+    this.setVersusOutcome(winner, "clearance");
+  }
+  setVersusOutcome(winner, reason) {
     this.versusRoundOver = true;
-    if (this.scores.human > this.scores.computer) {
-      this.winner = "human";
-      this.won = true;
-    } else if (this.scores.computer > this.scores.human) {
-      this.winner = "computer";
-      this.gameOver = true;
-    } else {
-      this.winner = null;
-      this.versusTie = true;
-      this.gameOver = true;
-    }
+    this.versusEndReason = reason;
+    this.winner = winner;
+    this.won = winner === "human";
+    this.versusTie = winner === null;
+    this.gameOver = reason === "elimination" || !this.won;
   }
   handleLifeLoss() {
     if (this.versusRoundOver) return { gameOver: true, message: this.winner ? `${this.winner === "human" ? "You win" : "Computer wins"} the duel.` : "The duel ended in a tie." };
@@ -408,16 +407,19 @@ export class BreakoutModel {
     this.lifeLossOwner = owners[0] || "human";
     this.lastLifeLossOwner = null;
     for (const owner of owners) this.playerLives[owner] = Math.max(0, this.playerLives[owner] - 1);
-    const eliminated = owners.find((owner) => this.playerLives[owner] === 0);
-    if (eliminated) {
-      this.gameOver = true;
-      this.winner = eliminated === "human" ? "computer" : "human";
-      return { gameOver: true, owners, message: `${eliminated === "human" ? "You" : "Computer"} lost all lives — ${this.winner === "human" ? "you win" : "computer wins"}!` };
+    const eliminated = ["human", "computer"].filter((owner) => this.playerLives[owner] === 0);
+    if (eliminated.length === 2) {
+      this.setVersusOutcome(null, "elimination");
+      return { gameOver: true, owners, message: "Both players lost all lives — the duel ended in a tie." };
+    }
+    if (eliminated.length === 1) {
+      this.setVersusOutcome(eliminated[0] === "human" ? "computer" : "human", "elimination");
+      return { gameOver: true, owners, message: `${eliminated[0] === "human" ? "You" : "Computer"} lost all lives — ${this.winner === "human" ? "you win" : "computer wins"}!` };
     }
     const message = owners.length === 1 ? `${owners[0] === "human" ? "You" : "Computer"} lost a life.` : `${owners.map((owner) => owner === "human" ? "You" : "Computer").join(" and ")} lost lives.`;
     return { gameOver: false, owners, message };
   }
-  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "versus" && this.versusTie ? "The duel ended in a tie." : this.side === "versus" && this.winner ? `${this.winner === "human" ? "You win" : "Computer wins"} — highest score takes the duel.` : "Clear every brick to win. Special bricks change the round." }; }
+  publicState() { return { title: this.title, description: this.description, side: this.sideLabel(), status: this.side === "versus" && this.versusTie ? "The duel ended in a tie." : this.side === "versus" && this.winner ? `${this.winner === "human" ? "You win" : "Computer wins"} — ${this.versusEndReason === "elimination" ? "opponent lost all lives" : "highest score takes the duel"}.` : "Clear every brick to win. Special bricks change the round." }; }
 }
 
 function predictBallX(ball, seconds, maxBounces = Infinity) {
