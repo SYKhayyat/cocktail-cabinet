@@ -25,6 +25,8 @@ export class GameEngine {
     this.paused = false;
     this.ready = false;
     this.countdown = 0;
+    this.assistance = false;
+    this.assistanceOutcome = "";
     this.lives = DEFAULT_LIVES;
     this.maxLives = DEFAULT_LIVES;
     this.pendingLives = DEFAULT_LIVES;
@@ -79,6 +81,7 @@ export class GameEngine {
     };
 
     this.handleKeyDown = (event) => {
+      if (this.assistance) return;
       const tagName = event.target?.tagName;
       if (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(tagName) || event.target?.closest?.("button, input, textarea, select, a[href], [role='button']") || event.target?.isContentEditable) return;
       // A repeat from a key held across a round/focus boundary is not a fresh
@@ -252,6 +255,7 @@ export class GameEngine {
   }
 
   startRound(reason) {
+    this.assistanceOutcome = "";
     this.lifecycle.startRound(Object.freeze({ startingLives: this.maxLives, reason }));
   }
 
@@ -266,6 +270,7 @@ export class GameEngine {
   handleLifeLoss() {
     this.clearInput();
     const loss = this.lifecycle.resolveLifeLoss();
+    if (this.assistance) this.assistanceOutcome = loss.message || "A life was lost.";
     const life = this.lifecycle.lifeState();
     if (life.owner === "host") {
       this.lives = Math.max(0, this.lives - 1);
@@ -286,32 +291,63 @@ export class GameEngine {
     } else {
       this.lifecycle.endRound();
       this.stopped = true;
+      if (this.assistance) this.assistanceOutcome += " Out of lives.";
       this.onMessage?.("Out of lives — press New game to try again.");
     }
+  }
+
+  // Assistance advances the same rules and lifecycle, in small physics ticks.
+  // RAF still draws, but neither time nor ambient keyboard/pointer input runs.
+  setAssistance(enabled) {
+    this.assistance = Boolean(enabled);
+    this.input.keys.clear();
+    this.input.pressed.clear();
+    this.cancelPointer();
+    this.lastTime = performance.now();
+  }
+
+  resolveUpdate() {
+    for (const reward of this.lifecycle.takeRewards()) {
+      if (reward.type === "extra-life") this.addLife();
+    }
+    const result = this.lifecycle.resultState();
+    if (result.won) {
+      this.stopped = true;
+      if (this.assistance) this.assistanceOutcome = `${result.heading}. ${result.message || ""}`;
+      this.onMessage?.(result.message);
+    } else if (this.lifecycle.lifeLossPending()) this.handleLifeLoss();
+  }
+
+  assistanceStep(seconds, update) {
+    if (!this.assistance || this.ready || this.paused || this.stopped) return false;
+    if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 1) return false;
+    // Countdown is presentation, not game physics. Explicit steps skip it.
+    this.countdown = 0;
+    const ticks = Math.ceil(seconds * 60);
+    for (let tick = 0; tick < ticks; tick += 1) {
+      update(seconds / ticks, tick === 0);
+      this.resolveUpdate();
+      // Do not run through a life-reset or terminal result with stale targets.
+      if (this.stopped || this.countdown > 0) break;
+    }
+    this.onState?.(this.game.publicState());
+    this.onScore?.(this.game.score);
+    return true;
   }
 
   frame(time) {
     if (!this.running) return;
     const delta = Math.min((time - this.lastTime) / 1000, 0.05);
     this.lastTime = time;
-    if (this.countdown > 0 && !this.paused) {
+    if (this.countdown > 0 && !this.paused && !this.assistance) {
       this.countdown -= delta;
       if (this.countdown <= 0) this.onMessage?.("Go!");
-    } else if (!this.ready && !this.stopped) {
+    } else if (!this.ready && !this.stopped && !this.assistance) {
       this.game.update(delta, this.input);
-      for (const reward of this.lifecycle.takeRewards()) {
-        if (reward.type === "extra-life") this.addLife();
-      }
-      const result = this.lifecycle.resultState();
-      if (result.won) {
-        this.stopped = true;
-        this.onMessage?.(result.message);
-      } else if (this.lifecycle.lifeLossPending()) {
-        this.handleLifeLoss();
-      }
+      this.resolveUpdate();
     }
-    if (this.ready) this.game.handleReadyInput?.(this.input);
-    else if (this.paused) this.game.handlePausedInput?.(this.input);
+    if (!this.assistance && this.ready) this.game.handleReadyInput?.(this.input);
+    else if (!this.assistance && this.paused) this.game.handlePausedInput?.(this.input);
     this.game.draw(this.context);
     if (this.ready || this.countdown > 0 || this.stopped) {
       this.context.fillStyle = "#111827ee";

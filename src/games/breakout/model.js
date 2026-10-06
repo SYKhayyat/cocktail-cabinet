@@ -251,6 +251,20 @@ export class BreakoutModel {
     this.human.x = moveToward(this.human.x, this.human.targetX, 720 * dt);
   }
   saveLayout() { this.layout = this.bricks.map(({ x, y, width, height, type, phaseOffset, period }) => ({ x, y, width, height, type, phaseOffset, period })); }
+  // Named-target counterpart of drag/click setup; shares bounds and type rules.
+  editBrick(index, { x, y, cycle = false } = {}) {
+    if (this.side !== "blocks" || !Number.isInteger(index)) return false;
+    const brick = this.bricks[index];
+    if (!brick) return false;
+    if (cycle) this.cycleBrickType(brick);
+    else {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+      brick.x = clamp(x, 8, 800 - brick.width - 8);
+      brick.y = clamp(y, 55, 400);
+      this.saveLayout();
+    }
+    return true;
+  }
   updateBlocks(input) {
     if (this.side !== "blocks" || !input.pointer) return;
     if (!input.pointer.down) {

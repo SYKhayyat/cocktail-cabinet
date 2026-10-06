@@ -110,6 +110,32 @@
           <div><span>Lives</span><strong id="lives">3/3</strong></div>
         </div>
 
+        <section id="nonvisualPanel" class="nonvisual-panel" aria-labelledby="nonvisualHeading" aria-live="off">
+          <h3 id="nonvisualHeading">Nonvisual game state and assistance</h3>
+          <p>Read the current board without sight. Snapshots update on demand and after actions, not on every animation frame. Imitation uses the native chat controls above.</p>
+          <label><input id="nonvisualEnabled" type="checkbox" /> Enable step-by-step assistance (freeze arcade time)</label>
+          <button id="nonvisualRefresh" type="button">Refresh state</button>
+          <h4 id="nonvisualMode"></h4>
+          <p id="nonvisualObjective"></p>
+          <p id="nonvisualCoordinates"></p>
+          <p id="nonvisualOutcome"></p>
+          <form id="nonvisualForm" hidden>
+            <p>Choose an action and a named target, or enter coordinates. Brick moves always use the entered coordinates. Edits do not advance time and work before New game or while paused. Other actions require New game or Continue. Explicit steps skip the visual countdown and stop at a life loss.</p>
+            <label for="nonvisualAction">Game action</label><select id="nonvisualAction"></select>
+            <label for="nonvisualTarget">Named target</label><select id="nonvisualTarget"></select>
+            <div class="nonvisual-fields">
+              <label for="nonvisualX">X coordinate / column</label><input id="nonvisualX" type="number" value="400" step="1" required />
+              <label for="nonvisualY">Y coordinate / row</label><input id="nonvisualY" type="number" value="250" step="1" required />
+              <label for="nonvisualDuration">Time per action</label><select id="nonvisualDuration"><option value="0.1">0.1 second</option><option value="0.5">0.5 second</option><option value="1">1 second</option></select>
+            </div>
+            <button type="submit" id="nonvisualPerform">Perform action and read updated state</button>
+          </form>
+          <p id="nonvisualFeedback"></p>
+          <h4>Players and protected objects</h4><ul id="nonvisualPlayers"></ul>
+          <h4>Hazards and moving objects</h4><ul id="nonvisualHazards"></ul>
+          <h4>Targets and editable objects</h4><ul id="nonvisualTargets"></ul>
+        </section>
+
         <div class="machine-footer">
           <span id="roundStatus">Press a key or click to begin</span>
            <span>Static site · no app server · no account</span>

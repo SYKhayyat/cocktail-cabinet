@@ -402,7 +402,7 @@ async function recordAnnouncements(page) {
 
 async function testFocusedAnnouncements(page, step) {
   const topology = await page.evaluate(`(() => ({
-    regions: [...document.querySelectorAll('[aria-live]')].map((node) => node.id),
+    regions: [...document.querySelectorAll('[aria-live]:not([aria-live="off"])')].map((node) => node.id),
     atomic: document.querySelector('#announcements').getAttribute('aria-atomic'),
     transcriptLive: document.querySelector('#chatMessages').closest('[aria-live]')?.id || null,
     scoreLive: document.querySelector('#score').closest('[aria-live]')?.id || null

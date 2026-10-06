@@ -7,6 +7,7 @@ import { AsteroidsGame } from "./games/asteroids.js";
 import { MissileCommandGame } from "./games/missile.js";
 import { ImitationGame } from "./games/imitation.js";
 import { StarfallGame } from "./games/starfall.js";
+import { NonvisualPanel } from "./nonvisual-panel.js";
 
 const gameFactories = [
   ["snake", "Snake", "Grow or feed the snake", () => new SnakeGame()],
@@ -152,6 +153,7 @@ function applySettings(id) {
       showMessage("Preview updated. Press New game when ready.");
     }
   } else showMessage("Settings saved for the next game.");
+  nonvisual.refresh();
 }
 
 function renderChat(game) {
@@ -307,6 +309,7 @@ function loadGame(id) {
   engine.load(game);
   updateSplatTools();
   updateImitationTools();
+  nonvisual.changedGame();
 }
 
 const engine = new GameEngine(canvas, {
@@ -338,6 +341,8 @@ const engine = new GameEngine(canvas, {
   }
 });
 
+const nonvisual = new NonvisualPanel(engine, { announce: (text) => announcements.publish("notice", text, text) });
+
 sideSelect.addEventListener("change", () => {
   announcements.reset();
   lastChatRevision = -1;
@@ -345,6 +350,7 @@ sideSelect.addEventListener("change", () => {
   renderControlHint(engine.game);
   updateSplatTools();
   updateImitationTools();
+  nonvisual.changedGame();
 });
 for (const [id, inputs] of Object.entries(settingsInputs)) {
   for (const control of Object.values(inputs)) {
@@ -353,10 +359,10 @@ for (const [id, inputs] of Object.entries(settingsInputs)) {
 }
 splatAddColumn.addEventListener("click", () => { games.get("splat").setTool("column"); updateSplatTools(); });
 splatAddGap.addEventListener("click", () => { games.get("splat").setTool("gap"); updateSplatTools(); });
-restartButton.addEventListener("click", () => engine.restart());
-pauseButton.addEventListener("click", () => engine.pauseGame());
-continueButton.addEventListener("click", () => engine.continueGame());
-livesInput.addEventListener("change", () => engine.setLives(livesInput.value));
+restartButton.addEventListener("click", () => { engine.restart(); nonvisual.refresh(); });
+pauseButton.addEventListener("click", () => { engine.pauseGame(); nonvisual.refresh(); });
+continueButton.addEventListener("click", () => { engine.continueGame(); nonvisual.refresh(); });
+livesInput.addEventListener("change", () => { engine.setLives(livesInput.value); nonvisual.refresh(); });
 downloadModelButton.addEventListener("click", () => engine.game.downloadModel?.());
 guessRestart.addEventListener("click", () => {
   if (activeId === "imitation") engine.game.restartGuess?.();

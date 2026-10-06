@@ -169,3 +169,11 @@ this file and the code win.
 | [REFERENCE_NOTES.md](REFERENCE_NOTES.md) | Gameplay research from 2026-09-24 and its source links. Its Missile Command row describes the controls as they are today. |
 | [DELEGATION_LOG.md](DELEGATION_LOG.md) | Per-task record of past changes and how they were verified. Accumulates; each entry is accurate as of its date. |
 | [issues.md](issues.md) | The 2026-09-25 gameplay audit that produced the GitHub issues tracked here. A point-in-time report, not a status list. |
+## Nonvisual play
+
+Every mode exposes actual game state as readable DOM text and lists. Arcade
+games also offer optional **step-by-step assistance**: freeze time, read players,
+hazards and named targets, then perform keyboard actions using the real rules.
+This includes apple placement, brick/route editing and flipped attack modes.
+Imitation uses native chat and guessing controls. See
+[Nonvisual play](docs/NONVISUAL_PLAY.md) for controls, coverage and test limits.
