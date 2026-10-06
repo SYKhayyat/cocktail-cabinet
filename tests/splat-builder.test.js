@@ -81,3 +81,57 @@ test("#67: column dragging preserves sorted route order when crossing another co
   assert.equal(column.x, startX + 200);
   assert.ok(game.model.columns.every((column, index, columns) => !index || columns[index - 1].x <= column.x));
 });
+
+test("#69: keyboard-only authoring selects, moves, draws, resizes, adds and removes", () => {
+  const game = builder();
+  const key = (value, method = "handleReadyInput") => game[method]({ keys: new Set([value]), pressed: new Set([value]) });
+  const first = game.model.columns[0];
+  key("ArrowRight");
+  const column = game.model.columns[1];
+  assert.equal(game.model.selectedColumnId, column.id);
+  const original = { ...column };
+  key("D");
+  assert.equal(column.x, original.x + 10);
+  assert.equal(first.x, 190);
+  key("g");
+  assert.equal(game.tool, "gap");
+  key("ArrowUp");
+  key("e");
+  assert.equal(column.gapY, original.gapY - 10);
+  assert.equal(column.gapHeight, original.gapHeight + 10);
+  key("c", "handlePausedInput");
+  assert.equal(game.tool, "column");
+  key("End");
+  assert.equal(game.model.selectedColumnId, game.model.columns.at(-1).id);
+  assert.ok(game.model.cameraX > 0, "offscreen selection must navigate the route");
+  const count = game.model.columns.length;
+  key("n", "handlePausedInput");
+  const added = game.model.selectedColumn;
+  assert.equal(game.model.columns.length, count + 1);
+  key("Delete");
+  assert.equal(game.model.columns.length, count);
+  assert.ok(!game.model.columns.includes(added));
+  key("Home");
+  assert.equal(game.model.selectedColumnId, first.id);
+  assert.equal(game.model.cameraX, 130);
+  key("PageUp");
+  assert.equal(game.model.cameraX, 0);
+  key("q");
+  assert.equal(first.gapHeight, 102);
+  assert.equal(game.model.layoutAuthored, true);
+});
+
+test("#69: running keyboard edits use the same path and keep gaps bounded", () => {
+  const game = builder();
+  const first = game.model.selectedColumn;
+  for (let index = 0; index < 100; index += 1) game.update(0, { keys: new Set(), pressed: new Set(["ArrowDown", "e"]), pointer: undefined });
+  assert.ok(first.gapY >= 60 && first.gapY + first.gapHeight <= 560);
+  assert.ok(first.gapHeight <= 240);
+  const snapshot = { ...first };
+  game.update(0, { keys: new Set(["d"]), pressed: new Set() });
+  assert.deepEqual(first, snapshot, "editor commands are press edges, not frame-rate movement");
+  const solo = new SplatGame();
+  solo.reset();
+  assert.ok(!solo.controlHint().some(({ label }) => label.includes("column")));
+  assert.ok(game.controlHint().some(({ label }) => label === "select column"));
+});

@@ -272,6 +272,7 @@ const engine = new GameEngine(canvas, {
     title.textContent = state.title;
     description.textContent = state.description;
     status.textContent = activeId === "imitation" ? state.status : engine.ready ? "Press New game to start" : engine.countdown > 0 ? "Get ready…" : state.status;
+    if (activeId === "splat") updateSplatTools();
     if (activeId === "imitation") {
       renderImitationControls(state);
     }
@@ -292,6 +293,7 @@ const engine = new GameEngine(canvas, {
 sideSelect.addEventListener("change", () => {
   lastChatRevision = -1;
   engine.setSide(sideSelect.value);
+  renderControlHint(engine.game);
   updateSplatTools();
   updateImitationTools();
 });

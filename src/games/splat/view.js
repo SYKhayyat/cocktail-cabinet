@@ -7,6 +7,11 @@ function drawColumns(context, model, cameraX, offset, width) {
     context.fillStyle = column.passed ? "#1e293b" : "#475569";
     context.fillRect(x, column.y, column.width, column.gapY);
     context.fillRect(x, column.gapY + column.gapHeight, column.width, column.height - column.gapY - column.gapHeight);
+    if (model.side === "builder" && column.id === model.selectedColumnId) {
+      context.strokeStyle = "#22d3ee";
+      context.lineWidth = 2;
+      context.strokeRect(x - 2, column.gapY - 2, column.width + 4, column.gapHeight + 4);
+    }
   });
 }
 
@@ -56,6 +61,7 @@ export function draw(model, context) {
     drawPlayer(context, model.player, model.cameraX, 0, model.side === "climber" ? "#fbbf24" : "#fb7185");
     if (model.side === "builder") {
       drawText(context, `Builder: ${model.tool === "gap" ? "draw a gap" : "add/move columns"} · drag empty canvas to pan`, 16, 28, 14, "#cbd5e1");
+      drawText(context, "←→ select · A/D move · ↑↓ gap · Q/E size · C/G tool · N add · Delete remove · PgUp/PgDn pan", 16, 48, 12, "#cbd5e1");
     } else {
       drawText(context, "Hold Up/Down to drift · tap/click the upper/lower half to bounce", 16, 28, 14, "#cbd5e1");
     }

@@ -129,6 +129,7 @@ export class SplatModel {
     }
     if (preservedColumns) this.nextColumnId = Math.max(0, ...this.columns.map((column) => column.id || 0)) + 1;
     this.nextColumn = this.columns[0] || null;
+    this.selectedColumnId = this.columns[0]?.id ?? null;
   }
   recordEvent(type, details = {}) {
     this.eventLog.push({ type, ...details });
@@ -185,6 +186,53 @@ export class SplatModel {
   }
   handleBuilderInput(input) { this.updateBuilderInput(input); }
   handlePausedInput(input) { if (this.side === "builder") this.updateBuilderInput(input); }
+  get selectedColumn() { return this.columns.find((column) => column.id === this.selectedColumnId) || this.columns[0]; }
+  revealColumn(column) {
+    if (!column) return;
+    if (column.x < this.builderCameraX + 60) this.panBuilder(column.x - 60);
+    else if (column.x + column.width > this.builderCameraX + 740) this.panBuilder(column.x + column.width - 740);
+  }
+  updateBuilderKeyboard(actions) {
+    if (!actions) return;
+    if (actions.tool) this.setTool(actions.tool);
+    if (actions.pan) this.panBuilder(this.builderCameraX + actions.pan);
+    let column = this.selectedColumn;
+    if (!column) return;
+    if (actions.first || actions.last || actions.select) {
+      const index = this.columns.indexOf(column);
+      column = this.columns[actions.first ? 0 : actions.last ? this.columns.length - 1 : clamp(index + actions.select, 0, this.columns.length - 1)];
+      this.selectedColumnId = column.id;
+      this.revealColumn(column);
+    }
+    if (actions.add) {
+      column = this.addColumn(column.x + this.columnSpacing, column.gapY);
+      if (column) {
+        this.selectedColumnId = column.id;
+        this.revealColumn(column);
+      }
+    }
+    if (!column) return;
+    if (actions.remove && this.columns.length > 1) {
+      const index = this.columns.indexOf(column);
+      this.columns.splice(index, 1);
+      this.selectedColumnId = this.columns[Math.min(index, this.columns.length - 1)].id;
+      this.layoutAuthored = true;
+      this.nextColumn = this.columns.find((candidate) => !candidate.passed) || null;
+      this.panBuilder(this.builderCameraX);
+      return;
+    }
+    if (actions.move) {
+      column.x = clamp(column.x + actions.move, this.player.x + 60, this.columns.at(-1).x + 300);
+      this.columns.sort((a, b) => a.x - b.x);
+      this.layoutAuthored = true;
+      this.revealColumn(column);
+    }
+    if (actions.gapMove || actions.gapResize) {
+      column.gapY = clamp(column.gapY + (actions.gapMove || 0), 60, Math.min(420, 560 - column.gapHeight));
+      column.gapHeight = clamp(column.gapHeight + (actions.gapResize || 0), 50, Math.min(240, 560 - column.gapY));
+      this.layoutAuthored = true;
+    }
+  }
   builderCameraLimit() { return Math.max(0, (this.columns.at(-1)?.x || 0) - 650); }
   panBuilder(cameraX) {
     this.builderManualCamera = true;
@@ -197,6 +245,7 @@ export class SplatModel {
     this.draftGap = null;
   }
   updateBuilderInput(input) {
+    this.updateBuilderKeyboard(input.builderActions);
     const pointer = input.pointer;
     if (!pointer) return;
     if (!pointer.down && !pointer.released) {
@@ -209,6 +258,7 @@ export class SplatModel {
       const startY = pointer.dragStartY ?? pointer.y;
       const column = this.columnAt(this.builderCameraX + startX, this.tool === "gap" ? 40 : 24);
       this.builderGesture = { kind: column ? this.tool : "empty", startX, startY, cameraX: this.builderCameraX, column };
+      if (column) this.selectedColumnId = column.id;
       if (column && this.tool === "column") {
         this.dragColumn = column;
         this.dragOffsetX = startX - (column.x - this.builderCameraX);
@@ -248,6 +298,7 @@ export class SplatModel {
     this.columns.push(column);
     this.layoutAuthored = true;
     this.columns.sort((a, b) => a.x - b.x);
+    this.selectedColumnId = column.id;
     if (!this.nextColumn) this.nextColumn = column;
     return column;
   }
