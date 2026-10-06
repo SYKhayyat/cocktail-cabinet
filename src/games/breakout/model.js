@@ -11,7 +11,10 @@ const BRICK_TYPES = ["normal", "extraLife", "shortBar", "double", "speed", "long
 // Times are seconds, speed is px/s, tolerances are pixels. See tests/ai/TUNING.md.
 export const BREAKOUT_AI_DEFAULTS = Object.freeze({
   reactionMin: 0.1, reactionMax: 0.18, speed: 600,
-  versusReactionMin: 0.14, versusReactionMax: 0.24, versusSpeed: 360,
+  // Versus keeps its movement/foresight limits, but rereads at 180-280ms:
+  // enough commitment for recoverable human bank shots, not injected misses.
+  // Independent input/outcome probes: docs/breakout-versus-calibration.md.
+  versusReactionMin: 0.18, versusReactionMax: 0.28, versusSpeed: 360,
   lookaheadBounces: 1, arriveTolerance: 22, dwellMin: 0.18, dwellMax: 0.38,
   initialReaction: 0.08, idleCenterX: 344, idleTolerance: 8
 });
