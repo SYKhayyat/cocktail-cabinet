@@ -2222,7 +2222,7 @@ test("the Snake facade exposes the completion state and a message", () => {
   assert.match(game.winMessage(), /\d+ apples/, "the win message reports the score");
 });
 
-test("Snake places apples quickly even on a nearly full maximum board", () => {
+test("Snake places apples in linear work even on a nearly full maximum board", (t) => {
   const game = new SnakeModel();
   game.setSettings({ cols: 60, rows: 44, startingLength: 12, wrap: false });
   game.applyPendingSettings();
@@ -2273,12 +2273,23 @@ test("Snake places apples quickly even on a nearly full maximum board", () => {
   const originalPerPlacementMs = Number(process.hrtime.bigint() - originalStart) / 1e6 / sample;
   const currentPerPlacementMs = elapsedMs / placements;
 
-  // Require at least a 50x improvement. Measured here: the original is roughly
-  // 37ms per placement against ~0.25ms, so ~150x.
-  assert.ok(
-    currentPerPlacementMs * 50 < originalPerPlacementMs,
-    `expected at least a 50x speedup, got ${(originalPerPlacementMs / currentPerPlacementMs).toFixed(1)}x (${originalPerPlacementMs.toFixed(2)}ms -> ${currentPerPlacementMs.toFixed(3)}ms per placement)`
-  );
+  // CPU contention/GC can pause either timing sample independently. Keep real
+  // timings visible, but gate the actual algorithmic improvement, not scheduler
+  // luck (this used to intermittently fail during parallel test execution).
+  t.diagnostic(`apple placement: ${currentPerPlacementMs.toFixed(3)}ms; quadratic reference: ${originalPerPlacementMs.toFixed(2)}ms; timing ratio ${(originalPerPlacementMs / currentPerPlacementMs).toFixed(1)}x`);
+  let bodyReads = 0;
+  let lookups = 0;
+  game.snake = game.snake.map((part) => new Proxy(part, {
+    get(target, key) { if (key === "x" || key === "y") bodyReads += 1; return target[key]; }
+  }));
+  const has = game.occupied.has.bind(game.occupied);
+  game.occupied.has = (key) => { lookups += 1; return has(key); };
+  assert.deepEqual(game.freeApple(), { x: 59, y: 43 });
+  const currentWork = bodyReads + lookups;
+  assert.ok(currentWork <= 2 * cells + game.snake.length, `placement exceeded linear work: ${currentWork}`);
+  bodyReads = 0;
+  originalScan();
+  assert.ok(bodyReads > currentWork * 50, `expected >50x less coordinate/membership work: ${bodyReads} vs ${currentWork}`);
 });
 
 test("Snake places apples predictably as the board fills", () => {
