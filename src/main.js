@@ -1,4 +1,5 @@
 import { GameEngine } from "./engine.js";
+import { Announcements } from "./announcements.js";
 import { SnakeGame } from "./games/snake.js";
 import { BreakoutGame } from "./games/breakout.js";
 import { SplatGame } from "./games/splat.js";
@@ -62,6 +63,30 @@ const snakeRows = document.querySelector("#snakeRows");
 const snakeLength = document.querySelector("#snakeLength");
 const snakeWrap = document.querySelector("#snakeWrap");
 let lastChatRevision = -1;
+const announcements = new Announcements(document.querySelector("#announcements"));
+const chatRows = new Map();
+const announcedChat = new WeakSet();
+
+function showMessage(text) {
+  message.textContent = text;
+  announcements.publish("notice", text, text);
+}
+
+function renderRoundStatus(state) {
+  if (activeId === "imitation") {
+    const result = state.guessResult;
+    const source = result && (result.correct ? result.choice : result.choice === "ai" ? "human" : "ai");
+    const text = state.phase === "result" && result ? `${result.correct ? "Correct" : "Not quite"} — the response was ${source.toUpperCase()}. Press Restart round to play again.` : state.phase === "guess" ? "Choose AI or Human for this reply" : state.status;
+    status.textContent = text;
+    announcements.publish("status", `${activeId}/${state.mode}/${state.phase}/${text}`, text);
+    return;
+  }
+  const result = engine.lifecycle.resultState();
+  const phase = engine.ready ? "ready" : result.ended ? "ended" : engine.paused ? "paused" : engine.countdown > 0 ? "countdown" : "playing";
+  const text = phase === "ready" ? "Press New game to start" : phase === "ended" ? `${result.heading}. ${result.instruction}.` : phase === "paused" ? "Paused — press Continue to resume" : phase === "countdown" ? "Get ready…" : "Round in progress";
+  status.textContent = phase === "playing" ? state.status : text;
+  announcements.publish("status", `${activeId}/${engine.game.side}/${phase}/${phase === "ended" ? result.heading : ""}`, `${state.title}: ${text}`);
+}
 
 const settingsInputs = {
   snake: { cols: snakeCols, rows: snakeRows, startingLength: snakeLength, wrap: snakeWrap },
@@ -115,33 +140,44 @@ function applySettings(id) {
   const game = games.get(id);
   const settings = game.validateSettings?.(readSettingsInputs(id));
   if (!settings) {
-    message.textContent = describeInvalidSettings(id);
+    showMessage(describeInvalidSettings(id));
     return;
   }
   game.setSettings(settings);
   if (engine.ready) {
-    if (game.refreshSettingsPreview) message.textContent = game.refreshSettingsPreview();
+    if (game.refreshSettingsPreview) showMessage(game.refreshSettingsPreview());
     else {
       game.applyPendingSettings();
       game.reset();
-      message.textContent = "Preview updated. Press New game when ready.";
+      showMessage("Preview updated. Press New game when ready.");
     }
-  } else message.textContent = "Settings saved for the next game.";
+  } else showMessage("Settings saved for the next game.");
 }
 
 function renderChat(game) {
   if (!game) return;
-  chatMessages.replaceChildren();
-  for (const message of game.chatLog) {
-    const row = document.createElement("div");
+  const log = game.chatLog;
+  for (const [entry, row] of chatRows) {
+    if (!log.includes(entry)) { row.remove(); chatRows.delete(entry); }
+  }
+  for (const message of log) {
+    let row = chatRows.get(message);
+    if (!row) {
+      row = document.createElement("div");
+      const meta = document.createElement("span");
+      meta.className = "chat-meta";
+      meta.textContent = `${message.sender} · ${message.time}`;
+      row.append(meta, document.createElement("p"));
+      chatRows.set(message, row);
+      chatMessages.append(row);
+    }
     row.className = `chat-message ${message.sender.toLowerCase()}${message.waiting ? " waiting" : ""}`;
-    const meta = document.createElement("span");
-    meta.className = "chat-meta";
-    meta.textContent = `${message.sender} · ${message.time}`;
-    const text = document.createElement("p");
-    text.textContent = message.text;
-    row.append(meta, text);
-    chatMessages.append(row);
+    const text = row.querySelector("p");
+    if (text.textContent !== message.text) text.textContent = message.text;
+    if (!announcedChat.has(message) && message.text && message.sender !== "You") {
+      announcedChat.add(message);
+      announcements.publish("chat", message, `${message.sender}: ${message.text}`);
+    }
   }
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
@@ -235,6 +271,7 @@ function renderControlHint(game) {
 }
 
 function loadGame(id) {
+  announcements.reset();
   activeId = id;
   const game = games.get(id);
   renderCards();
@@ -259,7 +296,7 @@ function loadGame(id) {
     if (activeId !== "imitation") return;
     const state = game.publicState();
     renderControlHint(game);
-    status.textContent = state.status;
+    renderRoundStatus(state);
     renderImitationControls(state);
     if (state.chatRevision !== lastChatRevision) {
       lastChatRevision = state.chatRevision;
@@ -270,7 +307,6 @@ function loadGame(id) {
   engine.load(game);
   updateSplatTools();
   updateImitationTools();
-  restartButton.blur();
 }
 
 const engine = new GameEngine(canvas, {
@@ -278,7 +314,7 @@ const engine = new GameEngine(canvas, {
     renderControlHint(engine.game);
     title.textContent = state.title;
     description.textContent = state.description;
-    status.textContent = activeId === "imitation" ? state.status : engine.ready ? "Press New game to start" : engine.countdown > 0 ? "Get ready…" : state.status;
+    renderRoundStatus(state);
     if (activeId === "splat") updateSplatTools();
     if (activeId === "imitation") {
       renderImitationControls(state);
@@ -292,12 +328,18 @@ const engine = new GameEngine(canvas, {
   onLives: (value, maximum) => { lives.textContent = `${value}/${maximum}`; },
   onMessage: (value) => {
     message.textContent = value;
+    // Lifecycle callbacks and the following frame describe the same transition.
+    // Use the semantic lifecycle once, not both a transient toast and a status.
+    renderRoundStatus(engine.game.publicState());
+    const ended = engine.lifecycle.resultState().ended;
+    if (!ended && !/^(Go!|New game|Paused|Continuing)/.test(value)) announcements.publish("notice", value, value);
     window.clearTimeout(engine.messageTimer);
     engine.messageTimer = window.setTimeout(() => { message.textContent = ""; }, 2600);
   }
 });
 
 sideSelect.addEventListener("change", () => {
+  announcements.reset();
   lastChatRevision = -1;
   engine.setSide(sideSelect.value);
   renderControlHint(engine.game);
@@ -324,24 +366,24 @@ for (const button of guessButtons) button.addEventListener("click", () => {
 });
 async function runManualConnection(action) {
   try {
-    message.textContent = "Working…";
+    showMessage("Working…");
     await action();
   } catch (error) {
-    message.textContent = error.message || "The connection could not be completed.";
+    showMessage(error.message || "The connection could not be completed.");
   }
 }
 createInviteButton.addEventListener("click", () => runManualConnection(async () => {
   signalText.value = await engine.game.createManualInvite();
-  message.textContent = "Copy this invite into the other browser.";
+  showMessage("Copy this invite into the other browser.");
 }));
 joinInviteButton.addEventListener("click", () => runManualConnection(async () => {
   signalText.value = await engine.game.acceptManualInvite(signalText.value);
-  message.textContent = "Copy this answer back into the first browser.";
+  showMessage("Copy this answer back into the first browser.");
 }));
 finishConnectionButton.addEventListener("click", () => runManualConnection(async () => {
   await engine.game.acceptManualAnswer(signalText.value);
   signalText.value = "";
-  message.textContent = "Connecting…";
+  showMessage("Connecting…");
 }));
 chatForm.addEventListener("submit", (event) => {
   event.preventDefault();

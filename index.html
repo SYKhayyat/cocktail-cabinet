@@ -30,7 +30,8 @@
         </section>
       </aside>
 
-      <section class="machine" aria-live="polite">
+      <section class="machine">
+        <p id="announcements" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
         <div class="machine-topline">
           <div>
             <p class="eyebrow">Now loading</p>
@@ -73,7 +74,7 @@
         </div>
 
         <div id="chatPanel" class="chat-panel" hidden>
-          <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
+          <div id="chatMessages" class="chat-messages" aria-label="Chat transcript"></div>
           <div id="manualConnect" class="manual-connect" hidden>
             <strong>Connect a separate browser</strong>
              <p>Create an invite, paste it into the other browser, then paste the answer back. No application server or account is used.</p>

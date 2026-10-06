@@ -391,6 +391,158 @@ async function testModeAwareHints(page) {
   }
 }
 
+async function recordAnnouncements(page) {
+  await page.evaluate(`(() => {
+    globalThis.__liveChanges = [];
+    globalThis.__liveObserver?.disconnect();
+    globalThis.__liveObserver = new MutationObserver(() => globalThis.__liveChanges.push(document.querySelector('#announcements').textContent));
+    globalThis.__liveObserver.observe(document.querySelector('#announcements'), { childList: true, subtree: true, characterData: true });
+  })()`);
+}
+
+async function testFocusedAnnouncements(page, step) {
+  const topology = await page.evaluate(`(() => ({
+    regions: [...document.querySelectorAll('[aria-live]')].map((node) => node.id),
+    atomic: document.querySelector('#announcements').getAttribute('aria-atomic'),
+    transcriptLive: document.querySelector('#chatMessages').closest('[aria-live]')?.id || null,
+    scoreLive: document.querySelector('#score').closest('[aria-live]')?.id || null
+  }))()`);
+  assertEqual(topology.regions.join(','), 'announcements', 'only the focused channel is live');
+  assertEqual(topology.atomic, 'true', 'focused status is read as a complete announcement');
+  assertEqual(topology.transcriptLive, null, 'the full chat history is not live');
+  assertEqual(topology.scoreLive, null, 'animated score and stats are outside every live region');
+
+  await selectMode(page, 1, 'bottom');
+  await recordAnnouncements(page);
+  await page.evaluate("document.querySelector('#restartButton').click()");
+  assertMatch(await page.evaluate("document.querySelector('#announcements').textContent"), /Get ready/, 'the new-game countdown is announced');
+  await page.evaluate("document.querySelector('#pauseButton').click()");
+  assertMatch(await page.evaluate("document.querySelector('#roundStatus').textContent"), /Paused/, 'current visible lifecycle stays paused, not generic gameplay');
+  assertMatch(await page.evaluate("document.querySelector('#announcements').textContent"), /Paused/, 'pause is announced');
+  const busy = await page.evaluate(`(() => {
+    globalThis.__liveChanges.length = 0;
+    const engine = globalThis.__cocktailCabinet.engine;
+    for (let frame = 0; frame < 1200; frame++) {
+      engine.game.model.score = frame;
+      globalThis.__now += 1000 / 240;
+      engine.frame(globalThis.__now);
+      globalThis.__rafHandles.length = 0;
+    }
+    return document.querySelector('#score').textContent;
+  })()`);
+  assertEqual(busy, '1199', 'stats really update during 1,200 actual DOM frames at 240 Hz');
+  assertEqual(await page.evaluate("globalThis.__liveChanges.length"), 0, 'frame/score churn does not mutate the focused live region');
+  await page.evaluate("document.querySelector('#continueButton').click()");
+  await step(200);
+  assertMatch(await page.evaluate("document.querySelector('#announcements').textContent"), /Round in progress/, 'countdown completion announces the current running lifecycle');
+  await page.evaluate(`(() => {
+    const engine = globalThis.__cocktailCabinet.engine;
+    engine.game.model.won = true;
+    globalThis.__tick(1);
+  })()`);
+  assertMatch(await page.evaluate("document.querySelector('#roundStatus').textContent"), /YOU WIN.*New game/, 'terminal result remains in the visible footer');
+  assertMatch(await page.evaluate("document.querySelector('#announcements').textContent"), /YOU WIN.*New game/, 'terminal result is announced once with a meaningful next action');
+  await recordAnnouncements(page);
+  await step(300);
+  assertEqual(await page.evaluate("globalThis.__liveChanges.length"), 0, 'terminal animation frames do not repeat the result');
+
+  await selectMode(page, 0, 'snake');
+  await page.evaluate(`(() => {
+    const engine = globalThis.__cocktailCabinet.engine;
+    engine.lives = 1;
+    engine.game.model.gameOver = true;
+    globalThis.__tick(1);
+  })()`);
+  assertMatch(await page.evaluate("document.querySelector('#announcements').textContent"), /OUT OF LIVES.*New game/, 'last-life loss announces a meaningful terminal result');
+  await step(200);
+  assertMatch(await page.evaluate("document.querySelector('#roundStatus').textContent"), /OUT OF LIVES.*New game/, 'last-life terminal status remains current after animation frames');
+
+  await selectMode(page, 5, 'human');
+  await recordAnnouncements(page);
+  await page.evaluate(`(() => {
+    const game = globalThis.__cocktailCabinet.games.get('imitation');
+    game.model.receive({ type: 'hello', from: 'announcement-peer', mode: 'human' });
+  })()`);
+  assertEqual(await page.evaluate("globalThis.__liveChanges.length"), 1, 'connection status and its System chat produce one focused announcement');
+  assertMatch(await page.evaluate("document.querySelector('#announcements').textContent"), /Another player found/, 'the detailed connection message is retained');
+  await page.evaluate(`(() => {
+    const game = globalThis.__cocktailCabinet.games.get('imitation');
+    game.model.addMessage('Partner', 'First unique reply');
+    globalThis.__firstReplyRow = [...document.querySelectorAll('.chat-message')].find((node) => node.textContent.includes('First unique reply'));
+  })()`);
+  await recordAnnouncements(page);
+  await page.evaluate("globalThis.__cocktailCabinet.games.get('imitation').model.addMessage('Partner', 'Second unique reply')");
+  assertEqual(await page.evaluate("document.querySelector('#announcements').textContent"), 'Partner: Second unique reply', 'only the newly arrived reply is announced, not the transcript');
+  assertEqual(await page.evaluate("globalThis.__firstReplyRow.isConnected"), true, 'existing transcript DOM rows are not replaced on each reply');
+  await step(600);
+  // The peer can time out under simulation; that is one meaningful departure,
+  // not a replay of either reply or score/progress statistics.
+  const chatChanges = await page.evaluate("globalThis.__liveChanges");
+  assertEqual(chatChanges.filter((text) => /First unique reply/.test(text)).length, 0, 'an old reply is never replayed on later frames');
+  assertEqual(chatChanges.filter((text) => /Second unique reply/.test(text)).length, 1, 'the new reply is announced exactly once');
+
+  await selectMode(page, 5, 'ai');
+  await recordAnnouncements(page);
+  await page.evaluate(`(() => {
+    const game = globalThis.__cocktailCabinet.games.get('imitation');
+    game.model.modelLoading = true;
+    for (let percent = 0; percent <= 100; percent++) {
+      game.model.lastModelStatus = 'Downloading fixture — ' + percent + '%';
+      game.model.notifyState();
+      globalThis.__tick(1);
+    }
+  })()`);
+  assertEqual(await page.evaluate("globalThis.__liveChanges.length"), 1, 'download progress produces just one loading lifecycle announcement');
+  assertEqual(await page.evaluate("globalThis.__liveChanges.some((text) => /%/.test(text))"), false, 'progress percentages never enter the live region');
+  await page.evaluate(`(() => {
+    const game = globalThis.__cocktailCabinet.games.get('imitation');
+    game.model.modelLoading = false;
+    game.model.modelError = 'Fixture download failed';
+    game.model.addMessage('System', 'The AI model could not be downloaded: Fixture download failed');
+  })()`);
+  assertMatch(await page.evaluate("document.querySelector('#announcements').textContent"), /Fixture download failed/, 'a concrete provider error is announced');
+
+  await recordAnnouncements(page);
+  await page.evaluate("document.querySelector('#joinInviteButton').click()");
+  await waitFor(page, "document.querySelector('#message').textContent !== 'Working…'", 'manual connection error');
+  assertMatch(await page.evaluate("document.querySelector('#announcements').textContent"), /invite|code|connection|JSON/i, 'manual connection errors enter the focused channel');
+}
+
+async function pressNativeKey(page, key, code, virtualKey) {
+  await page.command('Input.dispatchKeyEvent', { type: 'keyDown', key, code, text: key === 'Enter' ? '\r' : key, windowsVirtualKeyCode: virtualKey });
+  await page.command('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: virtualKey });
+}
+
+async function testNativeKeyboardButtons(page) {
+  await selectMode(page, 3, 'ship');
+  await page.evaluate("document.querySelector('#restartButton').focus()");
+  await pressNativeKey(page, ' ', 'Space', 32);
+  const restarted = await page.evaluate(`(() => {
+    const engine = globalThis.__cocktailCabinet.engine;
+    return { countdown: engine.countdown, pressed: [...engine.input.pressed], keys: [...engine.input.keys], focused: document.activeElement.id };
+  })()`);
+  assertEqual(restarted.countdown, 3, 'Space natively activates New game');
+  assertEqual(restarted.focused, 'restartButton', 'New game retains native keyboard focus');
+  assertEqual(restarted.pressed.length, 0, 'native Space is not queued as an arcade fire action');
+  await page.evaluate("globalThis.__cocktailCabinet.engine.countdown = 0; document.querySelector('#pauseButton').focus()");
+  await pressNativeKey(page, ' ', 'Space', 32);
+  assertEqual(await page.evaluate("globalThis.__cocktailCabinet.engine.paused"), true, 'Space natively activates Pause');
+  await page.evaluate("document.querySelector('#continueButton').focus()");
+  await pressNativeKey(page, 'Enter', 'Enter', 13);
+  assertEqual(await page.evaluate("globalThis.__cocktailCabinet.engine.paused"), false, 'Enter natively activates Continue');
+  await page.evaluate("globalThis.__tick(1)");
+  assertEqual(await page.evaluate("globalThis.__cocktailCabinet.engine.game.model.bullets.length"), 0, 'native control activation has no firing side effect');
+
+  await selectMode(page, 2, 'builder');
+  await page.evaluate("document.querySelector('#splatAddGap').focus()");
+  await pressNativeKey(page, ' ', 'Space', 32);
+  assertEqual(await page.evaluate("globalThis.__cocktailCabinet.engine.game.tool"), 'gap', 'Space natively activates the Builder tool');
+  const count = await page.evaluate("globalThis.__cocktailCabinet.engine.game.model.columns.length");
+  await pressNativeKey(page, 'n', 'KeyN', 78);
+  await page.evaluate("globalThis.__tick(1)");
+  assertEqual(await page.evaluate("globalThis.__cocktailCabinet.engine.game.model.columns.length"), count, 'letters typed on native buttons do not edit the route');
+}
+
 async function testLivesSetting(page) {
   const report = await page.evaluate(`(() => {
     const out = {};
@@ -1270,6 +1422,8 @@ async function main() {
     const suites = [
       ["boot, descriptors, and mode catalogue", () => testBootAndDescriptors(first.page)],
       ["mode-aware control hints for all twenty modes", () => testModeAwareHints(first.page)],
+      ["focused live announcements under high-rate DOM updates", () => testFocusedAnnouncements(first.page, step)],
+      ["native keyboard button activation without game side effects", () => testNativeKeyboardButtons(first.page)],
       ["settings validation from descriptors", () => testSettingsValidation(first.page)],
       ["lives setting policy", () => testLivesSetting(first.page)],
       ["pause and continue around the countdown", () => testPauseDuringCountdown(first.page, step)],

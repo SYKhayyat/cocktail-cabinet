@@ -80,7 +80,7 @@ export class GameEngine {
 
     this.handleKeyDown = (event) => {
       const tagName = event.target?.tagName;
-      if (["INPUT", "TEXTAREA", "SELECT"].includes(tagName) || event.target?.isContentEditable) return;
+      if (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(tagName) || event.target?.closest?.("button, input, textarea, select, a[href], [role='button']") || event.target?.isContentEditable) return;
       // A repeat from a key held across a round/focus boundary is not a fresh
       // press. Wait for release and a real keydown before accepting it again.
       if (event.repeat && !this.input.keys.has(event.key)) return;
@@ -92,6 +92,12 @@ export class GameEngine {
       this.input.keys.add(event.key);
     };
     this.handleKeyUp = (event) => this.input.keys.delete(event.key);
+    this.handleFocusIn = () => {
+      // A key held while Tab moves to a native control must not keep steering
+      // or become a queued action after the user returns to the board.
+      this.input.keys.clear();
+      this.input.pressed.clear();
+    };
     this.handlePointerMove = (event) => {
       if (this.activePointerId !== null && event.pointerId !== this.activePointerId) return;
       this.input.mode = "mouse";
@@ -156,6 +162,7 @@ export class GameEngine {
     window.addEventListener("keyup", this.handleKeyUp);
     window.addEventListener("blur", this.handleBlur);
     this.inputDocument?.addEventListener("visibilitychange", this.handleVisibilityChange);
+    window.addEventListener("focusin", this.handleFocusIn);
     canvas.addEventListener("pointermove", this.handlePointerMove);
      canvas.addEventListener("pointerdown", this.handlePointerDown);
      canvas.addEventListener("dblclick", this.handleDoubleClick);
@@ -362,6 +369,7 @@ export class GameEngine {
     window.removeEventListener("keyup", this.handleKeyUp);
     window.removeEventListener("blur", this.handleBlur);
     this.inputDocument?.removeEventListener("visibilitychange", this.handleVisibilityChange);
+    window.removeEventListener("focusin", this.handleFocusIn);
     this.canvas.removeEventListener("pointermove", this.handlePointerMove);
      this.canvas.removeEventListener("pointerdown", this.handlePointerDown);
      this.canvas.removeEventListener("dblclick", this.handleDoubleClick);

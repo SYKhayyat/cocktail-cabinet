@@ -83,6 +83,12 @@ Mode values, labels, and settings bounds are declared once per game as
 `<GAME>_MODES` and `<GAME>_SETTINGS` in the model, and the UI derives its
 selectors, help text, and validation from them.
 
+The shell has one focused polite announcement channel for lifecycle transitions,
+results, connection/errors, and new incoming chat. Scores, route statistics and
+download progress stay outside live regions. Existing chat rows are retained
+instead of replaying the transcript on every reply. Native buttons keep their
+Space/Enter behavior without also sending controls to the arcade game.
+
 ## AI
 
 The machine opponents are local JavaScript controllers whose decisions are made
@@ -113,7 +119,7 @@ a third tab replace an active peer. BFCache restoration reopens discovery.
 | --- | --- |
 | `npm test` | Model/host contracts, event accounting, seeded computer-policy bands/tuning, and independent bounded HUMAN-input experience proxies |
 | `npm run check` | Syntax, architectural dependencies, dead code and README control descriptors |
-| `npm run test:browser` | 19 CDP suites: boot, twenty modes, settings/lives, pause/countdown, keyboard/pointer input, retained retry pressure/delayed recovery, loss/restart, builder tools, provider fallback/load/chat fixtures, renamed labels, narrow layouts, cross-tab Guess/Provide, hostile-leftover isolation, pagehide/pageshow and disposal |
+| `npm run test:browser` | 22 CDP suites: boot, twenty modes and mode hints, settings/lives, pause/countdown, keyboard/pointer input, native keyboard buttons, focused announcements at 240 Hz, retained retry pressure/delayed recovery, loss/restart, builder tools, provider fallback/load/chat fixtures, renamed labels, narrow layouts, cross-tab Guess/Provide, hostile-leftover isolation, pagehide/pageshow and disposal |
 
 Computer tuning is documented in [tests/ai/TUNING.md](tests/ai/TUNING.md), and
 explicit event denominators/calibration in [tests/ai/ACCOUNTING.md](tests/ai/ACCOUNTING.md).
