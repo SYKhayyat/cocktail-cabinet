@@ -46,6 +46,13 @@ export class SplatGame {
   setSide(side) { this.model.setSide(side); }
   setSettings(settings) { return this.model.setSettings(settings); }
   applyPendingSettings() { this.model.applyPendingSettings(); }
+  refreshSettingsPreview() {
+    this.applyPendingSettings();
+    this.reset();
+    return this.model.side === "builder" && this.model.layoutAuthored
+      ? "Authored route preserved. Column spacing applies to generated routes. Press New game when ready."
+      : "Preview updated. Press New game when ready.";
+  }
   reset(keepScore, preserveLayout, context = this.lifecycle.roundContext) { this.model.reset(keepScore, preserveLayout, context); }
   controlHint() { return this.controller.controlHint(); }
   resetAfterLife() { this.model.resetAfterLife(); }

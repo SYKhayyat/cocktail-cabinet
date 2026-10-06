@@ -120,9 +120,12 @@ function applySettings(id) {
   }
   game.setSettings(settings);
   if (engine.ready) {
-    game.applyPendingSettings();
-    game.reset();
-    message.textContent = "Preview updated. Press New game when ready.";
+    if (game.refreshSettingsPreview) message.textContent = game.refreshSettingsPreview();
+    else {
+      game.applyPendingSettings();
+      game.reset();
+      message.textContent = "Preview updated. Press New game when ready.";
+    }
   } else message.textContent = "Settings saved for the next game.";
 }
 

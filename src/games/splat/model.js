@@ -63,7 +63,13 @@ export class SplatModel {
     return { columnSpacing };
   }
   sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || SPLAT_MODES[0].label; }
-  setSide(side) { if (this.sides.includes(side)) this.side = side; this.tool = "column"; }
+  setSide(side) {
+    if (this.sides.includes(side) && side !== this.side) {
+      this.side = side;
+      this.layoutAuthored = false;
+    }
+    this.tool = "column";
+  }
   setTool(tool) { if (tool === "column" || tool === "gap") this.tool = tool; }
   setSettings(settings = {}) {
     const validated = this.validateSettings({ ...this.pendingSettings, ...settings });
@@ -72,7 +78,7 @@ export class SplatModel {
     return true;
   }
   applyPendingSettings() { this.columnSpacing = this.pendingSettings.columnSpacing; }
-  reset(keepScore = false, preserveLayout = false, { startingLives = 3 } = {}) {
+  reset(keepScore = false, preserveLayout = this.side === "builder" && this.layoutAuthored, { startingLives = 3 } = {}) {
     const preservedColumns = preserveLayout && this.columns ? this.columns.map((column) => ({ ...column, passed: false })) : null;
     if (!keepScore) {
       this.score = 0;
@@ -107,6 +113,7 @@ export class SplatModel {
     this.puzzleResult = null;
     if (preservedColumns) this.columns.push(...preservedColumns);
     else {
+      this.layoutAuthored = false;
       for (let index = 0; index < COLUMN_COUNT; index += 1) {
         const gapY = 150 + ((index * 83 + 47) % 230);
         const gapHeight = Math.max(76, GAP_HEIGHT - Math.floor(index / 10) * 5);
@@ -182,7 +189,10 @@ export class SplatModel {
           this.dragOffsetX = pointer.dragStartX - (column.x - this.builderCameraX);
         }
       }
-      if (this.dragColumn) this.dragColumn.x = clamp(this.builderCameraX + pointer.x - this.dragOffsetX, this.player.x + 60, this.columns.at(-1).x + 300);
+      if (this.dragColumn) {
+        this.dragColumn.x = clamp(this.builderCameraX + pointer.x - this.dragOffsetX, this.player.x + 60, this.columns.at(-1).x + 300);
+        this.layoutAuthored = true;
+      }
     }
     if (this.tool === "column" && pointer.released) {
       if (!this.dragColumn && pointer.dragDistance < 8) this.addColumn(this.builderCameraX + pointer.x, 280);
@@ -197,6 +207,7 @@ export class SplatModel {
       const gapY = clamp(Math.min(this.draftGap.startY, this.draftGap.currentY), 60, 420);
       this.draftGap.column.gapY = gapY;
       this.draftGap.column.gapHeight = clamp(Math.abs(this.draftGap.currentY - this.draftGap.startY), 50, Math.min(240, 560 - gapY));
+      this.layoutAuthored = true;
       this.draftGap = null;
     }
   }
@@ -208,6 +219,7 @@ export class SplatModel {
     const minimumX = this.player.x + 60;
     const column = { id: this.nextColumnId++, x: clamp(x, minimumX, this.columns.at(-1).x + 300), y: 0, width: COLUMN_WIDTH, height: 560, gapY: clamp(gapY, 60, 420), gapHeight: GAP_HEIGHT, passed: false };
     this.columns.push(column);
+    this.layoutAuthored = true;
     this.columns.sort((a, b) => a.x - b.x);
     if (!this.nextColumn) this.nextColumn = column;
     return column;
