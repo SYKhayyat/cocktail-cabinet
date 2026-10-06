@@ -41,8 +41,9 @@ mode, clicking or dragging launches an enemy missile at the nearest target.
 
 ### Lives
 
-The **Lives** control sets lives for the round. Lowering it below your current
-lives applies immediately; raising it takes effect from the next game, so a
+The **Lives** control sets the round maximum. Lowering it clamps the maximum and
+every active owner's remaining lives immediately, without restoring spent lives;
+raising it takes effect from the next game, so a
 change can never hand you a free life mid-round. Breakout's `extraLife` brick
 raises the cap permanently.
 

@@ -7,6 +7,7 @@ export function createGameLifecycle(game, {
   startRound = () => game.reset(),
   restartAfterLife = game.resetAfterLife ? () => game.resetAfterLife() : null,
   lifeState = () => ({ owner: "host" }),
+  clampLives = () => {},
   takeRewards = () => []
 } = {}) {
   let roundContext = Object.freeze({ startingLives: 3, reason: "load" });
@@ -21,6 +22,10 @@ export function createGameLifecycle(game, {
       startRound(roundContext);
     },
     lifeState,
+    clampLives(max) {
+      roundContext = Object.freeze({ ...roundContext, startingLives: Math.min(roundContext.startingLives, max) });
+      clampLives(max);
+    },
     takeRewards,
     lifeLossPending: () => Boolean(game.lifeLost || game.gameOver),
     resolveLifeLoss() {

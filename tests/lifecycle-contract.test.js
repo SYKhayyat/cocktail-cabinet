@@ -190,6 +190,34 @@ test("model-owned losses do not spend the host budget and result state drives th
   });
 });
 
+test("lowering lives clamps every game-owned budget without granting spent lives", () => withHost(({ engine, lives }) => {
+  for (const [Game, side] of [[BreakoutGame, "versus"], [AsteroidsGame, "versus"], [SplatGame, "race"], [SplatGame, "builder"]]) {
+    engine.setLives(7);
+    const game = new Game();
+    game.setSide(side);
+    engine.load(game);
+    const counters = game.model.playerLives || game.model.raceLives;
+    counters.human = 2;
+    counters.computer = 6;
+    engine.setLives(3);
+    assert.deepEqual(counters, { human: 2, computer: 3 });
+    assert.deepEqual(lives.at(-1), [2, 3]);
+    assert.equal(game.lifecycle.roundContext.startingLives, 3);
+    engine.setLives(8);
+    assert.deepEqual(counters, { human: 2, computer: 3 }, "raising cannot resurrect either owner");
+    engine.restart();
+    assert.deepEqual(game.lifecycle.lifeState().remaining, 8);
+  }
+}));
+
+test("lowering the host maximum clamps it even when remaining lives are already below it", () => withHost(({ engine }) => {
+  engine.setLives(7);
+  engine.load(new SnakeGame());
+  engine.lives = 1;
+  engine.setLives(3);
+  assert.deepEqual([engine.lives, engine.maxLives], [1, 3]);
+}));
+
 test("Splat puzzle retries preserve layout and end through a single-owner result", () => {
   withHost(({ engine, text, messages }) => {
     const game = new SplatGame();

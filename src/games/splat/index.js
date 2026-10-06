@@ -9,6 +9,7 @@ export class SplatGame {
     this.controller = new SplatController(this.model);
     this.lifecycle = createGameLifecycle(this, {
       startRound: (context) => this.model.reset(false, context.reason === "restart", context),
+      clampLives: (max) => this.clampLives(max),
       restartAfterLife: () => this.model.resetAfterLife(),
       lifeState: () => this.model.raceLives
         ? { owner: "game", remaining: this.model.raceLives.human, mirrorHost: this.model.side === "builder", players: this.model.side === "race" ? { ...this.model.raceLives } : null }
@@ -30,6 +31,11 @@ export class SplatGame {
   // puzzle, but it is not a second pilot and must use the engine's single-owner
   // lives overlay just like Climber.
   get playerLives() { return this.model.side === "race" ? this.model.raceLives : null; }
+  clampLives(max) {
+    if (!this.model.raceLives) return;
+    this.model.raceLives.human = Math.min(this.model.raceLives.human, max);
+    this.model.raceLives.computer = Math.min(this.model.raceLives.computer, max);
+  }
   set gameOver(value) { this.model.gameOver = value; }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }

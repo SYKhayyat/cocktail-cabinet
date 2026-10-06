@@ -222,9 +222,15 @@ export class GameEngine {
       this.onLives?.(this.lives, this.maxLives);
       return;
     }
-    if (next < this.lives) {
+    if (next < this.maxLives) {
       this.maxLives = next;
-      this.lives = next;
+      this.lives = Math.min(this.lives, next);
+      // Game-owned rounds have their own authoritative counters. Clamp those
+      // counters too, otherwise the overlay can show more lives than the
+      // configured maximum and a later retry silently spends an old budget.
+      this.lifecycle.clampLives(next);
+      const life = this.lifecycle.lifeState();
+      if (life.owner === "game") this.lives = life.remaining;
       this.onLives?.(this.lives, this.maxLives);
       this.onMessage?.(`Lives set to ${next} — lowered straight away.`);
     } else {

@@ -9,6 +9,7 @@ export class AsteroidsGame {
     this.controller = new AsteroidsController(this.model);
     this.lifecycle = createGameLifecycle(this, {
       startRound: (context) => this.model.reset(false, context),
+      clampLives: (max) => this.model.clampLives(max),
       restartAfterLife: () => this.model.resetAfterLife(),
       lifeState: () => this.model.side === "versus"
         ? { owner: "game", remaining: this.model.playerLives.human, players: { ...this.model.playerLives } }

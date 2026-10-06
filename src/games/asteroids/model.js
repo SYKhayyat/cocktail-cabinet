@@ -80,6 +80,11 @@ export class AsteroidsModel {
   get sides() { return ASTEROIDS_MODES.map((mode) => mode.value); }
   sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || ASTEROIDS_MODES[0].label; }
   setSide(side) { if (this.sides.includes(side)) this.side = side; }
+  clampLives(max) {
+    if (!this.playerLives) return;
+    this.playerLives.human = Math.min(this.playerLives.human, max);
+    this.playerLives.computer = Math.min(this.playerLives.computer, max);
+  }
   reset(keepScore = false, { startingLives = 3 } = {}) {
     if (!keepScore) this.score = 0;
     this.scores = { human: 0, computer: 0 };

@@ -9,6 +9,7 @@ export class BreakoutGame {
     this.controller = new BreakoutController(this.model);
     this.lifecycle = createGameLifecycle(this, {
       startRound: (context) => this.model.reset(false, context),
+      clampLives: (max) => this.clampLives(max),
       restartAfterLife: () => this.model.resetAfterLife(),
       lifeState: () => this.model.side === "versus"
         ? { owner: "game", remaining: this.model.playerLives.human, players: { ...this.model.playerLives } }
@@ -30,6 +31,11 @@ export class BreakoutGame {
   // falls back to its own Lives: current/max line instead of drawing a
   // "You / Computer" overlay for a game with a single paddle.
   get playerLives() { return this.model.side === "versus" ? this.model.playerLives : null; }
+  clampLives(max) {
+    if (!this.model.playerLives) return;
+    this.model.playerLives.human = Math.min(this.model.playerLives.human, max);
+    this.model.playerLives.computer = Math.min(this.model.playerLives.computer, max);
+  }
   get winner() { return this.model.winner; }
   get versusTie() { return this.model.versusTie; }
   get gameOver() { return this.model.gameOver; }
