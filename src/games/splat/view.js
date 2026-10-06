@@ -55,7 +55,7 @@ export function draw(model, context) {
     drawDraftGap(context, model, model.cameraX, 0);
     drawPlayer(context, model.player, model.cameraX, 0, model.side === "climber" ? "#fbbf24" : "#fb7185");
     if (model.side === "builder") {
-      drawText(context, `Builder tool: ${model.tool === "gap" ? "draw a gap" : "add a column"} · drag sideways to pan`, 16, 28, 14, "#cbd5e1");
+      drawText(context, `Builder: ${model.tool === "gap" ? "draw a gap" : "add/move columns"} · drag empty canvas to pan`, 16, 28, 14, "#cbd5e1");
     } else {
       drawText(context, "Hold Up/Down to drift · tap/click the upper/lower half to bounce", 16, 28, 14, "#cbd5e1");
     }

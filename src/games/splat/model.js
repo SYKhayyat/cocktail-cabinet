@@ -70,7 +70,12 @@ export class SplatModel {
     }
     this.tool = "column";
   }
-  setTool(tool) { if (tool === "column" || tool === "gap") this.tool = tool; }
+  setTool(tool) {
+    if (tool === "column" || tool === "gap") {
+      this.tool = tool;
+      this.clearBuilderGesture();
+    }
+  }
   setSettings(settings = {}) {
     const validated = this.validateSettings({ ...this.pendingSettings, ...settings });
     if (!validated) return false;
@@ -95,6 +100,8 @@ export class SplatModel {
     this.columns = [];
     this.cameraX = 0;
     this.builderCameraX = 0;
+    this.builderManualCamera = false;
+    this.builderGesture = null;
     this.draftGap = null;
     this.dragColumn = null;
     this.dragOffsetX = 0;
@@ -148,7 +155,7 @@ export class SplatModel {
     this.moveComputer(this.player, dt);
     this.player.x += this.aiTuning.horizontalSpeed * dt;
     this.player.y = clamp(this.player.y + this.player.vy * dt, 18, 542);
-    this.builderCameraX = clamp(this.player.x - 110, 0, Math.max(0, this.columns.at(-1).x - 650));
+    if (!this.builderManualCamera) this.builderCameraX = clamp(this.player.x - 110, 0, this.builderCameraLimit());
     this.cameraX = this.builderCameraX;
     this.resolvePlayer(this.player);
     if (this.player.x >= this.columns.at(-1).x + 100) {
@@ -178,38 +185,58 @@ export class SplatModel {
   }
   handleBuilderInput(input) { this.updateBuilderInput(input); }
   handlePausedInput(input) { if (this.side === "builder") this.updateBuilderInput(input); }
+  builderCameraLimit() { return Math.max(0, (this.columns.at(-1)?.x || 0) - 650); }
+  panBuilder(cameraX) {
+    this.builderManualCamera = true;
+    this.builderCameraX = clamp(cameraX, 0, this.builderCameraLimit());
+    this.cameraX = this.builderCameraX;
+  }
+  clearBuilderGesture() {
+    this.builderGesture = null;
+    this.dragColumn = null;
+    this.draftGap = null;
+  }
   updateBuilderInput(input) {
     const pointer = input.pointer;
     if (!pointer) return;
-    if (this.tool === "column" && pointer.down) {
-      if (!this.dragColumn) {
-        const column = this.columnAt(this.builderCameraX + pointer.dragStartX, 24);
-        if (column) {
-          this.dragColumn = column;
-          this.dragOffsetX = pointer.dragStartX - (column.x - this.builderCameraX);
-        }
+    if (!pointer.down && !pointer.released) {
+      // A cancelled pointer has no release edge. Discard its edit/pan baseline.
+      this.clearBuilderGesture();
+      return;
+    }
+    if (!this.builderGesture) {
+      const startX = pointer.dragStartX ?? pointer.x;
+      const startY = pointer.dragStartY ?? pointer.y;
+      const column = this.columnAt(this.builderCameraX + startX, this.tool === "gap" ? 40 : 24);
+      this.builderGesture = { kind: column ? this.tool : "empty", startX, startY, cameraX: this.builderCameraX, column };
+      if (column && this.tool === "column") {
+        this.dragColumn = column;
+        this.dragOffsetX = startX - (column.x - this.builderCameraX);
       }
-      if (this.dragColumn) {
-        this.dragColumn.x = clamp(this.builderCameraX + pointer.x - this.dragOffsetX, this.player.x + 60, this.columns.at(-1).x + 300);
+      if (column && this.tool === "gap") this.draftGap = { column, startY, currentY: pointer.y };
+    }
+    const gesture = this.builderGesture;
+    const distance = Math.max(pointer.dragDistance || 0, Math.hypot(pointer.x - gesture.startX, pointer.y - gesture.startY));
+    if (gesture.kind === "empty" && distance >= 8) {
+      // Lock the gesture at its starting point: crossing a column while panning
+      // never turns an empty-canvas drag into an edit.
+      this.panBuilder(gesture.cameraX + gesture.startX - pointer.x);
+    } else if (gesture.kind === "column") {
+      const x = clamp(this.builderCameraX + pointer.x - this.dragOffsetX, this.player.x + 60, this.columns.at(-1).x + 300);
+      if (x !== gesture.column.x) {
+        gesture.column.x = x;
+        this.columns.sort((a, b) => a.x - b.x);
         this.layoutAuthored = true;
       }
-    }
-    if (this.tool === "column" && pointer.released) {
-      if (!this.dragColumn && pointer.dragDistance < 8) this.addColumn(this.builderCameraX + pointer.x, 280);
-      this.dragColumn = null;
-    }
-    if (this.tool === "gap" && (pointer.down || pointer.released)) {
-      const column = this.columnAt(this.builderCameraX + pointer.dragStartX, 40);
-      if (column && !this.draftGap) this.draftGap = { column, startY: pointer.dragStartY, currentY: pointer.y };
-      if (this.draftGap) this.draftGap.currentY = pointer.y;
-    }
-    if (this.tool === "gap" && pointer.released && this.draftGap) {
+    } else if (gesture.kind === "gap") this.draftGap.currentY = pointer.y;
+    if (pointer.released && gesture.kind === "gap") {
       const gapY = clamp(Math.min(this.draftGap.startY, this.draftGap.currentY), 60, 420);
       this.draftGap.column.gapY = gapY;
       this.draftGap.column.gapHeight = clamp(Math.abs(this.draftGap.currentY - this.draftGap.startY), 50, Math.min(240, 560 - gapY));
       this.layoutAuthored = true;
-      this.draftGap = null;
     }
+    if (pointer.released && gesture.kind === "empty" && distance < 8 && this.tool === "column") this.addColumn(this.builderCameraX + pointer.x, 280);
+    if (pointer.released) this.clearBuilderGesture();
   }
   columnAt(x, maxDistance = 50) {
     const closest = this.columns.reduce((current, column) => !current || Math.abs(column.x - x) < Math.abs(current.x - x) ? column : current, null);
@@ -364,6 +391,8 @@ export class SplatModel {
       this.score = 0;
       this.cameraX = 0;
       this.builderCameraX = 0;
+      this.builderManualCamera = false;
+      this.clearBuilderGesture();
       this.lifeLost = false;
       return;
     }
