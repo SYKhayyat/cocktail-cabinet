@@ -128,11 +128,61 @@ For the AI executable boundary:
   deployment evidence, not a blanket script exception.
 
 Do not add `upgrade-insecure-requests`: it rewrites Ollama's intentionally HTTP
-loopback endpoints. Browser local-network permission, mixed-content exceptions
-for trustworthy loopback, Ollama CORS and model authorization are still browser/
-operator requirements; CSP alone cannot promise connectivity. WebRTC's STUN
-exchange is not fetch/XHR and remains a separate real-peer deployment check.
-Headers/HSTS are owned by #79 and must be verified on the live deployment.
+loopback endpoints. WebRTC's STUN exchange is not fetch/XHR and remains a separate
+real-peer deployment check. Headers/HSTS are owned by #79 and must be verified on
+the live deployment.
+
+### Ollama is unreachable from the deployed origin — this is not configurable
+
+**The local Ollama provider works when the cabinet is served from a loopback
+origin, and cannot work when it is served from `https://games.siachshai.online`.**
+That is a browser-enforced boundary, not a misconfiguration, and no setting on
+this machine, in Ollama, or in the site changes it.
+
+Two independent gates stop the request:
+
+1. **CORS.** Ollama answers only loopback origins by default, so a page on the
+   deployed origin gets `403 Forbidden` from `OLLAMA_HOST=127.0.0.1:11434`.
+2. **Private Network Access.** The deployed origin is *public* and the loopback
+   address is *private*, which is a second, stricter gate. Even with the origin
+   correctly allowed:
+
+   ```sh
+   OLLAMA_ORIGINS="https://games.siachshai.online" ollama serve
+   ```
+
+   CORS then succeeds — Ollama logs `204` with a correct
+   `Access-Control-Allow-Origin` — but the browser **still** discards the
+   response. PNA additionally requires
+   `Access-Control-Allow-Private-Network: true`, which Ollama does not emit on
+   any response or preflight. Disabling the browser's PNA preflight behaviour
+   does not change the outcome either.
+
+No web page can grant itself this. A site that could widen its own reach into
+localhost would let any page you visited read your local model server, so the
+browser deliberately refuses. `OLLAMA_ORIGINS` alone is therefore **not** a fix,
+and a NixOS service edit that adds it will change nothing.
+
+**Consequently the deployed site cannot offer the Ollama provider to visitors.**
+A visitor from the deployed origin sees "Ollama unavailable" no matter how the
+local machine is configured. Local development and local play over loopback are
+unaffected and fully supported; this is the only shape that works today.
+
+To confirm which case you are in — same browser, same Ollama, origin is the only
+variable:
+
+```sh
+# Loopback origin: 200. Deployed origin: refused.
+curl -s -o /dev/null -w 'local     %{http_code}\n' \
+  -H 'Origin: http://127.0.0.1:8765' http://127.0.0.1:11434/api/tags
+curl -s -o /dev/null -w 'deployed  %{http_code}\n' \
+  -H 'Origin: https://games.siachshai.online' http://127.0.0.1:11434/api/tags
+```
+
+The automated browser suite serves from a loopback origin, so **it passes either
+way and cannot detect this**. Any future provider support for a public origin
+needs a genuinely different transport (an HTTPS endpoint with a certificate the
+browser accepts, or a relay); adding an origin to Ollama's allowlist is not one.
 
 ## Evidence and honest limits
 
