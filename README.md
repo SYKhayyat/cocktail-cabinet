@@ -27,17 +27,18 @@ Each game's controls are defined by its controller and rendered into the
 
 | Game | Modes | Controls |
 | --- | --- | --- |
-| **Snake** | `snake` — Solo (steer); `apples` — Computer vs you (place apples) | Arrows or WASD to steer; Click to place an apple |
-| **Breakout** | `bottom` — Solo (bottom paddle); `blocks` — Computer vs you (drag blocks); `versus` — Versus (two paddles) | Arrows, WASD, or Mouse to move the paddle |
-| **Splat** | `climber` — Solo (steer); `race` — Race (two balls); `builder` — Builder (place columns) | Arrows or WASD to drift; Click the upper or lower half to bounce |
-| **Asteroids** | `ship` — Solo (fly); `versus` — Versus (both ships); `rocks` — Rocks (send asteroids) | Arrows to turn and thrust; Space or Click to fire |
-| **Missile Command** | `defender` — Defender (defend cities); `attacker` — Attacker (attack batteries) | Arrows to choose a battery; Space or Click to launch; drag to aim |
-| **Imitation** | `ai` — Chat with AI; `human` — Chat with a player; `guess` — Guess; `provide` — Provide; `write` — Classify | Enter to send a message; Click to choose a guess |
-| **Starfall** | `runner` — Solo (runner); `stars` — Stars (send hazards) | Arrows or WASD to guide the runner; Click to send a star; Double-click to send a gem |
+| **Snake** | `snake` — Solo (steer); `apples` — Computer vs you (place apples) | Snake: Arrows or WASD to steer, Hold to steer toward the pointer. Apples: Click to place an apple |
+| **Breakout** | `bottom` — Solo (bottom paddle); `blocks` — Computer vs you (drag blocks); `versus` — Versus (two paddles) | Bottom/Versus: Arrows, WASD, or Mouse to move your paddle. Blocks: Drag to move a block; Click to cycle its type |
+| **Splat** | `climber` — Solo (steer); `race` — Race (two balls); `builder` — Builder (place columns) | Climber/Race: Arrows or WASD to drift and bounce; Click the upper/lower half to bounce. Builder: Click/Drag to place/select/move columns or gaps; Arrows to select a column/move its gap; Home/End first/last; A/D move column; Q/E resize gap; C/G tool; N/Delete add/remove column; PageUp/PageDown or Wheel to pan |
+| **Asteroids** | `ship` — Solo (fly); `versus` — Versus (both ships); `rocks` — Rocks (send asteroids) | Ship/Versus: Arrows or WASD to turn/thrust; Mouse to aim; Space or Click to fire; Hold to aim, thrust and fire. Rocks: Click to send an asteroid; Drag to release it with velocity |
+| **Missile Command** | `defender` — Defender (defend cities); `attacker` — Attacker (attack cities) | Defender: Arrows to choose a battery; Mouse to aim; Space or Click to launch. Attacker: Click to send an enemy missile toward the nearest city or battery; Drag to release it with velocity |
+| **Imitation** | `ai` — Chat with AI; `human` — Chat with a player; `guess` — Guess; `provide` — Provide; `write` — Classify | Enter sends a message (AI/Human), prompt (Guess), response (Provide), or classification sample (Classify). Guess only: Click AI/Human after the mystery reply |
+| **Starfall** | `runner` — Solo (runner); `stars` — Stars (send hazards) | Runner: Arrows, WASD, or Mouse to guide the runner. Stars: Click to send a star; Drag for sideways velocity; Double-click to send a gem; Hold to send gems |
 
 In Missile Command, Left/Right selects which of the three batteries fires. Space
 and clicking both launch an interceptor at the current crosshair; in Attacker
-mode, clicking or dragging launches an enemy missile at the nearest target.
+mode, clicking launches an enemy missile toward the nearest city or battery and dragging
+releases a free-flight missile with the gesture's velocity.
 
 ### Lives
 

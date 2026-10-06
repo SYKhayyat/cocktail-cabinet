@@ -43,10 +43,11 @@ export class ImitationController {
     this.lifecycleAttached = true;
   }
   controlHint() {
-    return [
-      { keys: ["Enter"], label: "send a message" },
-      { keys: ["Click"], label: "choose a guess" }
+    if (this.model.side === "guess") return [
+      { keys: ["Enter"], label: "send a prompt before the mystery" },
+      { keys: ["Click"], label: "choose AI or Human after the reply" }
     ];
+    return [{ keys: ["Enter"], label: this.model.side === "provide" ? "send a response to the Guess player" : this.model.side === "write" ? "submit text for classification" : "send a message" }];
   }
   reset(keepScore = false) {
     this.closeChannel();

@@ -1,11 +1,16 @@
 export class StarfallController {
   constructor(model) { this.model = model; this.holdTime = 0; }
   controlHint() {
+    if (this.model.side === "stars") return [
+      { keys: ["Click"], label: "send a star" },
+      { keys: ["Drag"], label: "send a star with sideways velocity" },
+      { keys: ["Double-click"], label: "send a gem" },
+      { keys: ["Hold"], label: "send gems" }
+    ];
     return [
       { keys: ["ArrowLeft", "ArrowRight"], label: "guide the runner" },
       { keys: ["A", "D"], label: "guide the runner" },
-      { keys: ["Click"], label: "send a star" },
-      { keys: ["Double-click"], label: "send a gem" }
+      { keys: ["Mouse"], label: "guide the runner" }
     ];
   }
   update(dt, input) {

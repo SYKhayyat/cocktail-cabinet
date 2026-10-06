@@ -3,10 +3,11 @@ export class SnakeController {
     this.model = model;
   }
   controlHint() {
+    if (this.model.side === "apples") return [{ keys: ["Click"], label: "place an apple" }];
     return [
       { keys: ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"], label: "steer" },
       { keys: ["W", "A", "S", "D"], label: "steer" },
-      { keys: ["Click"], label: "place an apple" }
+      { keys: ["Hold"], label: "steer toward the pointer" }
     ];
   }
   update(dt, input) {

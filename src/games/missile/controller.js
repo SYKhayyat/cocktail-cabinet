@@ -1,10 +1,15 @@
 export class MissileController {
   constructor(model) { this.model = model; }
   controlHint() {
+    if (this.model.side === "attacker") return [
+      { keys: ["Click"], label: "send an enemy missile toward the nearest city or battery" },
+      { keys: ["Drag"], label: "release an enemy missile with velocity" }
+    ];
     return [
       { keys: ["ArrowLeft", "ArrowRight"], label: "choose a battery" },
       { keys: ["Space"], label: "launch" },
-      { keys: ["Click"], label: "launch or drag to aim" }
+      { keys: ["Mouse"], label: "aim the crosshair" },
+      { keys: ["Click"], label: "launch at the crosshair" }
     ];
   }
   update(dt, input) {

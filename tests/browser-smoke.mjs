@@ -375,6 +375,22 @@ async function testSettingsValidation(page) {
   assertMatch(report.splatValid, /saved for the next game|Preview updated/, "valid Splat settings are accepted");
 }
 
+async function testModeAwareHints(page) {
+  for (const [index, { id, modes }] of GAME_CARDS.entries()) {
+    for (const mode of modes) {
+      await selectMode(page, index, mode);
+      const hint = await page.evaluate(`(() => {
+        const game = globalThis.__cocktailCabinet.engine.game;
+        return {
+          dom: [...document.querySelectorAll('#controlHint .shortcut-group')].map((group) => group.textContent.trim()),
+          descriptor: game.controlHint().map(({ keys, label }) => keys.join('') + ' ' + label)
+        };
+      })()`);
+      assertEqual(JSON.stringify(hint.dom), JSON.stringify(hint.descriptor), `${id}/${mode} immediately renders its own hint on side change`);
+    }
+  }
+}
+
 async function testLivesSetting(page) {
   const report = await page.evaluate(`(() => {
     const out = {};
@@ -1253,6 +1269,7 @@ async function main() {
 
     const suites = [
       ["boot, descriptors, and mode catalogue", () => testBootAndDescriptors(first.page)],
+      ["mode-aware control hints for all twenty modes", () => testModeAwareHints(first.page)],
       ["settings validation from descriptors", () => testSettingsValidation(first.page)],
       ["lives setting policy", () => testLivesSetting(first.page)],
       ["pause and continue around the countdown", () => testPauseDuringCountdown(first.page, step)],

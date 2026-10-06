@@ -1,11 +1,19 @@
 export class AsteroidsController {
   constructor(model) { this.model = model; }
   controlHint() {
+    if (this.model.side === "rocks") return [
+      { keys: ["Click"], label: "send an asteroid" },
+      { keys: ["Drag"], label: "release an asteroid with velocity" }
+    ];
     return [
       { keys: ["ArrowLeft", "ArrowRight"], label: "turn" },
+      { keys: ["A", "D"], label: "turn" },
       { keys: ["ArrowUp"], label: "thrust" },
+      { keys: ["W"], label: "thrust" },
       { keys: ["Space"], label: "fire" },
-      { keys: ["Click"], label: "aim and fire" }
+      { keys: ["Mouse"], label: "aim" },
+      { keys: ["Click"], label: "aim and fire" },
+      { keys: ["Hold"], label: "aim, thrust and fire" }
     ];
   }
   update(dt, input) {

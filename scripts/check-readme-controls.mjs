@@ -60,13 +60,15 @@ for (const { id, label, game } of GAMES) {
     if (!row.modes.includes(`\`${mode.value}\``)) {
       failures.push(`README.md: ${label} does not list its ${mode.value} mode`);
     }
-  }
-
-  for (const { keys } of game.controlHint()) {
-    for (const key of keys) {
-      const token = normalizeKey(key);
-      if (!row.controls.includes(token)) {
-        failures.push(`README.md: ${label} does not document ${token} (from ${key})`);
+    // Inspect every registered side, not just the constructor's default.
+    // Setting the model value avoids opening Imitation transports in a docs check.
+    game.model.side = mode.value;
+    for (const { keys } of game.controlHint()) {
+      for (const key of keys) {
+        const token = normalizeKey(key);
+        if (!row.controls.includes(token)) {
+          failures.push(`README.md: ${label}/${mode.value} does not document ${token} (from ${key})`);
+        }
       }
     }
   }

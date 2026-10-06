@@ -2,17 +2,20 @@ export class SplatController {
   constructor(model) { this.model = model; }
   controlHint() {
     if (this.model.side === "builder") return [
+      { keys: ["Click"], label: "select a column or place the active tool" },
+      { keys: ["Drag"], label: "move a column or gap" },
       { keys: ["ArrowLeft", "ArrowRight"], label: "select column" },
+      { keys: ["Home", "End"], label: "select first/last column" },
       { keys: ["A", "D"], label: "move column" },
       { keys: ["ArrowUp", "ArrowDown"], label: "move gap" },
       { keys: ["Q", "E"], label: "resize gap" },
       { keys: ["C", "G"], label: "column/gap tool" },
       { keys: ["N", "Delete"], label: "add/remove column" },
-      { keys: ["PageUp", "PageDown"], label: "pan" }
+      { keys: ["PageUp", "PageDown", "Wheel"], label: "pan" }
     ];
     return [
-      { keys: ["ArrowUp", "ArrowDown"], label: "drift" },
-      { keys: ["W", "S"], label: "drift" },
+      { keys: ["ArrowUp", "ArrowDown"], label: "drift; press to bounce" },
+      { keys: ["W", "S"], label: "drift; press to bounce" },
       { keys: ["Click"], label: "bounce" }
     ];
   }

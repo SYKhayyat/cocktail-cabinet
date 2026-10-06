@@ -1129,7 +1129,7 @@ test("every game advertises the controls its controller actually binds", () => {
   }
   assert.ok(advertised.missile.has("Space"), "Missile advertises Space, which its controller now binds");
   assert.ok(advertised.asteroids.has("Space"), "Asteroids advertises Space");
-  assert.ok(advertised.snake.has("Click"), "Snake advertises clicking to place an apple");
+  assert.ok(advertised.snake.has("Hold"), "Snake solo advertises pointer steering, not apple placement");
   assert.ok(advertised.imitation.has("Enter"), "Imitation advertises Enter to send");
   assert.ok(!advertised.breakout.has("Space"), "Breakout does not advertise a key it does not bind");
   assert.ok(!advertised.starfall.has("Space"), "Starfall does not advertise a key it does not bind");

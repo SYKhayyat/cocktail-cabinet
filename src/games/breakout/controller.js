@@ -3,6 +3,10 @@ export class BreakoutController {
     this.model = model;
   }
   controlHint() {
+    if (this.model.side === "blocks") return [
+      { keys: ["Drag"], label: "move a block" },
+      { keys: ["Click"], label: "cycle a block's type" }
+    ];
     return [
       { keys: ["ArrowLeft", "ArrowRight"], label: "move the paddle" },
       { keys: ["A", "D"], label: "move the paddle" },

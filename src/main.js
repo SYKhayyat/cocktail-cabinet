@@ -214,9 +214,14 @@ function renderImitationControls(state) {
   if (isImitation) renderGuessControls(state);
 }
 
+let lastControlHint = "";
 function renderControlHint(game) {
+  const hints = game.controlHint?.() || [];
+  const signature = JSON.stringify(hints);
+  if (signature === lastControlHint) return;
+  lastControlHint = signature;
   controlHint.replaceChildren();
-  for (const { keys, label } of game.controlHint?.() || []) {
+  for (const { keys, label } of hints) {
     const group = document.createElement("span");
     group.className = "shortcut-group";
     for (const key of keys) {
@@ -253,6 +258,7 @@ function loadGame(id) {
   game.setStateListener?.(() => {
     if (activeId !== "imitation") return;
     const state = game.publicState();
+    renderControlHint(game);
     status.textContent = state.status;
     renderImitationControls(state);
     if (state.chatRevision !== lastChatRevision) {
@@ -269,6 +275,7 @@ function loadGame(id) {
 
 const engine = new GameEngine(canvas, {
   onState: (state) => {
+    renderControlHint(engine.game);
     title.textContent = state.title;
     description.textContent = state.description;
     status.textContent = activeId === "imitation" ? state.status : engine.ready ? "Press New game to start" : engine.countdown > 0 ? "Get ready…" : state.status;
