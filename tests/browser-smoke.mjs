@@ -117,6 +117,7 @@ async function openPage(url, contextId = browserContextId) {
   // can silently pass the suite. Disable caching for the whole session.
   await page.command("Network.enable");
   await page.command("Network.setCacheDisabled", { cacheDisabled: true });
+  await page.command('Page.addScriptToEvaluateOnNewDocument', { source: `globalThis.__policyViolations = []; addEventListener('securitypolicyviolation', event => __policyViolations.push(event.effectiveDirective));` });
   await page.command("Page.navigate", { url: `${url}${url.includes("?") ? "&" : "?"}smoke=${Date.now()}${Math.random()}` });
   await waitFor(page, "document.readyState === 'complete' && document.querySelectorAll('.game-card').length === 7 && !!globalThis.__cocktailCabinet", "cabinet boot");
   return { target, page };
@@ -126,6 +127,7 @@ async function openBrowser() {
   const response = await fetch(`${cdpUrl}/json/version`);
   if (!response.ok) throw new Error(`Could not inspect browser: ${response.status}`);
   const version = await response.json();
+  if (/Electron|omnirush/i.test(version['User-Agent'] || '')) throw new Error('Use dedicated Chromium, not the desktop application debugging endpoint');
   if (!version.webSocketDebuggerUrl) throw new Error("The browser does not expose a WebSocket debugger endpoint");
   const connection = new Cdp(version.webSocketDebuggerUrl);
   await connection.open();
@@ -163,6 +165,7 @@ async function makeDeterministic(page) {
   await page.evaluate(`(async () => {
     const engine = globalThis.__cocktailCabinet.engine;
     const nativeFrame = globalThis.requestAnimationFrame.bind(globalThis);
+    globalThis.__wallNow = performance.now.bind(performance);
     // Cancel the frame that boot already queued BEFORE replacing cancellation.
     // Otherwise that native callback can arrive after virtual ticks and move
     // lastTime backwards, producing negative dt/cooldowns in fast CI runs.
@@ -513,7 +516,8 @@ async function testFocusedAnnouncements(page, step) {
 }
 
 async function pressNativeKey(page, key, code, virtualKey) {
-  await page.command('Input.dispatchKeyEvent', { type: 'keyDown', key, code, text: key === 'Enter' ? '\r' : key, windowsVirtualKeyCode: virtualKey });
+  const text = key === 'Enter' ? '\r' : key.length === 1 ? key : undefined;
+  await page.command('Input.dispatchKeyEvent', { type: 'keyDown', key, code, text, windowsVirtualKeyCode: virtualKey });
   await page.command('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: virtualKey });
 }
 
@@ -898,6 +902,103 @@ async function testSplatBuilderTools(page, step) {
   assertEqual(report.gapToolActive, true, "the gap tool activates");
   assertEqual(report.columnToolActive, true, "the column tool activates");
   await step(10);
+}
+
+async function testSplatNativeEditor(page, step) {
+  await selectMode(page, 2, 'builder');
+  await page.command('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
+  await page.command('Emulation.setTouchEmulationEnabled', { enabled: true });
+  await page.evaluate(`(() => {
+    const engine = __cocktailCabinet.engine;
+    engine.pauseGame();
+    document.querySelector('#gameCanvas').focus();
+  })()`);
+  const press = async (key, code, vk) => { await pressNativeKey(page, key, code, vk); await step(1); };
+  await press('ArrowRight', 'ArrowRight', 39);
+  await press('d', 'KeyD', 68);
+  await press('g', 'KeyG', 71);
+  await press('ArrowUp', 'ArrowUp', 38);
+  await press('q', 'KeyQ', 81);
+  const edited = await page.evaluate(`(() => {
+    const m = __cocktailCabinet.engine.game.model;
+    return { selected: m.selectedColumnId, column: { ...m.selectedColumn }, tool: m.tool };
+  })()`);
+  assertEqual(edited.selected, 2, 'Tab-focusable board accepts native keyboard selection');
+  assertEqual(edited.column.x, 330, 'keyboard moves selected column');
+  assertEqual(edited.column.gapY, 270, 'keyboard moves gap');
+  assertEqual(edited.column.gapHeight, 102, 'keyboard resizes gap');
+  const scroll = await page.evaluate('window.scrollY');
+  await press('PageDown', 'PageDown', 34);
+  assertEqual(await page.evaluate('window.scrollY'), scroll, 'editor pan key does not scroll the document');
+  assertEqual(await page.evaluate('__cocktailCabinet.engine.game.model.builderCameraX'), 400, 'keyboard pans route');
+  await page.evaluate(`(() => {
+    __cocktailCabinet.engine.game.model.panBuilder(0);
+    document.querySelector('#gameCanvas').scrollIntoView({ block: 'center' });
+    window.__routeBeforeTouch = JSON.stringify(__cocktailCabinet.engine.game.model.columns);
+  })()`);
+  const point = (x, y) => page.evaluate(`(() => { const r = document.querySelector('#gameCanvas').getBoundingClientRect(); return { x: r.left + ${x} * r.width / 800, y: r.top + ${y} * r.height / 560, id: 1 }; })()`);
+  await page.command('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [await point(775, 280)] });
+  await step(1);
+  await page.command('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [await point(300, 280)] });
+  await step(1);
+  await page.command('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await step(1);
+  assertEqual(await page.evaluate('Math.round(__cocktailCabinet.engine.game.model.builderCameraX)'), 475, 'emulated native touch pans empty canvas');
+  assertEqual(await page.evaluate('JSON.stringify(__cocktailCabinet.engine.game.model.columns) === __routeBeforeTouch'), true, 'touch pan cannot author a gap or column');
+  await page.command('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [await point(775, 280)] });
+  await step(1);
+  await page.command('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+  await step(1);
+  assertEqual(await page.evaluate('JSON.stringify(__cocktailCabinet.engine.game.model.columns) === __routeBeforeTouch'), true, 'cancelled touch edits do not mutate authored work');
+  await page.evaluate(`document.querySelector('#nonvisualRefresh').click()`);
+  assertMatch(await page.evaluate(`document.querySelector('#nonvisualTargets').textContent`), /selected for keyboard editing/, 'selected column is readable on demand');
+}
+
+async function testCappedBuilderBrowserWork(page) {
+  await selectMode(page, 2, 'builder');
+  await page.command('Performance.enable');
+  const before = await page.command('Performance.getMetrics');
+  const report = await page.evaluate(`(() => {
+    const engine = __cocktailCabinet.engine;
+    const m = engine.game.model;
+    while (m.columns.length < 256) m.addColumn(m.columns.at(-1).x + 130);
+    const nextId = m.nextColumnId;
+    for (let attempt = 0; attempt < 10000; attempt++) m.addColumn(500);
+    document.querySelector('#nonvisualRefresh').click();
+    const context = engine.context;
+    const original = context.fillRect;
+    let rectangles = 0;
+    context.fillRect = function(...args) { rectangles++; return original.apply(this, args); };
+    try { engine.frame(engine.lastTime); } finally { context.fillRect = original; }
+    globalThis.__rafHandles.length = 0;
+    for (let warmup = 0; warmup < 100; warmup++) { engine.frame(engine.lastTime); globalThis.__rafHandles.length = 0; }
+    const start = __wallNow();
+    for (let frame = 0; frame < 1000; frame++) { engine.frame(engine.lastTime); globalThis.__rafHandles.length = 0; }
+    return { count: m.columns.length, idUnchanged: m.nextColumnId === nextId,
+      targets: document.querySelector('#nonvisualTargets').children.length,
+      rectangles, frameMs: (__wallNow() - start) / 1000, status: m.publicState().status };
+  })()`);
+  assertEqual(report.count, 256, 'route remains capped after 10,000 additions');
+  assertEqual(report.idUnchanged, true, 'rejected additions do not consume IDs');
+  assertEqual(report.targets, 256, 'maximum authored route remains semantically readable');
+  assert(report.rectangles < 30, 'browser draws only visible columns, not all 256');
+  assertMatch(report.status, /256\/256.*limit reached/i, 'cap is communicated');
+  const after = await page.command('Performance.getMetrics');
+  const heap = metrics => metrics.metrics.find(item => item.name === 'JSHeapUsedSize')?.value;
+  console.log('  Builder browser stress:', JSON.stringify({ seed: 20260101, columns: 256, rejections: 10000, frames: 1000, averageFrameMs: report.frameMs, heapBefore: heap(before), heapAfter: heap(after) }));
+}
+
+async function testSplatTieBrowser(page, step) {
+  await selectMode(page, 2, 'race');
+  await page.evaluate(`(() => {
+    const m = __cocktailCabinet.engine.game.model;
+    m.columns = [{ id: 1, x: 300, y: 0, width: 30, height: 560, gapY: 60, gapHeight: 440, passed: true }];
+    m.player.x = m.computerPlayer.x = 399;
+  })()`);
+  await step(1);
+  assertMatch(await page.evaluate("document.querySelector('#roundStatus').textContent"), /TIE.*New game/, 'simultaneous finish has actionable terminal DOM status');
+  assertMatch(await page.evaluate("document.querySelector('#announcements').textContent"), /TIE.*New game/, 'race tie is announced, not a human win');
+  assertEqual(await page.evaluate('__cocktailCabinet.engine.game.winner'), null, 'no branch-order winner');
 }
 
 async function testImitationProviderFallback(page) {
@@ -1466,6 +1567,9 @@ async function main() {
       ["all twenty modes load and run", () => testEveryModeSurvivesPlay(first.page, step)],
       ["life loss, game over, and restart", () => testGameOverAndRestart(first.page, step)],
       ["Splat builder tools", () => testSplatBuilderTools(first.page, step)],
+      ["native keyboard authoring and emulated touch pan/cancel", () => testSplatNativeEditor(first.page, step)],
+      ["capped Builder browser workload and memory observation", () => testCappedBuilderBrowserWork(first.page)],
+      ["Splat simultaneous finish DOM and announcement", () => testSplatTieBrowser(first.page, step)],
       ["Asteroids versus honours the Lives setting", () => testAsteroidsVersusLives(first.page, step)],
       ["non-Race Splat spends engine lives", () => testNonRaceSplatSpendsEngineLives(first.page, step)],
       ["Imitation provider fallback without a model", () => testImitationProviderFallback(first.page)],
@@ -1481,6 +1585,7 @@ async function main() {
       first = await openPage(pageUrl);
       step = await makeDeterministic(first.page);
       await run();
+      assertEqual(await first.page.evaluate('globalThis.__policyViolations.length'), 0, `${name}: no document CSP violations`);
       passed.push(name);
       first.page.close();
       pageConnections.delete(first.page);
