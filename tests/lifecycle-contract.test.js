@@ -59,6 +59,25 @@ function play(engine) {
 
 function step(engine) { engine.frame(engine.lastTime + 16); }
 
+test("Pause and Continue cannot resume an already won round", () => {
+  withHost(({ engine }) => {
+    const game = new BreakoutGame();
+    engine.load(game);
+    play(engine);
+    game.model.won = true;
+    step(engine);
+    assert.equal(engine.stopped, true);
+    engine.pauseGame();
+    assert.equal(engine.paused, false, "terminal results are not resumable pauses");
+    engine.continueGame();
+    assert.equal(engine.stopped, true);
+    // Defensive boundary: even an already-paused terminal state cannot resume.
+    engine.paused = true;
+    engine.continueGame();
+    assert.equal(engine.stopped, true);
+  });
+});
+
 test("earned Breakout duel lives raise the shared cap without restoring the other owner's spent lives", () => {
   withHost(({ engine, lives }) => {
     const game = new BreakoutGame();

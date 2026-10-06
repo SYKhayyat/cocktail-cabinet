@@ -201,7 +201,7 @@ export class GameEngine {
   // a no-op -- yet the message still said to press Continue. That is the race
   // this contract removes: Continue is always actionable whenever Pause was.
   pauseGame() {
-    if (!this.running || this.ready || this.paused || this.game?.gameOver) return;
+    if (!this.running || this.ready || this.paused || this.game?.gameOver || this.lifecycle?.resultState().ended) return;
     this.stopped = true;
     this.paused = true;
     this.onMessage?.("Paused — press Continue when you are ready.");
@@ -210,7 +210,7 @@ export class GameEngine {
   continueGame() {
     // No countdown guard: pausing freezes the countdown, so resuming continues
     // it from exactly where it stopped rather than restarting it.
-    if (!this.running || this.ready || this.game?.gameOver || !this.paused) return;
+    if (!this.running || this.ready || this.game?.gameOver || this.lifecycle?.resultState().ended || !this.paused) return;
     this.stopped = false;
     this.paused = false;
     this.lastTime = performance.now();
