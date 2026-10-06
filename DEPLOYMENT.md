@@ -85,3 +85,8 @@ This check fails on stale or missing headers instead of treating checked-in
 configuration as evidence of production behavior. Then run the required browser
 suites with `COCKTAIL_URL=https://games.siachshai.online/` and a dedicated Chromium
 CDP endpoint. Never use the desktop application's internal browser endpoint.
+
+For repeatable local CSP checks, `node scripts/serve-with-headers.mjs` serves the
+actual `_headers` rule at `http://127.0.0.1:8880/` (override with `PORT`). Set
+`COCKTAIL_URL` to that URL when running browser tests. It is a test server only;
+HSTS persistence itself must be verified over deployed HTTPS.
