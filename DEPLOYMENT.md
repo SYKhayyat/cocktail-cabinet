@@ -98,3 +98,11 @@ The asset check compares every tracked HTML/CSS/source/runtime file with its
 deployed bytes, including the 21.6 MB WASM file and its MIME type. It checks the
 current checkout, not merely an HTML title or a successful HTTP status, so wait
 for that revision's deployment before running it.
+
+Cloudflare currently injects optional Web Analytics into browser responses. The
+self-only CSP intentionally **blocks** its `static.cloudflareinsights.com` beacon;
+the game does not depend on it, and no third-party script permission was added.
+Production smoke distinguishes that exact enforced block from unexpected app
+violations. Local/CI checks still require zero violations. To remove the harmless
+console warning, the domain owner can disable Web Analytics auto-injection in
+Cloudflare; do not weaken the executable policy merely to enable telemetry.

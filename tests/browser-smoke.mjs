@@ -9,6 +9,8 @@
 // live in the normal test run without becoming a hard dependency. Set
 // REQUIRE_BROWSER=1 in CI to make a missing browser a failure.
 
+import { classifyPolicyViolations } from './csp-evidence.mjs';
+
 const pageUrl = process.env.COCKTAIL_URL || "http://127.0.0.1:8765/";
 const cdpUrl = process.env.CDP_URL || "http://127.0.0.1:9321";
 const required = process.env.REQUIRE_BROWSER === "1";
@@ -16,6 +18,7 @@ let browser;
 let browserContextId;
 let hostileContextId;
 const pageConnections = new Set();
+let reportedOptionalBeacon = false;
 
 class Cdp {
   constructor(url) {
@@ -117,7 +120,7 @@ async function openPage(url, contextId = browserContextId) {
   // can silently pass the suite. Disable caching for the whole session.
   await page.command("Network.enable");
   await page.command("Network.setCacheDisabled", { cacheDisabled: true });
-  await page.command('Page.addScriptToEvaluateOnNewDocument', { source: `globalThis.__policyViolations = []; addEventListener('securitypolicyviolation', event => __policyViolations.push(event.effectiveDirective));` });
+  await page.command('Page.addScriptToEvaluateOnNewDocument', { source: `globalThis.__policyViolations = []; addEventListener('securitypolicyviolation', event => { let resource = event.blockedURI; try { const url = new URL(resource); resource = url.origin + url.pathname; } catch {} __policyViolations.push({ directive: event.effectiveDirective, resource, disposition: event.disposition }); });` });
   await page.command("Page.navigate", { url: `${url}${url.includes("?") ? "&" : "?"}smoke=${Date.now()}${Math.random()}` });
   await waitFor(page, "document.readyState === 'complete' && document.querySelectorAll('.game-card').length === 7 && !!globalThis.__cocktailCabinet", "cabinet boot");
   return { target, page };
@@ -1585,7 +1588,13 @@ async function main() {
       first = await openPage(pageUrl);
       step = await makeDeterministic(first.page);
       await run();
-      assertEqual(await first.page.evaluate('globalThis.__policyViolations.length'), 0, `${name}: no document CSP violations`);
+      const violations = await first.page.evaluate('globalThis.__policyViolations');
+      const policy = classifyPolicyViolations(pageUrl, violations);
+      assertEqual(policy.unexpected.length, 0, `${name}: no unexpected document CSP violations (${JSON.stringify(policy.unexpected)})`);
+      if (policy.expected.length && !reportedOptionalBeacon) {
+        reportedOptionalBeacon = true;
+        console.log('  Production CSP correctly blocks optional Cloudflare analytics; no third-party executable permission added.');
+      }
       passed.push(name);
       first.page.close();
       pageConnections.delete(first.page);
