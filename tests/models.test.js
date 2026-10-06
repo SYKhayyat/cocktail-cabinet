@@ -2705,7 +2705,7 @@ test("Imitation validates message envelope types", () => {
   assert.equal(game.chatLog.length, length, "a message for another recipient is dropped");
 });
 
-test("Missile attacker scores one kill per enemy, however many interceptors overlap", () => {
+test("Missile attacker resolves one interception per enemy without rewarding the attacker", () => {
   const game = new MissileModel();
   game.setSide("attacker");
   game.reset();
@@ -2717,11 +2717,11 @@ test("Missile attacker scores one kill per enemy, however many interceptors over
     { x: 399, y: 199, targetX: 700, targetY: 500, speed: 200, color: "#22d3ee", machine: true }
   ];
   game.update(0, { aim: null, launch: false, attack: null });
-  assert.equal(game.score, 15, `one enemy yields one kill (got ${game.score})`);
+  assert.equal(game.score, 0, "interceptions do not count as attacker progress");
   assert.equal(game.enemyMissiles.length, 0, "the enemy is resolved");
   assert.equal(game.interceptors.length, 2, "only the interceptors that connected are consumed");
 
-  // One interceptor per enemy still scores one point each.
+  // Multiple distinct intercepted attacks still yield no attacker progress.
   const solo = new MissileModel();
   solo.setSide("attacker");
   solo.reset();
@@ -2735,8 +2735,24 @@ test("Missile attacker scores one kill per enemy, however many interceptors over
     { x: 600, y: 200, targetX: 600, targetY: 500, speed: 200, color: "#22d3ee", machine: true }
   ];
   solo.update(0, { aim: null, launch: false, attack: null });
-  assert.equal(solo.score, 30, "two distinct enemies still score twice");
+  assert.equal(solo.score, 0, "interceptions do not count as attacker progress");
   assert.equal(solo.interceptors.length, 0);
+});
+
+test("Missile attacker scores city and battery impacts, but not interceptions", () => {
+  const game = new MissileModel();
+  game.setSide("attacker");
+  game.reset();
+  game.interceptorClock = 999;
+  const city = { ...game.cities[0], alive: true };
+  const battery = { ...game.bases[0], alive: true };
+  game.enemyMissiles = [
+    { x: city.x, y: city.y, targetX: city.x, targetY: city.y, speed: 100, kind: "city", targetObject: city, dead: false },
+    { x: battery.x, y: battery.y, targetX: battery.x, targetY: battery.y, speed: 100, kind: "battery", targetObject: battery, dead: false }
+  ];
+  game.update(0, { aim: null, launch: false, attack: null });
+  assert.equal(game.score, 150);
+  assert.deepEqual(game.eventLog.filter((event) => event.type === "target-impact").map((event) => event.score), [100, 50]);
 });
 
 test("Missile attacker does not score for an already-resolved enemy", () => {
@@ -2991,11 +3007,11 @@ test("Missile collision geometry uses the shared named constants", async () => {
     game.enemyMissiles = [{ x: 400, y: 280, targetX: 400, targetY: 500, speed: 0, color: "#fb7185", kind: "city", targetObject: game.cities[0], dead: false }];
     game.interceptors = [{ x: 400 + dx, y: 280 + dy, targetX: 500, targetY: 500, speed: 0, color: "#22d3ee", machine: true }];
     game.update(0, { aim: null, launch: false, attack: null });
-    return game.score;
+    return game.eventLog.filter((event) => event.type === "intercepted").length;
   };
 
-  assert.equal(hit(0, 0), 15, "a centred interceptor connects");
-  assert.equal(hit(8, 0), 15, "a hit just inside 4+5 connects");
+  assert.equal(hit(0, 0), 1, "a centred interceptor connects");
+  assert.equal(hit(8, 0), 1, "a hit just inside 4+5 connects");
   assert.equal(hit(12, 0), 0, "a miss beyond 4+5 does not");
 });
 

@@ -31,7 +31,7 @@ test("Missile outcomes distinguish interception, target impact and off-screen cl
   assert.equal(count(game, "intercepted"), 1);
   assert.equal(count(game, "target-impact"), 1);
   assert.equal(count(game, "offscreen-expiry"), 1);
-  assert.equal(game.score, 15, "expiry and impact do not award interception score");
+  assert.equal(game.score, 100, "only successful city destruction awards attacker score");
   assert.equal(game.cities[1].alive, true, "an intercepted attack cannot destroy its target later in the update");
   assert.deepEqual(game.eventLog.map((event) => event.enemyId).sort(), [101, 102, 103]);
   game.update(0, {});

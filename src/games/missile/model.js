@@ -16,6 +16,8 @@ const FIREBALL_RADIUS = 46;
 const FIREBALL_ENEMY_BONUS = 4;
 const IMPACT_MARGIN = 8;
 const FIREBALL_LIFE = 4;
+const ATTACKER_CITY_SCORE = 100;
+const ATTACKER_BATTERY_SCORE = 50;
 
 export const MISSILE_MODES = [
   { value: "defender", label: "You vs computer — defend cities" },
@@ -230,12 +232,20 @@ export class MissileModel {
         interceptor.dead = true;
         enemy.dead = true;
         this.recordEnemyOutcome(enemy, "intercepted", { mode: "attacker" });
-        this.score += 15;
         break;
       }
     }
     for (const enemy of this.enemyMissiles) {
-      if (!enemy.dead && enemy.targetObject && enemy.y >= enemy.targetY - enemy.targetObject.radius - IMPACT_MARGIN) this.impactEnemy(enemy);
+      if (!enemy.dead && enemy.freeFlight) {
+        // A dragged missile flies where the player sent it, not toward the
+        // randomly selected launch metadata. Only the target it touches counts.
+        const target = [...this.cities, ...this.bases].find((candidate) => candidate.alive && circleHitsCircle(enemy.x, enemy.y, ENEMY_RADIUS, candidate.x, candidate.y, candidate.radius + IMPACT_MARGIN));
+        if (target) {
+          enemy.targetObject = target;
+          enemy.kind = this.cities.includes(target) ? "city" : "battery";
+          this.impactEnemy(enemy);
+        }
+      } else if (!enemy.dead && enemy.targetObject && enemy.y >= enemy.targetY - enemy.targetObject.radius - IMPACT_MARGIN) this.impactEnemy(enemy);
       if (!enemy.dead && enemy.y >= 560) {
         enemy.dead = true;
         this.recordEnemyOutcome(enemy, "offscreen-expiry");
@@ -337,10 +347,15 @@ export class MissileModel {
     enemy.y += dy / length * enemy.speed * dt;
   }
   impactEnemy(enemy) {
+    if (enemy.dead || enemy.outcome) return;
     enemy.dead = true;
     const target = enemy.targetObject || enemy.targetBase;
+    const destroyed = target?.alive === true;
     if (target) target.alive = false;
-    this.recordEnemyOutcome(enemy, "target-impact", { target: enemy.kind || (target?.radius === 12 ? "city" : "battery") });
+    const targetKind = enemy.kind || (target?.radius === 12 ? "city" : "battery");
+    const reward = this.side === "attacker" && destroyed ? (targetKind === "city" ? ATTACKER_CITY_SCORE : ATTACKER_BATTERY_SCORE) : 0;
+    this.score += reward;
+    this.recordEnemyOutcome(enemy, "target-impact", { target: targetKind, score: reward });
   }
   splitEnemy(enemy) {
     const childTargets = [...this.cities.filter((city) => city.alive), ...this.bases.filter((base) => base.alive)];
