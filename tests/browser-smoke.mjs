@@ -699,7 +699,15 @@ async function testSplatBuilderTools(page, step) {
     // the CSS coordinate the event was dispatched with.
     const engine = globalThis.__cocktailCabinet.engine;
     const cameraAtClick = model.builderCameraX;
-    down(420, 200); up(420, 200);
+    // A column click selects/drags that column. Choose an actual empty world
+    // position and scale it to CSS pixels; fixed CSS x=420 can land on a column
+    // at a different viewport width and is not an add-column regression.
+    const emptyX = Array.from({ length: 76 }, (_, i) => 20 + i * 10)
+      .find((x) => cameraAtClick + x > model.player.x + 80 && !model.columnAt(cameraAtClick + x, 24));
+    if (emptyX === undefined) throw new Error('Builder fixture has no empty click target');
+    const cssX = emptyX * bounds.width / canvas.width;
+    const cssY = 200 * bounds.height / canvas.height;
+    down(cssX, cssY); up(cssX, cssY);
     const worldX = cameraAtClick + engine.input.pointer.x;
     globalThis.__tick(1);
     out.afterClick = model.columns.length;
