@@ -651,14 +651,24 @@ async function testGameOverAndRestart(page, step) {
     // second loss or the engine will not process the round-ending one.
     globalThis.__tick(200);
     model.gameOver = true; model.lossReason = 'wall';
+    const drawnText = [];
+    const fillText = engine.context.fillText;
+    engine.context.fillText = function (text, ...args) {
+      drawnText.push(text);
+      return fillText.call(this, text, ...args);
+    };
     globalThis.__tick(1);
-    return { afterFirstLoss, afterSecondLoss: { lives: engine.lives, gameOver: engine.game.gameOver, stopped: engine.stopped, message: document.querySelector('#message').textContent } };
+    engine.context.fillText = fillText;
+    return { afterFirstLoss, afterSecondLoss: { lives: engine.lives, gameOver: engine.game.gameOver, stopped: engine.stopped, message: document.querySelector('#message').textContent, drawnText, restartLabel: document.querySelector('#restartButton').textContent } };
   })()`);
   assertEqual(report.afterFirstLoss.lives, 1, "a life loss spends one life");
   assertMatch(report.afterFirstLoss.message, /one life lost/i, "the life loss is reported");
   assertEqual(report.afterSecondLoss.lives, 0, "the round ends at zero lives");
   assertEqual(report.afterSecondLoss.gameOver, true, "the model is marked game over");
   assertMatch(report.afterSecondLoss.message, /Out of lives/, "the end of the round is reported");
+  assert(report.afterSecondLoss.drawnText.includes("Game over — press New game"), "Snake terminal copy names the real cabinet action");
+  assert(report.afterSecondLoss.drawnText.every((text) => !String(text).includes("New round")), "terminal canvas has no nonexistent New round action");
+  assertMatch(report.afterSecondLoss.restartLabel, /New game/i, "the named terminal action is available");
 
   const restarted = await page.evaluate(`(() => {
     document.querySelector('#restartButton').click();
