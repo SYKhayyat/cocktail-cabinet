@@ -227,15 +227,27 @@ export class ImitationController {
     return true;
   }
   sendMessage(text) {
-    const clean = this.model.sendMessage(text);
-    if (clean && this.model.side === "human") this.sendPayload({ type: "chat", from: this.model.matchId, text: clean });
-    if (clean && this.model.side === "guess" && this.model.peerId) this.sendPayload({ type: "guess-prompt", from: this.model.matchId, text: clean });
-    if (clean && this.model.side === "provide") {
-      if (this.model.aiLocked) this.model.addMessage("System", "AI is writing this round, not you. Wait for the next round.");
-      else if (this.model.peerId && this.model.phase === "provide-ready") this.sendPayload({ type: "guess-response", from: this.model.matchId, text: clean });
-      else if (this.model.peerId) this.model.addMessage("System", "Wait for a prompt before writing a response.");
-      else this.model.addMessage("System", "No Guess player is connected. Create or join an invite first.");
+    const candidate = text.trim().slice(0, 2000);
+    if (this.model.disposed || !candidate || this.model.phase === "result") return null;
+    if (this.model.side === "human") {
+      if (!this.model.peerId) { this.model.addMessage("System", "No player is connected. Your message was not sent."); return null; }
+      if (!this.sendPayload({ type: "chat", from: this.model.matchId, to: this.model.peerId, text: candidate })) return null;
     }
+    if (this.model.side === "provide") {
+      if (!this.model.peerId || this.model.aiLocked || this.model.phase !== "provide-ready") {
+        this.model.addMessage("System", !this.model.peerId ? "No Guess player is connected. Create or join an invite first." : this.model.aiLocked ? "AI is writing this round, not you. Wait for the next round." : "Wait for a prompt before writing a response.");
+        return null;
+      }
+      if (!this.sendPayload({ type: "guess-response", from: this.model.matchId, to: this.model.peerId, text: candidate })) return null;
+    }
+    const clean = this.model.sendMessage(text);
+    if (clean && this.model.side === "guess" && this.model.peerId && !this.sendPayload({ type: "guess-prompt", from: this.model.matchId, to: this.model.peerId, text: clean })) {
+      this.model.chatLog = this.model.chatLog.filter((entry) => entry.sender !== "You" || entry.text !== clean);
+      this.model.chatRevision += 1;
+      this.model.notifyState();
+      return null;
+    }
+    if (clean && this.model.side === "provide") this.model.phase = "provide-sent";
     return clean;
   }
   update(dt) { this.model.update(dt); }

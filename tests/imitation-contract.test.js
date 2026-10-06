@@ -99,6 +99,52 @@ test("a failed manual delivery drops the usable connection and reports failure",
   assert.match(left.model.chatLog.at(-1).text, /not sent/);
 });
 
+test("Provide refuses unavailable, waiting and AI-locked text without appending it", () => {
+  const model = new ImitationModel();
+  model.setSide("provide");
+  model.reset();
+  assert.equal(model.sendMessage("offline"), null);
+  assert.equal(model.chatLog.some(({ text }) => text === "offline"), false);
+  model.peerId = "guess";
+  assert.equal(model.sendMessage("early"), null);
+  assert.equal(model.chatLog.some(({ text }) => text === "early"), false);
+  model.phase = "provide-ready";
+  model.aiLocked = true;
+  assert.equal(model.sendMessage("locked"), null);
+  assert.equal(model.chatLog.some(({ text }) => text === "locked"), false);
+  model.destroy();
+});
+
+test("controller rejects and preserves Provide submissions and prevents duplicate replies", async (t) => {
+  const fixture = transportFixture(t);
+  const provide = fixture.create("provide");
+  assert.equal(provide.sendMessage("offline input"), null);
+  const guess = fixture.create("guess");
+  await flush();
+  assert.equal(provide.sendMessage("early input"), null);
+  guess.sendMessage("Question");
+  await flush();
+  provide.model.aiLocked = true;
+  assert.equal(provide.sendMessage("locked input"), null);
+  provide.model.aiLocked = false;
+  assert.equal(provide.sendMessage("accepted input"), "accepted input");
+  assert.equal(provide.sendMessage("duplicate input"), null);
+  await flush();
+  assert.equal(guess.model.mystery.text, "accepted input");
+  assert.deepEqual(provide.model.chatLog.filter(({ sender }) => sender === "You").map(({ text }) => text), ["accepted input"]);
+});
+
+test("failed manual submissions return null and do not appear as sent", (t) => {
+  const fixture = transportFixture(t);
+  const provide = fixture.create("provide");
+  const guess = fixture.create("guess");
+  const [channel] = linkManualChannels(provide, guess);
+  provide.model.phase = "provide-ready";
+  channel.send = () => { throw new Error("send failed"); };
+  assert.equal(provide.sendMessage("keep this input"), null);
+  assert.equal(provide.model.chatLog.some(({ sender }) => sender === "You"), false);
+});
+
 for (const [inviterMode, joiningMode] of [["human", "human"], ["guess", "provide"], ["provide", "guess"]]) {
   test(`manual ${inviterMode} invite accepts a complementary ${joiningMode} answer`, async (t) => {
     const fixture = manualFixture(t);

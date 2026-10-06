@@ -285,6 +285,8 @@ export class ImitationModel {
     if (this.disposed) return null;
     const clean = text.trim().slice(0, 2000);
     if (!clean || this.phase === "result") return null;
+    if (this.side === "human" && !this.peerId) return null;
+    if (this.side === "provide" && (!this.peerId || this.aiLocked || this.phase !== "provide-ready")) return null;
     this.addMessage("You", clean);
     if (this.side === "ai") void this.askAi(clean);
     if (this.side === "guess") {
