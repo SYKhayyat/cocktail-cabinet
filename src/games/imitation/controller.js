@@ -1,3 +1,5 @@
+import { expectedPeerMode } from "./model.js";
+
 export const CHANNEL_NAME = "cocktail-cabinet-imitation-v3";
 const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
 
@@ -191,7 +193,7 @@ export class ImitationController {
     if (!this.canUseManualConnection()) throw new Error("Choose Human, Guess, or Provide before joining an invite.");
     if (typeof RTCPeerConnection === "undefined") throw new Error("This browser does not support WebRTC.");
     const signal = decodeSignal(text);
-    if (signal.type !== "offer" || signal.mode !== this.model.side) throw new Error("That invite is not for this Imitation mode.");
+    if (signal.type !== "offer" || signal.mode !== expectedPeerMode(this.model.side) || signal.from === this.model.matchId) throw new Error("That invite is not for this Imitation mode.");
     this.closeChannel();
     this.closeManualPeer();
     this.manualActive = true;
@@ -207,7 +209,7 @@ export class ImitationController {
   async acceptManualAnswer(text) {
     if (!this.manualPeer) throw new Error("Create an invite before accepting an answer.");
     const signal = decodeSignal(text);
-    if (signal.type !== "answer" || signal.mode !== this.model.side) throw new Error("That answer is not for this Imitation mode.");
+    if (signal.type !== "answer" || signal.mode !== expectedPeerMode(this.model.side) || signal.from === this.model.matchId) throw new Error("That answer is not for this Imitation mode.");
     this.manualRemoteId = signal.from;
     await this.manualPeer.setRemoteDescription(signal.description);
     return true;
@@ -229,7 +231,12 @@ export class ImitationController {
 
 function descriptionJson(description) { return { type: description.type, sdp: description.sdp }; }
 function encodeSignal(value) { return btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(value)))); }
-function decodeSignal(value) { return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(value.trim()), (character) => character.charCodeAt(0)))); }
+function decodeSignal(value) {
+  let signal;
+  try { signal = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(value.trim()), (character) => character.charCodeAt(0)))); } catch { throw new Error("That connection code is invalid."); }
+  if (!signal || typeof signal.from !== "string" || !signal.from || typeof signal.mode !== "string" || !["offer", "answer"].includes(signal.type) || signal.description?.type !== signal.type || typeof signal.description.sdp !== "string") throw new Error("That connection code is invalid.");
+  return signal;
+}
 async function waitForIceGathering(peer) {
   if (peer.iceGatheringState === "complete") return;
   await new Promise((resolve) => {

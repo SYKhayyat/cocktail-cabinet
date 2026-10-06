@@ -5,6 +5,67 @@ import { ImitationController } from "../src/games/imitation/controller.js";
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
+function manualFixture(t) {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "RTCPeerConnection");
+  globalThis.RTCPeerConnection = class {
+    constructor() { this.iceGatheringState = "complete"; }
+    createDataChannel() { return { readyState: "connecting", close() {} }; }
+    async createOffer() { return { type: "offer", sdp: "test offer" }; }
+    async createAnswer() { return { type: "answer", sdp: "test answer" }; }
+    async setLocalDescription(value) { this.localDescription = value; }
+    async setRemoteDescription(value) { this.remoteDescription = value; }
+    close() {}
+  };
+  t.after(() => { if (descriptor) Object.defineProperty(globalThis, "RTCPeerConnection", descriptor); else delete globalThis.RTCPeerConnection; });
+  return transportFixture(t);
+}
+
+for (const [inviterMode, joiningMode] of [["human", "human"], ["guess", "provide"], ["provide", "guess"]]) {
+  test(`manual ${inviterMode} invite accepts a complementary ${joiningMode} answer`, async (t) => {
+    const fixture = manualFixture(t);
+    const inviter = fixture.create(inviterMode);
+    const joining = fixture.create(joiningMode);
+    const invite = await inviter.createManualInvite();
+    const answer = await joining.acceptManualInvite(invite);
+    assert.equal(await inviter.acceptManualAnswer(answer), true);
+    assert.equal(inviter.manualRemoteId, joining.model.matchId);
+    assert.equal(joining.manualRemoteId, inviter.model.matchId);
+  });
+}
+
+test("manual invites and answers reject same-mode Guess/Provide, AI, missing modes and self-pairing", async (t) => {
+  const fixture = manualFixture(t);
+  const guess = fixture.create("guess");
+  const provide = fixture.create("provide");
+  const invite = await guess.createManualInvite();
+  const original = JSON.parse(atob(invite));
+  for (const mode of ["guess", "human", "ai", undefined]) {
+    const code = btoa(JSON.stringify({ ...original, mode }));
+    await assert.rejects(guess.acceptManualInvite(code));
+    if (mode !== "guess") await assert.rejects(provide.acceptManualInvite(code));
+  }
+  await assert.rejects(guess.acceptManualInvite(invite));
+  const answer = await provide.acceptManualInvite(invite);
+  const answerSignal = JSON.parse(atob(answer));
+  for (const mode of ["guess", "human", "ai", undefined]) await assert.rejects(guess.acceptManualAnswer(btoa(JSON.stringify({ ...answerSignal, mode }))));
+  await assert.rejects(guess.acceptManualAnswer("not a code"));
+});
+
+test("broadcast handshake requires a complementary explicit mode and rejects AI-only pairing", () => {
+  for (const side of ["human", "guess", "provide", "ai", "write"]) {
+    const model = new ImitationModel();
+    model.setSide(side);
+    model.reset();
+    model.receive({ type: "hello", from: "missing-mode" });
+    assert.equal(model.peerId, null);
+    if (["ai", "write"].includes(side)) {
+      model.receive({ type: "hello", from: "human", mode: "human" });
+      assert.equal(model.peerId, null);
+    }
+    model.destroy();
+  }
+});
+
 // No real channel, network, or wall-clock sleeps. Each test owns its channels,
 // lifecycle event source, and controllers, including every presence interval.
 function transportFixture(t) {

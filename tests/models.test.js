@@ -1150,7 +1150,7 @@ test("Imitation: messages, peer handshake, score, trimming, and search countdown
   assert.equal(game.chatLog[0].sender, "System");
   game.update(1);
   assert.equal(game.matchmaking, 1.5);
-  game.receive({ type: "hello", from: "peer" });
+  game.receive({ type: "hello", from: "peer", mode: "human" });
   assert.equal(game.peerId, "peer");
   assert.equal(game.phase, "searching");
   game.sendMessage("  hello  ");
