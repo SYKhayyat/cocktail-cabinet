@@ -162,6 +162,18 @@ test("failed manual submissions return null and do not appear as sent", (t) => {
   assert.equal(provide.model.chatLog.some(({ sender }) => sender === "You"), false);
 });
 
+test("a failed Guess round-start preserves the prompt and only removes the rejected transcript entry", async (t) => {
+  const fixture = transportFixture(t);
+  const guess = fixture.create("guess");
+  const provide = fixture.create("provide");
+  const [channel] = linkManualChannels(guess, provide);
+  guess.sendMessage("same prompt");
+  await flush();
+  channel.send = () => { throw new Error("send failed"); };
+  assert.equal(guess.sendMessage("same prompt"), null);
+  assert.equal(guess.model.chatLog.filter(({ sender, text }) => sender === "You" && text === "same prompt").length, 1, "earlier identical prompts remain in the transcript");
+});
+
 test("Guess human-provider status remains playable without, during loading, or after a failed AI load", () => {
   const model = new ImitationModel();
   model.setSide("guess");

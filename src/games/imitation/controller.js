@@ -242,9 +242,11 @@ export class ImitationController {
       }
       if (!this.sendPayload({ type: "guess-response", from: this.model.matchId, to: this.model.peerId, text: candidate })) return null;
     }
+    const peerBeforeSend = this.model.peerId;
     const clean = this.model.sendMessage(text);
-    if (clean && this.model.side === "guess" && this.model.peerId && !this.sendPayload({ type: "guess-prompt", from: this.model.matchId, to: this.model.peerId, text: clean })) {
-      this.model.chatLog = this.model.chatLog.filter((entry) => entry.sender !== "You" || entry.text !== clean);
+    if (clean && this.model.side === "guess" && peerBeforeSend && (!this.model.peerId || !this.sendPayload({ type: "guess-prompt", from: this.model.matchId, to: this.model.peerId, text: clean }))) {
+      const rejectedEntry = this.model.chatLog.findLast((entry) => entry.sender === "You" && entry.text === clean);
+      this.model.chatLog = this.model.chatLog.filter((entry) => entry !== rejectedEntry);
       this.model.chatRevision += 1;
       this.model.notifyState();
       return null;
