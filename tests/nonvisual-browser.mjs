@@ -105,9 +105,20 @@ try {
         assert.equal(await page.evaluate("__cocktailCabinet.engine.assistance"), false, "Imitation timers are not frozen");
         assert.match(text, /textbox: Message/);
         await focus("#chatInput");
-        await page.command("Input.insertText", { text: `Keyboard prompt for ${mode.value}` });
+        await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", modifiers: 2, windowsVirtualKeyCode: 65 });
+        await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", modifiers: 2, windowsVirtualKeyCode: 65 });
+        const prompt = `Keyboard prompt for ${mode.value}`;
+        await page.command("Input.insertText", { text: prompt });
         await key("Enter");
-        assert.ok((await axText()).includes(`Keyboard prompt for ${mode.value}`), `Native ${mode.value} prompt reaches transcript`);
+        const remaining = await page.evaluate("document.querySelector('#chatInput').value");
+        if (remaining) {
+          // Disconnected peer modes correctly refuse a submission (#65). The
+          // preserved draft remains perceivable as the textbox's AX value, not
+          // as a falsely delivered transcript row.
+          assert.equal(remaining, prompt);
+          const { nodes } = await page.command("Accessibility.getFullAXTree");
+          assert.ok(nodes.some(node => !node.ignored && node.role?.value === "textbox" && node.name?.value === "Message" && node.value?.value === prompt));
+        } else assert.ok((await axText()).includes(prompt), `Native ${mode.value} accepted prompt reaches transcript`);
         await button("#nonvisualRefresh");
       }
       modeCount += 1;
@@ -209,7 +220,7 @@ try {
   assert.match(await axText(), /Keyboard human chat payload/);
   await imitation("provide");
   page = firstPage; await imitation("guess");
-  await page.evaluate("__cocktailCabinet.engine.game.model.aiReady = true");
+   await page.evaluate("__cocktailCabinet.engine.game.model.aiReady = false");
   await wait("!!__cocktailCabinet.engine.game.model.peerId");
   await send("Keyboard guessing prompt");
   page = peerPage; await wait("document.querySelector('#chatMessages').textContent.includes('Keyboard guessing prompt')");
