@@ -55,3 +55,33 @@ npm run test:browser
 
 It skips cleanly when no browser is listening on `CDP_URL` (default port 9223);
 set `REQUIRE_BROWSER=1` to make a missing browser a failure instead.
+
+## Browser security policy
+
+`_headers` limits executable JavaScript and module workers to this site's files.
+WASM compilation is explicitly allowed, but arbitrary JavaScript evaluation,
+inline scripts, framing, plugins, and foreign form submissions are not. The
+vendored runtime, pinned model revisions, hashes and remaining trust boundaries
+are documented in `docs/ai-runtime.md`. Hugging Face hosts are permitted only
+for model **data**; the four documented Ollama loopback URLs remain usable.
+`upgrade-insecure-requests` is deliberately absent because it would break local
+HTTP Ollama servers. CSP does not replace Ollama CORS/local-network permissions.
+
+The owner authorized the simplest HSTS policy: `max-age=31536000` for the game
+host alone. There is **no** `includeSubDomains` or preload registration, and no
+parent-domain changes. HTTPS visits teach browsers to use HTTPS for one year;
+first-ever HTTP visits still depend on the hosting redirect. Do not claim this
+provides preload protection before the first visit.
+
+Cloudflare applies these policies on deployment; Python's ordinary static server
+does not. After a push has deployed, verify the actual HTTPS headers and the HTTP
+redirect with:
+
+```sh
+node scripts/verify-security.mjs
+```
+
+This check fails on stale or missing headers instead of treating checked-in
+configuration as evidence of production behavior. Then run the required browser
+suites with `COCKTAIL_URL=https://games.siachshai.online/` and a dedicated Chromium
+CDP endpoint. Never use the desktop application's internal browser endpoint.
