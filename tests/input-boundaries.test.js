@@ -63,3 +63,46 @@ test("an intentional same-round pause retains held controls", () => withEngine((
   engine.continueGame();
   assert.equal(engine.input.keys.has("ArrowUp"), true);
 }));
+
+// Every cabinet control keeps focus after it is used, so the board used to be
+// unreachable by keyboard until it was clicked. Only the arrow keys may cross
+// that boundary: no button uses them, while Space/Enter still have to activate
+// the button and letters must not leak into the round.
+function control(tagName, activatable = false) {
+  const element = {
+    tagName,
+    isContentEditable: false,
+    matches: () => activatable,
+    closest: () => (activatable ? element : null)
+  };
+  return element;
+}
+
+test("arrow keys reach the board while a button, link or role=button holds focus", () => withEngine(({ engine, game, listeners }) => {
+  const press = (key, target) => listeners.get("keydown")({ key, target, repeat: false, preventDefault() {} });
+  for (const target of [control("BUTTON", true), control("A", true), control("DIV", true)]) {
+    for (const key of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]) {
+      engine.load(game());
+      press(key, target);
+      assert.equal(engine.input.keys.has(key), true, `${key} reaches the board from a focused ${target.tagName}`);
+    }
+  }
+}));
+
+test("keys a focused control owns never reach the board", () => withEngine(({ engine, game, listeners }) => {
+  const press = (key, target) => listeners.get("keydown")({ key, target, repeat: false, preventDefault() {} });
+  // Space/Enter activate the button; letters stay out of the round.
+  for (const key of [" ", "Enter", "n", "p"]) {
+    engine.load(game());
+    press(key, control("BUTTON", true));
+    assert.equal(engine.input.keys.has(key), false, `${key} stays with the focused button`);
+  }
+  // Selects and text entry genuinely use the arrows, so they keep all of them.
+  for (const tagName of ["SELECT", "INPUT", "TEXTAREA"]) {
+    for (const key of ["ArrowUp", "ArrowLeft", "n"]) {
+      engine.load(game());
+      press(key, control(tagName));
+      assert.equal(engine.input.keys.has(key), false, `${key} stays with the focused ${tagName}`);
+    }
+  }
+}));

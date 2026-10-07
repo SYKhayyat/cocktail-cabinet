@@ -1,4 +1,4 @@
-import { beginCanvasTextFrame, CANVAS_PALETTE, drawText, endCanvasTextFrame } from "./rendering.js";
+import { CANVAS_PALETTE, drawText } from "./rendering.js";
 import { createGameLifecycle } from "./game-lifecycle.js";
 
 // Compatibility for existing consumers; models and views import their own layer.
@@ -9,6 +9,7 @@ export { drawText } from "./rendering.js";
 const DEFAULT_LIVES = 3;
 const MIN_LIVES = 1;
 const MAX_LIVES = 9;
+const ARROW_KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
 
 export class GameEngine {
   constructor(canvas, { onState, onScore, onMessage, onLives } = {}) {
@@ -82,12 +83,24 @@ export class GameEngine {
 
     this.handleKeyDown = (event) => {
       if (this.assistance) return;
-      const tagName = event.target?.tagName;
-      if (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(tagName) || event.target?.closest?.("button, input, textarea, select, a[href], [role='button']") || event.target?.isContentEditable) return;
+      const target = event.target;
+      const tagName = target?.tagName;
+      const inControl = ["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(tagName)
+        || target?.closest?.("button, input, textarea, select, a[href], [role='button']")
+        || target?.isContentEditable;
+      // Arrow keys are the one thing no button uses, so they reach the board
+      // even while a control still holds focus. Everything else stays with the
+      // control: selects and text entry need the arrows and letters, and a
+      // button needs Space/Enter to activate natively. Without this exception
+      // a round started from New game or Continue left the keyboard dead until
+      // the board was clicked.
+      const activatable = tagName === "BUTTON" || tagName === "A"
+        || Boolean(target?.closest?.("button, a[href], [role='button']"));
+      if (inControl && !(ARROW_KEYS.includes(event.key) && activatable)) return;
       // A repeat from a key held across a round/focus boundary is not a fresh
       // press. Wait for release and a real keydown before accepting it again.
       if (event.repeat && !this.input.keys.has(event.key)) return;
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) {
+      if ([...ARROW_KEYS, " "].includes(event.key)) {
         event.preventDefault();
       }
       if (this.game?.side === "builder" && ["PageUp", "PageDown", "Home", "End", "Delete"].includes(event.key)) event.preventDefault();
@@ -355,7 +368,6 @@ export class GameEngine {
     }
     if (!this.assistance && this.ready) this.game.handleReadyInput?.(this.input);
     else if (!this.assistance && this.paused) this.game.handlePausedInput?.(this.input);
-    beginCanvasTextFrame(this.context);
     this.game.draw(this.context);
     if (this.ready || this.countdown > 0 || this.stopped) {
       this.context.fillStyle = "#111827ee";
@@ -373,7 +385,6 @@ export class GameEngine {
       drawText(this.context, `Score: ${this.game.score}    ${lifeText}`, 400, 310, 16, CANVAS_PALETTE.text, "center");
       drawText(this.context, instruction, 400, 340, 14, CANVAS_PALETTE.secondary, "center");
     }
-    endCanvasTextFrame(this.context);
     this.input.pressed.clear();
     this.clearTransientPointer();
     this.onState?.(this.game.publicState());
@@ -397,9 +408,14 @@ export class GameEngine {
     if (!this.game) return;
     this.clearInput();
     this.game.setSide(side);
-    this.stopped = false;
+    // Choosing a different mode is a different game, so it reopens the cabinet
+    // exactly as load() does: back to READY, waiting for New game. Starting the
+    // round here dropped the player into a live board the moment the dropdown
+    // changed, with no countdown and no chance to read the new rules.
+    const interactive = this.lifecycle.boot === "interactive";
+    this.stopped = !interactive;
     this.paused = false;
-    this.ready = false;
+    this.ready = !interactive;
     this.countdown = 0;
     this.applyLives();
     this.startRound("side");

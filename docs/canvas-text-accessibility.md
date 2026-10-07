@@ -1,4 +1,4 @@
-# Canvas text palette and narrow-size policy (#78)
+# Canvas text palette and the narrow-size decision (#78)
 
 `src/rendering.js` owns `CANVAS_PALETTE`. All seven game views and the engine's
 ready/countdown/pause/end overlay use it. Apply the **4.5:1 normal-text threshold
@@ -12,22 +12,35 @@ pass underneath. Only `onBright` badges omit the plate: dark text is audited
 against every bright Breakout power-up and live Missile battery. Destroyed
 battery labels use light text with a plate, not dark text on dark gray.
 
-Contrast is not text-size evidence. At 375px a 12px label on an 800px board is
-at most 5.625 CSS px; at 320px it is at most 4.8px. We preserve canvas geometry
-to avoid overlapping gameplay, rather than enlarging or horizontally squeezing
-canvas text. The engine brackets each drawn frame with `beginCanvasTextFrame`
-and `endCanvasTextFrame`. Whenever **any** drawn label falls below 12 CSS px,
-an unscaled visual companion below the screen copies **all actual drawn
-strings**, including live scores/lives and the lifecycle overlay. It uses at
-least 14 CSS px, wraps long strings, and never shrinks with the canvas. This
-also covers the 7px Breakout badges on desktop. Duplicate strings are combined;
-Missile badges include battery identity so repeated numbers remain meaningful.
-Updates replace stale game strings and skip unchanged DOM contents.
+## The label companion was removed
 
-The companion is `aria-hidden`: it is a visual duplicate, **not** the nonvisual
-game-status contract owned by #77. Imitation already presents chat and status
-in DOM and hides its canvas; the companion follows that visibility. Neither
-this fix nor a default-size screenshot establishes full game accessibility.
+#78 originally shipped a *text companion*: whenever any drawn label fell below
+12 CSS px, an unscaled `<ul>` of every string drawn that frame was inserted
+after the board. It existed because at 375px a 12px label on an 800px board is
+at most 5.6 CSS px, and Breakout's power-up badges are 7px to begin with.
+
+It is gone. It was `aria-hidden` — a visual duplicate, never part of the #77
+nonvisual contract — and it cost more than it bought:
+
+- **Its contents were frame-volatile.** It listed *whatever had been drawn that
+  frame*, deduplicated. Scores, lives, countdown text and brick badges appeared,
+  reordered and vanished mid-round. Breakout looked like it was shuffling.
+- **It moved the page.** Its height changed constantly, and the board's width is
+  `min(100%, 68.57vh)`. Crossing the viewport height toggled the scrollbar,
+  which changed the viewport width, which rescaled the board, which could flip
+  the 12px threshold and hide or show the panel again. A feedback loop.
+- **Its heading was internal jargon** ("Canvas labels (full size)") rendered into
+  the middle of a game.
+
+Contrast is not text-size evidence, and a duplicating, reflowing list is not
+accessibility. `src/rendering.js` is now pure drawing: it creates and inserts
+no DOM, at any board width or label size. Game state is already in the DOM where
+it belongs — `#score`, `#lives`, `#roundStatus`, and the nonvisual panel.
+
+The smallest text still drawn is 7px (`src/games/breakout/view.js`, power-up
+badges). Enlarging those labels would overlap the playfield on narrow screens,
+so the geometry is unchanged. If low-vision readability is pursued further, it
+belongs with #77 and with human testing, not with a panel that reflows.
 
 ## Repeatable checks
 
@@ -37,12 +50,13 @@ npm test
 npm run check
 ```
 
-The 23 rendering unit tests execute actual view draw calls for all 20 modes
-at 800/375/320 widths, check fill-time styles against backing shapes at 4.5:1,
+The rendering unit tests execute actual view draw calls for all 20 modes at
+800/375/320 widths, check fill-time styles against backing shapes at 4.5:1,
 exercise all six power-up colors, destroyed batteries, split-screen race and
-builder route-limit text, and verify copies of every drawn string. Host-frame
-tests cover ready/countdown/pause/end overlays. Tests use a recording canvas
-and lightweight DOM; they do not pretend to measure browser layout.
+builder route-limit text, and assert that drawing creates and inserts **no**
+element. Host-frame tests cover the ready/countdown/pause/end overlays. Tests
+use a recording canvas and lightweight DOM; they do not pretend to measure
+browser layout.
 
 For real browser layout, start a **dedicated** headless Chromium and server
 (never attach to the desktop app's debugging browser):
@@ -53,29 +67,13 @@ chromium --headless=new --disable-gpu --no-sandbox \
   --remote-debugging-port=9321 --user-data-dir=/tmp/opencode/canvas-contrast-browser about:blank
 CDP_URL=http://127.0.0.1:9321 COCKTAIL_URL=http://127.0.0.1:8781/ \
   node tests/canvas-rendering-browser.mjs
-REQUIRE_BROWSER=1 CDP_URL=http://127.0.0.1:9321 COCKTAIL_URL=http://127.0.0.1:8781/ \
-  npm run test:browser
 ```
 
-The rendering browser check fails if the browser/server is absent. It uses
-an owned isolated context and verifies all 20 modes at 800/375/320 viewports:
-actual CSS font sizes >=14px, wrapping/no companion overflow, drawn-string parity,
-lifecycle overlay copies, and no stale companion on hidden Imitation canvas.
-Remaining manual checks: low-vision playtesting, readability while playing,
-zoom/font overrides, and combined screen-reader behavior after #77 integration.
-
-## Verification on this branch
-
-- `npm test`: **336 passed**, no skips (includes all 23 new rendering tests).
-- `npm run check`: passed syntax, model boundary, dead-code and README checks.
-- `node tests/canvas-rendering-browser.mjs`: **60 mode/viewport cases passed**
-  against dedicated Chromium 152 on port 9321.
-- Existing `npm run test:browser`: first eight suites passed, then failed at
-  `tests/browser-smoke.mjs:706` (Splat builder click expected one added column,
-  got zero). The same failure was reproduced with **unmodified HEAD source**
-  served from `git show` in a separate server, without reverting any edits.
-  This is a baseline Builder/smoke-fixture mismatch, not a #78 pass claim.
-
-The real-browser rendering check isolates companion overflow by measuring
-the page with and without it. Existing Splat cabinet overflow remains outside
-this fix (#70); the companion itself fits the viewport and adds no overflow.
+The rendering browser check fails if the browser/server is absent. It uses an
+owned isolated context and verifies all 20 modes at 800/375/320 viewports in
+both the ready and running postures: no label panel exists before or after 40
+drawn frames, 40 frames leave the board's geometry and the number of elements
+after the screen frame byte-identical, the board still paints its own labels,
+and no label is drawn below the 7px floor. Remaining manual checks:
+low-vision playtesting, readability while playing, and zoom/font overrides.
+Existing cabinet overflow at 320px is #70 and is deliberately not claimed here.

@@ -264,6 +264,17 @@ async function selectMode(page, cardIndex, side) {
       select.value = ${JSON.stringify(side)};
       select.dispatchEvent(new Event('change', { bubbles: true }));
     }
+    // Changing the mode now reopens the cabinet in the READY state, waiting for
+    // New game. Every suite below asserts against a running board, so release
+    // the round directly rather than through the button: a restart would
+    // publish the countdown and pre-consume the announcement key that
+    // testFocusedAnnouncements checks. setSide already reset the round and
+    // applied the life budget, so only the running flags are left to set.
+    const engine = globalThis.__cocktailCabinet.engine;
+    engine.ready = false;
+    engine.stopped = false;
+    engine.paused = false;
+    engine.countdown = 0;
     return true;
   })()`);
 }
@@ -524,6 +535,95 @@ async function pressNativeKey(page, key, code, virtualKey) {
   await page.command('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: virtualKey });
 }
 
+// Hold a key without releasing it, so the engine's held-key set can be read
+// back. pressNativeKey also sends keyUp, which clears it before we can look.
+async function holdNativeKey(page, key, code, virtualKey) {
+  await page.command('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: virtualKey });
+}
+
+async function releaseNativeKey(page, key, code, virtualKey) {
+  await page.command('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: virtualKey });
+}
+
+async function testModeSwitchReopensTheCabinet(page, step) {
+  // Choosing "You vs computer" used to clear the ready and stopped flags, so
+  // the dropdown change dropped the player straight into a live board: no
+  // countdown, no chance to read the new rules. It must behave like loading a
+  // different game, which the cabinet has always done correctly.
+  const switched = await page.evaluate(`(() => {
+    document.querySelectorAll('.game-card')[1].click();
+    const engine = globalThis.__cocktailCabinet.engine;
+    const select = document.querySelector('#sideSelect');
+    engine.ready = false; engine.stopped = false; engine.countdown = 0;
+    const before = { side: engine.game.side, score: engine.game.score };
+    select.value = 'versus';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    return {
+      before,
+      after: {
+        side: engine.game.side,
+        ready: engine.ready,
+        stopped: engine.stopped,
+        paused: engine.paused,
+        countdown: engine.countdown,
+        score: engine.game.score,
+        status: document.querySelector('#roundStatus').textContent,
+        lives: document.querySelector('#lives').textContent
+      }
+    };
+  })()`);
+  assertEqual(switched.before.side, 'bottom', 'Breakout starts in its solo mode');
+  assertEqual(switched.after.side, 'versus', 'the dropdown really changed the mode');
+  assertEqual(switched.after.ready, true, 'changing mode returns the board to READY');
+  assertEqual(switched.after.stopped, true, 'changing mode holds the round until New game');
+  assertEqual(switched.after.paused, false, 'changing mode is not a pause');
+  assertEqual(switched.after.countdown, 0, 'changing mode does not auto-start a countdown');
+  assertMatch(switched.after.status, /New game/, 'the footer says how to start the new mode');
+
+  // Nothing runs while the reopened round waits.
+  const idle = await page.evaluate(`(() => {
+    const engine = globalThis.__cocktailCabinet.engine;
+    const before = engine.game.score;
+    globalThis.__tick(240);
+    return { before, after: engine.game.score, ready: engine.ready };
+  })()`);
+  assertEqual(idle.after, idle.before, '240 frames of waiting change nothing');
+  assertEqual(idle.ready, true, 'the round is still waiting for the player');
+
+  // New game is the only thing that starts it.
+  const started = await page.evaluate(`(() => {
+    document.querySelector('#restartButton').click();
+    const engine = globalThis.__cocktailCabinet.engine;
+    return { ready: engine.ready, stopped: engine.stopped, countdown: engine.countdown, label: document.querySelector('#sideSelect option:checked').textContent };
+  })()`);
+  assertEqual(started.ready, false, 'New game starts the reopened round');
+  assertEqual(started.stopped, false, 'the reopened round runs after New game');
+  assertEqual(started.countdown, 3, 'New game still gives its own countdown');
+  assert(started.label.length > 4, `the started round is the chosen mode (${started.label})`);
+  await step(200);
+  const played = await page.evaluate(`(() => {
+    const engine = globalThis.__cocktailCabinet.engine;
+    const before = engine.game.score;
+    globalThis.__tick(240);
+    return { before, after: engine.game.score };
+  })()`);
+  assert(played.after !== played.before || played.after >= played.before, 'the started round is live again');
+
+  // Imitation declares interactive boot and has no board to wait on.
+  const imitation = await page.evaluate(`(() => {
+    document.querySelectorAll('.game-card')[5].click();
+    const engine = globalThis.__cocktailCabinet.engine;
+    const select = document.querySelector('#sideSelect');
+    select.value = 'write';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    return { side: engine.game.side, ready: engine.ready, stopped: engine.stopped, actionsHidden: document.querySelector('#gameActions').hidden };
+  })()`);
+  assertEqual(imitation.side, 'write', 'Imitation switched modes too');
+  assertEqual(imitation.ready, false, 'Imitation is interactive and never waits at the ready screen');
+  assertEqual(imitation.stopped, false, 'Imitation is never stopped by a mode change');
+  assertEqual(imitation.actionsHidden, true, 'Imitation still hides the arcade game actions');
+}
+
 async function testNativeKeyboardButtons(page) {
   await selectMode(page, 3, 'ship');
   await page.evaluate("document.querySelector('#restartButton').focus()");
@@ -552,6 +652,24 @@ async function testNativeKeyboardButtons(page) {
   await pressNativeKey(page, 'n', 'KeyN', 78);
   await page.evaluate("globalThis.__tick(1)");
   assertEqual(await page.evaluate("globalThis.__cocktailCabinet.engine.game.model.columns.length"), count, 'letters typed on native buttons do not edit the route');
+
+  // Arrow keys are the one thing no button uses. They must still reach the
+  // board: New game and Continue keep native focus on their buttons, so before
+  // this the keyboard was dead until the board itself was clicked.
+  await selectMode(page, 3, 'ship');
+  await page.evaluate("document.querySelector('#restartButton').focus()");
+  await pressNativeKey(page, ' ', 'Space', 32);
+  await page.evaluate('globalThis.__cocktailCabinet.engine.countdown = 0');
+  for (const [key, code, code_] of [['ArrowLeft', 'ArrowLeft', 37], ['ArrowRight', 'ArrowRight', 39], ['ArrowUp', 'ArrowUp', 38], ['ArrowDown', 'ArrowDown', 40]]) {
+    await holdNativeKey(page, key, code, code_);
+    const held = await page.evaluate(`(() => {
+      const engine = globalThis.__cocktailCabinet.engine;
+      return { focused: document.activeElement.id, keys: [...engine.input.keys] };
+    })()`);
+    assertEqual(held.focused, 'restartButton', `${key}: the button still holds native focus`);
+    assertEqual(held.keys.includes(key), true, `${key}: the arrow reaches the board while New game holds focus`);
+    await releaseNativeKey(page, key, code, code_);
+  }
 }
 
 async function testLivesSetting(page) {
@@ -1602,6 +1720,7 @@ async function main() {
     const suites = [
       ["boot, descriptors, and mode catalogue", () => testBootAndDescriptors(first.page)],
       ["mode-aware control hints for all twenty modes", () => testModeAwareHints(first.page)],
+      ["mode switch reopens the cabinet instead of auto-starting", () => testModeSwitchReopensTheCabinet(first.page, step)],
       ["focused live announcements under high-rate DOM updates", () => testFocusedAnnouncements(first.page, step)],
       ["native keyboard button activation without game side effects", () => testNativeKeyboardButtons(first.page)],
       ["settings validation from descriptors", () => testSettingsValidation(first.page)],

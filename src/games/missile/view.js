@@ -9,8 +9,8 @@ export function draw(model, context) {
     context.fillStyle = base.alive ? (selected ? "#fbbf24" : "#38bdf8") : "#475569";
     context.beginPath(); context.arc(base.x, base.y, base.radius, 0, Math.PI * 2); context.fill();
     if (selected) { context.strokeStyle = "#fbbf24"; context.lineWidth = 3; context.beginPath(); context.arc(base.x, base.y, base.radius + 7, 0, Math.PI * 2); context.stroke(); context.lineWidth = 2; }
-    drawText(context, base.label, base.x, base.y + 5, 14, base.alive ? CANVAS_PALETTE.onBright : CANVAS_PALETTE.text, "center", `Battery ${base.label}: ${base.alive ? "operational" : "destroyed"}`);
-    if (model.side === "defender") drawText(context, String(base.missiles), base.x, base.y - 28, 12, base.alive ? CANVAS_PALETTE.text : CANVAS_PALETTE.muted, "center", `Battery ${base.label}: ${base.missiles} missiles`);
+    drawText(context, base.label, base.x, base.y + 5, 14, base.alive ? CANVAS_PALETTE.onBright : CANVAS_PALETTE.text, "center");
+    if (model.side === "defender") drawText(context, String(base.missiles), base.x, base.y - 28, 12, base.alive ? CANVAS_PALETTE.text : CANVAS_PALETTE.muted, "center");
   });
   model.enemyMissiles.forEach((missile) => { drawMissile(context, missile); if (model.side === "defender" && !missile.aircraft && !missile.freeFlight) drawTarget(context, missile.targetX, missile.targetY, missile.smart ? "#fbbf24" : "#fb7185"); });
   model.interceptors.forEach((missile) => drawMissile(context, missile));

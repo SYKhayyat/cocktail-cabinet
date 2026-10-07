@@ -167,6 +167,42 @@ test("facades declare boot, life restart, ownership, and result capabilities", (
   });
 });
 
+test("choosing a different mode reopens the cabinet instead of starting a round", () => {
+  withHost(({ engine, messages }) => {
+    // A mode switch used to clear ready and stopped, dropping the player into a
+    // live board the moment the dropdown changed: no countdown, no chance to
+    // read the new rules. It must behave exactly like loading a new game.
+    for (const [Game, sides] of [[SnakeGame, ["snake", "apples"]], [BreakoutGame, ["bottom", "versus"]], [AsteroidsGame, ["ship", "versus"]], [SplatGame, ["climber", "race"]], [StarfallGame, ["runner", "stars"]], [MissileCommandGame, ["defender", "attacker"]]]) {
+      const game = new Game();
+      engine.load(game);
+      for (const side of sides) {
+        engine.setSide(side);
+        assert.equal(game.side, side, `${Game.name} switched to ${side}`);
+        assert.equal(engine.ready, true, `${Game.name}/${side} waits on the ready screen`);
+        assert.equal(engine.stopped, true, `${Game.name}/${side} runs no frames until New game`);
+        assert.equal(engine.countdown, 0, `${Game.name}/${side} does not auto-start`);
+        assert.equal(game.score, 0, `${Game.name}/${side} starts from a clean score`);
+        assert.equal(game.lifecycle.roundContext.reason, "side", `${Game.name}/${side} opened a new round`);
+      }
+      // New game is the only thing that starts it.
+      engine.restart();
+      assert.equal(engine.ready, false, `${Game.name} starts on New game`);
+      assert.equal(engine.stopped, false, `${Game.name} runs after New game`);
+    }
+    // Imitation declares interactive boot, so it is never held at the ready
+    // screen -- a chat game has no board to wait on.
+    const imitation = new ImitationGame();
+    engine.load(imitation);
+    for (const side of ["ai", "human", "write"]) {
+      engine.setSide(side);
+      assert.equal(imitation.side, side);
+      assert.equal(engine.ready, false, `imitation/${side} stays interactive`);
+      assert.equal(engine.stopped, false, `imitation/${side} is not stopped`);
+    }
+    assert.ok(messages.length > 0, "the new mode is still announced");
+  });
+});
+
 test("interactive boot is a capability, not a game id branch", () => {
   withHost(({ engine }) => {
     const game = { id: "new-interactive-game", reset() {}, update() {}, draw() {}, publicState() {} };
@@ -253,7 +289,7 @@ test("solo Breakout rewards are observable headlessly and consumed once by the h
     engine.restart();
     assert.equal(engine.lives, 4, "earned budget persists across new games");
     engine.setSide("versus");
-    engine.countdown = 0;
+    play(engine);
     game.model.hitBrick(game.model.balls[0], brick);
     step(engine);
     assert.equal(game.model.playerLives.human, 5);

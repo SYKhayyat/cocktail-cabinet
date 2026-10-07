@@ -79,57 +79,52 @@ try {
           select.value = ${JSON.stringify(mode)};
           select.dispatchEvent(new Event('change', { bubbles: true }));
           const engine = globalThis.__cocktailCabinet.engine;
-          engine.ready = true; engine.stopped = true;
-          if (engine.game.model.id === 'missile') engine.game.model.bases[0].alive = false;
-          globalThis.__drawnLabels = [];
-          engine.frame(engine.lastTime + 16);
-          const panel = document.querySelector('.canvas-text-companion');
-          const canvas = document.querySelector('canvas');
-          const bounds = canvas.getBoundingClientRect();
-          const items = panel ? [...panel.querySelectorAll('li')] : [];
-          const style = panel && getComputedStyle(panel);
-          const pageWidth = document.documentElement.scrollWidth;
-          const panelBounds = panel && panel.getBoundingClientRect();
-          const wasHidden = panel?.hidden;
-          if (panel) panel.hidden = true;
-          const baselinePageWidth = document.documentElement.scrollWidth;
-          if (panel) panel.hidden = wasHidden;
+          // Only geometry the panel could have disturbed. Text below the board
+          // legitimately changes height as the round state changes.
+          const furniture = () => {
+            const box = document.querySelector('canvas').getBoundingClientRect();
+            return {
+              left: Math.round(box.left), top: Math.round(box.top),
+              width: Math.round(box.width), height: Math.round(box.height),
+              afterScreen: document.querySelectorAll('#screenFrame ~ *').length,
+              companion: document.querySelectorAll('.canvas-text-companion').length
+            };
+          };
+          // Both postures, because the panel this guards against appeared and
+          // disappeared *during* a round, not only on the ready screen.
+          const poses = [];
+          for (const running of [false, true]) {
+            engine.ready = !running; engine.stopped = !running; engine.paused = false; engine.countdown = 0;
+            const before = furniture();
+            globalThis.__drawnLabels = [];
+            for (let frame = 0; frame < 40; frame += 1) engine.frame(engine.lastTime + 16);
+            poses.push({ running, before, after: furniture(), drawn: globalThis.__drawnLabels });
+          }
+          const canvas = document.querySelector('canvas').getBoundingClientRect();
           return {
+            id: ${JSON.stringify(id)},
+            mode: ${JSON.stringify(mode)},
             screenHidden: document.querySelector('#screenFrame').hidden,
-            visible: !!panel && !panel.hidden && panel.getBoundingClientRect().height > 0,
-            labels: items.map(item => item.textContent),
-            drawn: globalThis.__drawnLabels, scale: bounds.width / canvas.width,
-            fontSize: style && parseFloat(style.fontSize),
-            itemSizes: items.map(item => parseFloat(getComputedStyle(item).fontSize)),
-            ariaHidden: panel && panel.getAttribute('aria-hidden'),
-            wrapping: style && style.overflowWrap,
-            pageWidth, baselinePageWidth,
-            panelInViewport: !panel || wasHidden || (panelBounds.left >= 0 && panelBounds.right <= innerWidth + 1),
-            fitsPanel: items.every(item => item.scrollWidth <= item.clientWidth + 1),
-            panelCount: document.querySelectorAll('.canvas-text-companion').length
+            canvasRight: Math.round(canvas.right),
+            poses
           };
         })()`);
-        const name = `${id}/${mode}/${width}`;
-        // #70 owns existing cabinet/builder-control overflow. Isolate this
-        // companion's layout rather than silently crediting it with that fix.
-        assert.ok(report.pageWidth <= report.baselinePageWidth, `${name}: companion introduces no page overflow`);
-        assert.equal(report.panelInViewport, true, `${name}: companion fits viewport`);
-        assert.ok(report.panelCount <= 1, `${name}: one reusable companion`);
-        if (id === "imitation") {
-          assert.equal(report.screenHidden, true, name);
-          assert.equal(report.visible, false, `${name}: companion follows hidden canvas`);
-        } else if (report.drawn.some(({ size }) => size * report.scale < 12)) {
-          assert.equal(report.visible, true, `${name}: readable alternative is visible`);
-          assert.ok(report.fontSize >= 14 && report.itemSizes.every(size => size >= 14), `${name}: real CSS text size >=14px`);
-          assert.equal(report.ariaHidden, "true", name);
-          assert.equal(report.wrapping, "anywhere", name);
-          assert.equal(report.fitsPanel, true, `${name}: long strings wrap inside panel`);
-          for (const { text } of report.drawn) {
-            assert.ok(report.labels.some(label => label.includes(text)), `${name}: ${text} has full-size copy`);
-          }
-          assert.ok(report.labels.includes("READY"), `${name}: lifecycle overlay included`);
-          if (id === "missile") assert.ok(report.labels.includes("Battery A: destroyed"), name);
+        const name = `${report.id}/${report.mode}/${width}`;
+        // #70 owns existing cabinet/builder-control overflow at 320px. Assert
+        // only what this change owns: the board itself, and the page furniture
+        // around it. Silently crediting #78 with #70's fix was the old mistake.
+        assert.ok(report.canvasRight <= width + 1, `${name}: the board fits the ${width}px viewport`);
+        for (const pose of report.poses) {
+          assert.equal(pose.before.companion, 0, `${name}: no label panel before drawing (running=${pose.running})`);
+          assert.equal(pose.after.companion, 0, `${name}: no label panel after 40 frames (running=${pose.running})`);
+          // The panel rebuilt itself from whatever was drawn that frame, so its
+          // height and contents changed constantly and the page moved with it.
+          // Forty frames of play must now leave the page furniture identical.
+          assert.deepEqual(pose.after, pose.before, `${name}: 40 frames add and resize no page furniture (running=${pose.running})`);
+          assert.ok(pose.drawn.length > 0, `${name}: the board still paints its own labels (running=${pose.running})`);
+          assert.ok(pose.drawn.every(({ size }) => size >= 7), `${name}: no label is drawn below the 7px floor`);
         }
+        if (report.id === 'imitation') assert.equal(report.screenHidden, true, `${name}: the hidden board stays hidden`);
         cases++;
       }
     }
