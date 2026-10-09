@@ -76,6 +76,8 @@ src/engine.js       canvas, input collection, animation loop, host lifecycle
 src/game-lifecycle.js facade capabilities, value-only round context, rewards/results
 src/geometry.js     model-safe geometry
 src/decisions.js    bounded computer-decision recording
+src/events.js      model-safe sound-event queue
+src/audio.js        synthesised sound: voices, mute, rate limits
 src/rendering.js    canvas text helper
 src/main.js         cabinet UI; swaps game modules in and out
 src/games/<id>/     model.js (rules), controller.js (input), view.js (drawing), index.js (facade)
@@ -90,6 +92,22 @@ per-player life budget. Models receive value-only round context, never an engine
 reference. Games expose `publicState()`; Imitation includes stable mode/provider
 flags so display-label changes cannot alter controls. Switching games calls
 `destroy()` on the outgoing controller, which releases channels and timers.
+
+## Sound
+
+Game sounds are synthesised at runtime from oscillators and noise: there are no
+audio files, nothing to download, and nothing for the strict CSP to object to.
+A **Sound on/off** button sits beside Lives, and sound is off during nonvisual
+assistance mode. Nothing is played until the page has been interacted with, which
+is what browsers require. Each sound has a minimum repeat gap, so a held key or a
+wall of bricks is a rhythm rather than a buzz, and one frame can never build more
+than four oscillators.
+
+Models never touch audio. They record what happened as plain data
+(`src/events.js`), the facade drains it and asks `src/audio.js` for a sound, and
+the recipes -- the only place a sound is named -- live in one map. Imitation is
+deliberately unsounded: a conversation has no gameplay events, and a chime per
+reply would talk over the person you are replying to.
 
 Mode values, labels, and settings bounds are declared once per game as
 `<GAME>_MODES` and `<GAME>_SETTINGS` in the model, and the UI derives its
@@ -129,7 +147,7 @@ a third tab replace an active peer. BFCache restoration reopens discovery.
 
 | Command | What it covers |
 | --- | --- |
-| `npm test` | Model/host contracts, event accounting, seeded computer-policy bands/tuning, and independent bounded HUMAN-input experience proxies |
+| `npm test` | Model/host contracts, event accounting, synthesised sound, seeded computer-policy bands/tuning, and independent bounded HUMAN-input experience proxies |
 | `npm run check` | Syntax, architectural dependencies, dead code and README control descriptors |
 | `npm run test:browser` | 27 CDP suites: all twenty-two modes, hints, lifecycle/input, low-frequency announcements, native keyboard and emulated touch editing, capped Builder workload, race ties, narrow layouts, provider fixtures, cross-tab protocol and isolation |
 | `npm run test:imitation:browser` | Real RTCDataChannels in both invite directions, human chat, no-model Guess/Provide and cancellation; `CDP_PEER_URL` selects a second browser process |

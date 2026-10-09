@@ -2,6 +2,7 @@ import { BreakoutModel, BRICK_LABELS } from "./model.js";
 import { BreakoutController } from "./controller.js";
 import { draw } from "./view.js";
 import { createGameLifecycle } from "../../game-lifecycle.js";
+import { playSounds } from "../../audio.js";
 
 export class BreakoutGame {
   constructor() {
@@ -39,11 +40,21 @@ export class BreakoutGame {
   get winner() { return this.model.winner; }
   get versusTie() { return this.model.versusTie; }
   get gameOver() { return this.model.gameOver; }
-  set gameOver(value) { this.model.gameOver = value; }
+  set gameOver(value) {
+    // The host decides a loss as often as the model does, so this is where
+    // a won/lose transition is caught whichever side set it.
+    if (value && !this.model.gameOver) this.model.emit("lose");
+    this.model.gameOver = value;
+  }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
   get won() { return this.model.won; }
-  set won(value) { this.model.won = value; }
+  set won(value) {
+    // The host decides a loss as often as the model does, so this is where
+    // a won/lose transition is caught whichever side set it.
+    if (value && !this.model.won) this.model.emit("win");
+    this.model.won = value;
+  }
   sideLabel() { return this.model.sideLabel(); }
   get modes() { return this.model.modes; }
   get sides() { return this.model.sides; }
@@ -55,7 +66,12 @@ export class BreakoutGame {
   resetAfterLife() { this.model.resetAfterLife(); }
   handleLifeLoss() { return this.model.handleLifeLoss(); }
   winMessage() { return this.model.winner === "computer" ? "Computer wins the duel!" : "You win the duel!"; }
-  update(dt, input) { this.controller.update(dt, input); }
+  update(dt, input) {
+    this.controller.update(dt, input);
+    // The one bridge from a model's events to the audio hardware. Models never
+    // touch AudioContext, which the boundary check rightly forbids.
+    playSounds("breakout", this.model.drainEvents());
+  }
   handleReadyInput(input) { this.controller.handleReadyInput(input); }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }

@@ -25,6 +25,10 @@ invariants are asserted directly in `tests/models.test.js` instead, including
 the two that are easy to regress: the exit is a farthest tile of the braided
 maze, and a pulse never produces a frame of darkness in the middle of it.
 
+Sound tuning lives in `src/audio.js`: the per-sound minimum repeat gaps are the
+equivalent of a policy constant, and they are covered by `tests/audio.test.js`
+rather than here, because a repeated sound is dropped rather than sampled.
+
 All six `measure<Game>` fixtures accept the same partial `aiTuning` option.
 Overrides are independent between models and are never written into the caller's
 configuration or default objects. Starfall also copies its lane array. Round and

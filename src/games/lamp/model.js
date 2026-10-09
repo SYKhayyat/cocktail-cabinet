@@ -1,5 +1,5 @@
 import { clamp } from "../../geometry.js";
-
+import { installEvents } from "../../events.js";
 // The drawing surface is a fixed 800x560 canvas that CSS scales, exactly as in
 // every other game, so the model works in maze tiles and never learns a pixel
 // size. The view converts.
@@ -120,6 +120,7 @@ function key(x, y) { return `${x},${y}`; }
 
 export class LampModel {
   constructor() {
+    installEvents(this);
     this.id = "lamp";
     this.title = "Lamp";
     this.description = "A game of borrowed light. Tap to pulse — the maze reveals for a moment, then fades. Hold to keep it lit as long as you dare. While it is lit you cannot move, so a pulse buys a moment of sight you cannot spend on walking; walk in the dark. Light only burns while the lamp is lit, and a cyan wisp refills it. Reach the green exit. Gold coins are points. Red hazards spend a life and leave your light and your place untouched.";
@@ -204,6 +205,7 @@ export class LampModel {
   }
 
   reset() {
+    this.clearEvents();
     this.applyPendingSettings();
     this.buildLevel();
     this.score = 0;
@@ -560,6 +562,7 @@ export class LampModel {
   // them. buildLevel() is the same function a new round uses, so the second
   // maze is built by exactly the rules the first one was.
   nextLevel() {
+    this.emit("maze");
     this.mazesCleared += 1;
     this.buildLevel();
   }
@@ -599,6 +602,7 @@ export class LampModel {
     // made an ordinary click cost a tap *plus* however long the button was held
     // -- which is how a click quietly became a hold and drank the meter. The
     // controller decides what counts as a hold; the model only obeys.
+    if (lampTap && this.light > 0) this.emit("pulse");
     if (lampTap) {
       this.fadePending = true;
       this.fadeRemaining = 0;
@@ -644,6 +648,7 @@ export class LampModel {
       this.fullRemaining = 0;
       this.fadeRemaining = 0;
       this.fadePending = false;
+      this.emit("dark");
     }
   }
 
@@ -732,6 +737,7 @@ export class LampModel {
       if (Math.hypot(coin.x - this.player.x, coin.y - this.player.y) < tuning.coinRadius) {
         coin.taken = true;
         this.score += 1;
+        this.emit("coin");
       }
     }
     for (const wisp of this.wisps) {
@@ -739,6 +745,7 @@ export class LampModel {
       if (Math.hypot(wisp.x - this.player.x, wisp.y - this.player.y) < tuning.wispRadius) {
         wisp.taken = true;
         this.wispsCollected += 1;
+        this.emit("wisp");
         this.light = Math.min(tuning.lightMax, this.light + tuning.wispLight);
       }
     }
@@ -749,6 +756,7 @@ export class LampModel {
       const hazard = this.hazards[index];
       if (Math.hypot(hazard.x - this.player.x, hazard.y - this.player.y) < tuning.hazardRadius) {
         this.hazards.splice(index, 1);
+        this.emit("hazard");
         this.lifeLost = true;
         this.lossReason = "hazard";
         return;
@@ -758,7 +766,7 @@ export class LampModel {
       // Chained never reports a win, so the host never stops the round. The run
       // ends the only other way it can: by spending every life.
       if (this.side === "continue") this.nextLevel();
-      else this.won = true;
+      else { this.won = true; this.emit("win"); }
     }
   }
 

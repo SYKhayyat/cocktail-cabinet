@@ -2,6 +2,7 @@ import { AsteroidsModel } from "./model.js";
 import { AsteroidsController } from "./controller.js";
 import { draw } from "./view.js";
 import { createGameLifecycle } from "../../game-lifecycle.js";
+import { playSounds } from "../../audio.js";
 
 export class AsteroidsGame {
   constructor() {
@@ -22,11 +23,21 @@ export class AsteroidsGame {
   get side() { return this.model.side; }
   get score() { return this.model.score; }
   get won() { return this.model.won; }
-  set won(value) { this.model.won = value; }
+  set won(value) {
+    // The host decides a loss as often as the model does, so this is where
+    // a won/lose transition is caught whichever side set it.
+    if (value && !this.model.won) this.model.emit("win");
+    this.model.won = value;
+  }
   get winner() { return this.model.winner; }
   get versusTie() { return this.model.versusTie; }
   get gameOver() { return this.model.gameOver; }
-  set gameOver(value) { this.model.gameOver = value; }
+  set gameOver(value) {
+    // The host decides a loss as often as the model does, so this is where
+    // a won/lose transition is caught whichever side set it.
+    if (value && !this.model.gameOver) this.model.emit("lose");
+    this.model.gameOver = value;
+  }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
   get modes() { return this.model.modes; }
@@ -39,7 +50,12 @@ export class AsteroidsGame {
   resetAfterLife() { this.model.resetAfterLife(); }
   controlHint() { return this.controller.controlHint(); }
   get playerLives() { return this.model.side === "versus" ? this.model.playerLives : null; }
-  update(dt, input) { this.controller.update(dt, input); }
+  update(dt, input) {
+    this.controller.update(dt, input);
+    // The one bridge from a model's events to the audio hardware. Models never
+    // touch AudioContext, which the boundary check rightly forbids.
+    playSounds("asteroids", this.model.drainEvents());
+  }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }
   winMessage() { return this.model.versusTie ? "Space duel tie — both pilots are out of lives." : this.model.winner === "computer" ? "Computer wins the space duel!" : "You win the space duel!"; }

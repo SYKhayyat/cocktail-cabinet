@@ -1,6 +1,6 @@
 import { clamp } from "../../geometry.js";
 import { recordDecision } from "../../decisions.js";
-
+import { installEvents } from "../../events.js";
 // Extra radius cleared around the ship when it respawns, so the spawn point
 // is not still inside a rock once the grace period lapses.
 const RESPAWN_CLEARANCE = 30;
@@ -62,6 +62,7 @@ export const ASTEROIDS_MODES = [
 
 export class AsteroidsModel {
   constructor({ aiTuning = {} } = {}) {
+    installEvents(this);
     this.aiTuning = { ...ASTEROIDS_AI_DEFAULTS, ...aiTuning };
     this.id = "asteroids";
     this.title = "Asteroids";
@@ -86,6 +87,7 @@ export class AsteroidsModel {
     this.playerLives.computer = Math.min(this.playerLives.computer, max);
   }
   reset(keepScore = false, { startingLives = 3 } = {}) {
+    this.clearEvents();
     if (!keepScore) this.score = 0;
     this.scores = { human: 0, computer: 0 };
     // Round configuration is value-only, so a headless caller and the cabinet
@@ -263,7 +265,7 @@ export class AsteroidsModel {
     }
     this.shotClock -= dt;
     this.computerShotClock -= dt;
-    if ((this.side === "ship" || this.side === "versus") && input.fire && this.shotClock <= 0) { this.fire("human", this.ship); this.shotClock = 0.18; }
+    if ((this.side === "ship" || this.side === "versus") && input.fire && this.shotClock <= 0) { this.fire("human", this.ship); this.shotClock = 0.18; this.emit("shoot"); }
     if ((this.side === "rocks" || this.side === "versus") && this.computerShotClock <= 0) {
       const computerShip = this.side === "versus" ? this.computerShip : this.ship;
       const computerTarget = this.side === "versus" ? this.computerShip.aiTarget : this.asteroids.reduce((nearest, asteroid) => !nearest || wrapDistance(asteroid.x, asteroid.y, this.ship.x, this.ship.y) < wrapDistance(nearest.x, nearest.y, this.ship.x, this.ship.y) ? asteroid : nearest, null);
@@ -333,8 +335,8 @@ export class AsteroidsModel {
         bullet.life = 0;
         this.scores[bullet.owner || "human"] += 10;
         if (this.side !== "versus" || bullet.owner === "human") this.score = this.scores.human;
-        if ((asteroid.generation ?? 0) === 0) this.fractureAsteroid(asteroid);
-        else asteroid.radius = 0;
+        if ((asteroid.generation ?? 0) === 0) { this.fractureAsteroid(asteroid); this.emit("split"); }
+        else { asteroid.radius = 0; this.emit("hit"); }
         break;
       }
     }
@@ -346,7 +348,7 @@ export class AsteroidsModel {
     // One terminal check per update, covering every way a life can be spent.
     // Lives can reach zero through a bullet, through a rock, or through both
     // in the same frame, so the check lives here rather than in each path.
-    if (this.side === "versus" && (this.playerLives.human <= 0 || this.playerLives.computer <= 0)) this.lifeLost = true;
+    if (this.side === "versus" && (this.playerLives.human <= 0 || this.playerLives.computer <= 0)) { this.lifeLost = true; this.emit("life"); }
   }
   // Rocks threaten both pilots in the duel, as the view states. The respawn
   // grace period covers whichever ship respawned, so a life lost to a rock
@@ -420,6 +422,7 @@ export class AsteroidsModel {
     if (owner === "human") this.invulnerable = 1.2;
     else this.computerInvulnerable = 1.2;
     this.lifeLost = true;
+    this.emit("life");
     this.lastDuelLossOwner = owner;
     this.recordEvent("life-loss", { owner, cause });
   }
@@ -433,6 +436,7 @@ export class AsteroidsModel {
     if (this.playerLives.human <= 0 || this.playerLives.computer <= 0) {
       this.gameOver = true;
       this.won = true;
+      this.emit("win");
       if (this.playerLives.human <= 0 && this.playerLives.computer <= 0) {
         this.versusTie = true;
         this.winner = null;

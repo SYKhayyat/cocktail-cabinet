@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const games = ["snake", "breakout", "splat", "asteroids", "missile", "starfall", "lamp"];
-const allowed = new Set(["src/geometry.js", "src/decisions.js"]);
+const allowed = new Set(["src/geometry.js", "src/decisions.js", "src/events.js"]);
 for (const game of games) allowed.add(`src/games/${game}/model.js`);
 
 // Inspect the full dependency graph, including re-exports and dynamic imports,

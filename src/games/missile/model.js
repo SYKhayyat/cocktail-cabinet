@@ -1,6 +1,6 @@
 import { circleHitsCircle, clamp } from "../../geometry.js";
 import { recordDecision } from "../../decisions.js";
-
+import { installEvents } from "../../events.js";
 const BATTERY_X = [130, 400, 670];
 const CITY_X = [70, 200, 300, 500, 600, 730];
 const BATTERY_MISSILES = 10;
@@ -33,6 +33,7 @@ export const MISSILE_AI_DEFAULTS = Object.freeze({ interceptorSpeed: 245, lead: 
 
 export class MissileModel {
   constructor({ aiTuning = {} } = {}) {
+    installEvents(this);
     this.aiTuning = { ...MISSILE_AI_DEFAULTS, ...aiTuning };
     this.id = "missile";
     this.title = "Missile Command";
@@ -52,6 +53,7 @@ export class MissileModel {
   sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || MISSILE_MODES[0].label; }
   setSide(side) { if (this.sides.includes(side)) this.side = side; }
   reset(keepScore = false) {
+    this.clearEvents();
     if (!keepScore) this.score = 0;
     this.level = 1;
     this.multiplier = 1;
@@ -193,7 +195,7 @@ export class MissileModel {
   updateDefender(dt, input) {
     if (input.aim) this.target = { x: input.aim.x, y: clamp(input.aim.y, 28, 500) };
     this.selectBattery(input.batteryDirection || 0);
-    if (input.launch && this.launchInterceptor()) this.interceptorClock = 0.12;
+    if (input.launch && this.launchInterceptor()) { this.interceptorClock = 0.12; this.emit("launch"); }
     this.launchClock -= dt;
     if (!this.levelComplete && this.enemySpawned < this.enemyTotal && this.launchClock <= 0) {
       this.launchEnemy();
@@ -371,6 +373,7 @@ export class MissileModel {
     const remainingMissiles = this.bases.reduce((total, base) => total + (base.alive ? base.missiles : 0), 0);
     const remainingCities = this.cities.filter((city) => city.alive).length;
     this.score += (remainingMissiles + remainingCities) * 25 * this.multiplier;
+    this.emit("wave");
     if (this.score >= this.nextCityBonus) {
       this.reserveCities += 1;
       this.nextCityBonus += 1500 * this.multiplier;
@@ -410,10 +413,11 @@ export class MissileModel {
         this.gameOver = true;
         this.won = true;
         this.winner = "human";
+        this.emit("win");
       }
       return;
     }
-    if (this.citiesRemaining() === 0 && this.reserveCities === 0) this.gameOver = true;
+    if (this.citiesRemaining() === 0 && this.reserveCities === 0) { this.gameOver = true; this.emit("lose"); }
   }
   handleLifeLoss() {
     if (this.side === "attacker") {

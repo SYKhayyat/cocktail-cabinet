@@ -1,6 +1,6 @@
 import { clamp, circleHitsRect } from "../../geometry.js";
 import { recordDecision } from "../../decisions.js";
-
+import { installEvents } from "../../events.js";
 export const BRICK_LABELS = { extraLife: "+1 LIFE", double: "2 BALLS", speed: "SPEED", shortBar: "SHORT", longBar: "LONG", hazard: "DANGER" };
 const BRICK_TYPES = ["normal", "extraLife", "shortBar", "double", "speed", "longBar", "hazard"];
 // Breakout computer factors. There is no chance of missing: the paddle misses
@@ -30,6 +30,7 @@ export const BREAKOUT_MODES = [
 
 export class BreakoutModel {
   constructor({ aiTuning = {} } = {}) {
+    installEvents(this);
     this.aiTuning = { ...BREAKOUT_AI_DEFAULTS, ...aiTuning };
     this.id = "breakout";
     this.title = "Breakout";
@@ -48,6 +49,7 @@ export class BreakoutModel {
   sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || BREAKOUT_MODES[0].label; }
   setSide(side) { if (this.sides.includes(side)) this.side = side; }
   reset(keepScore = false, { startingLives = 3 } = {}) {
+    this.clearEvents();
     if (!keepScore) this.score = 0;
     this.lifeLost = false;
     this.scores = keepScore && this.scores ? { ...this.scores } : { human: 0, computer: 0 };
@@ -335,6 +337,7 @@ export class BreakoutModel {
       for (const brick of this.bricks) {
         if (!brick.hits || !circleHitsRect(ball, brick)) continue;
         brick.hits = 0;
+        this.emit("brick");
         this.hitBrick(ball, brick);
         break;
       }
@@ -352,10 +355,11 @@ export class BreakoutModel {
       // first, and handleLifeLoss() preferred the remainder.
       this.lastLifeLossOwner = this.pendingLifeLossOwners[0];
       this.lifeLost = true;
-    } else if (!this.balls.length) this.lifeLost = true;
+      this.emit("life");
+    } else if (!this.balls.length) { this.lifeLost = true; this.emit("life"); }
     if (this.bricks.every((brick) => !brick.hits)) {
       if (this.side === "versus") this.finishVersus();
-      else this.won = true;
+      else { this.won = true; this.emit("win"); }
     }
   }
   addScore(owner, amount) {
@@ -365,6 +369,7 @@ export class BreakoutModel {
     } else this.score += amount;
   }
   bounceFromPaddle(ball, paddle) {
+    this.emit("bounce");
     this.paddleHits += 1;
     const owner = this.side === "versus" ? (paddle === this.human ? "human" : "computer") : null;
     if (owner) ball.lastPaddle = owner;
@@ -398,6 +403,7 @@ export class BreakoutModel {
       if (this.side === "versus") this.pendingLifeLossOwners.push(owner || ball.owner || "human");
       else this.lastLifeLossOwner = owner || ball.owner || null;
       this.lifeLost = true;
+      this.emit("life");
     }
   }
   finishVersus() {

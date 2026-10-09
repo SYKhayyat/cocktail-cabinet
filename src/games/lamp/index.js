@@ -2,6 +2,7 @@ import { LampModel } from "./model.js";
 import { LampController } from "./controller.js";
 import { draw } from "./view.js";
 import { createGameLifecycle } from "../../game-lifecycle.js";
+import { playSounds } from "../../audio.js";
 
 export class LampGame {
   constructor() {
@@ -24,9 +25,19 @@ export class LampGame {
   get exit() { return this.model.exit; }
   get light() { return this.model.light; }
   get won() { return this.model.won; }
-  set won(value) { this.model.won = value; }
+  set won(value) {
+    // The host decides a loss as often as the model does, so this is where
+    // a won/lose transition is caught whichever side set it.
+    if (value && !this.model.won) this.model.emit("win");
+    this.model.won = value;
+  }
   get gameOver() { return this.model.gameOver; }
-  set gameOver(value) { this.model.gameOver = value; }
+  set gameOver(value) {
+    // The host decides a loss as often as the model does, so this is where
+    // a won/lose transition is caught whichever side set it.
+    if (value && !this.model.gameOver) this.model.emit("lose");
+    this.model.gameOver = value;
+  }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
   get lossReason() { return this.model.lossReason; }
@@ -46,7 +57,12 @@ export class LampGame {
   winMessage() { return this.model.winMessage(); }
   sideLabel() { return this.model.sideLabel(); }
   controlHint() { return this.controller.controlHint(); }
-  update(dt, input) { this.controller.update(dt, input); }
+  update(dt, input) {
+    this.controller.update(dt, input);
+    // The one bridge from a model's events to the audio hardware. Models never
+    // touch AudioContext, which the boundary check rightly forbids.
+    playSounds("lamp", this.model.drainEvents());
+  }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }
 }

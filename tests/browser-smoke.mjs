@@ -391,6 +391,24 @@ async function testBootAndDescriptors(page) {
   assertEqual(lamp.sizes.map((size) => size.shown).join(","), "21,29,41,53", "and shows what it chose");
   assertEqual(lamp.customDisabled, false, "custom hands the numbers back");
   assertEqual(lamp.caption, "Maze columns", "Lamp's label comes from Lamp's descriptor, not Snake's");
+
+  // A sound toggle that cannot be turned off is a bug waiting to happen. It is a
+  // real button, it says which way it is, and it says so to a screen reader too.
+  const sound = await page.evaluate(`(() => {
+    const button = document.querySelector('#soundButton');
+    const read = () => ({ label: button.textContent, pressed: button.getAttribute('aria-pressed'), tag: button.tagName, type: button.type });
+    const before = read();
+    button.click();
+    const off = read();
+    button.click();
+    return { before, off, after: read() };
+  })()`);
+  assertEqual(sound.before.label, "Sound on", "sound starts on");
+  assertEqual(sound.before.pressed, "true", "and says so to assistive technology");
+  assertEqual(`${sound.before.tag}/${sound.before.type}`, "BUTTON/button", "and is a real button, not a div");
+  assertEqual(sound.off.label, "Sound off", "clicking it turns sound off");
+  assertEqual(sound.off.pressed, "false", "and reports the new state");
+  assertEqual(sound.after.label, "Sound on", "and it can be turned back on");
 }
 
 async function testSettingsValidation(page) {

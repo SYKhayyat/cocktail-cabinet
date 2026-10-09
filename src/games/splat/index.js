@@ -2,6 +2,7 @@ import { SplatModel } from "./model.js";
 import { SplatController } from "./controller.js";
 import { draw } from "./view.js";
 import { createGameLifecycle } from "../../game-lifecycle.js";
+import { playSounds } from "../../audio.js";
 
 export class SplatGame {
   constructor() {
@@ -24,7 +25,12 @@ export class SplatGame {
   setTool(tool) { this.model.setTool(tool); }
   get score() { return this.model.score; }
   get won() { return this.model.won; }
-  set won(value) { this.model.won = value; }
+  set won(value) {
+    // The host decides a loss as often as the model does, so this is where
+    // a won/lose transition is caught whichever side set it.
+    if (value && !this.model.won) this.model.emit("win");
+    this.model.won = value;
+  }
   get winner() { return this.model.winner; }
   get versusTie() { return this.model.versusTie; }
   get gameOver() { return this.model.gameOver; }
@@ -37,7 +43,12 @@ export class SplatGame {
     this.model.raceLives.human = Math.min(this.model.raceLives.human, max);
     this.model.raceLives.computer = Math.min(this.model.raceLives.computer, max);
   }
-  set gameOver(value) { this.model.gameOver = value; }
+  set gameOver(value) {
+    // The host decides a loss as often as the model does, so this is where
+    // a won/lose transition is caught whichever side set it.
+    if (value && !this.model.gameOver) this.model.emit("lose");
+    this.model.gameOver = value;
+  }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
   get modes() { return this.model.modes; }
@@ -58,7 +69,12 @@ export class SplatGame {
   controlHint() { return this.controller.controlHint(); }
   resetAfterLife() { this.model.resetAfterLife(); }
   handleLifeLoss() { return this.model.handleLifeLoss(); }
-  update(dt, input) { this.controller.update(dt, input); }
+  update(dt, input) {
+    this.controller.update(dt, input);
+    // The one bridge from a model's events to the audio hardware. Models never
+    // touch AudioContext, which the boundary check rightly forbids.
+    playSounds("splat", this.model.drainEvents());
+  }
   handleReadyInput(input) { this.controller.handleReadyInput(input); }
   handlePausedInput(input) { this.controller.handlePausedInput(input); }
   draw(context) { draw(this.model, context); }

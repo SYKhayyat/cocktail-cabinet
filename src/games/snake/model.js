@@ -1,6 +1,6 @@
 import { clamp } from "../../geometry.js";
 import { recordDecision } from "../../decisions.js";
-
+import { installEvents } from "../../events.js";
 const BOARD_WIDTH = 800;
 const BOARD_HEIGHT = 560;
 
@@ -25,6 +25,7 @@ export const SNAKE_SETTINGS = {
 
 export class SnakeModel {
   constructor({ aiTuning = {} } = {}) {
+    installEvents(this);
     this.aiTuning = { ...SNAKE_AI_DEFAULTS, ...aiTuning };
     this.id = "snake";
     this.title = "Snake";
@@ -96,6 +97,7 @@ export class SnakeModel {
   }
   cellCenter(cell) { return { x: cell.x * this.cellWidth() + this.cellWidth() / 2, y: cell.y * this.cellHeight() + this.cellHeight() / 2 }; }
   reset(keepScore = false, length = this.startingLength) {
+    this.clearEvents();
     this.cols = this.roundSettings.cols;
     this.rows = this.roundSettings.rows;
     this.startingLength = clamp(this.roundSettings.startingLength, SNAKE_SETTINGS.startingLength.min, SNAKE_SETTINGS.startingLength.max);
@@ -204,7 +206,7 @@ cellKey(x, y) { return y * this.cols + x; }
     const head = this.snake[0];
     let next = { x: head.x + this.direction.x, y: head.y + this.direction.y };
     if (this.wrap) next = { x: (next.x + this.cols) % this.cols, y: (next.y + this.rows) % this.rows };
-    else if (next.x < 0 || next.x >= this.cols || next.y < 0 || next.y >= this.rows) { this.gameOver = true; this.lossReason = "wall"; return; }
+    else if (next.x < 0 || next.x >= this.cols || next.y < 0 || next.y >= this.rows) { this.gameOver = true; this.lossReason = "wall"; this.emit("die"); return; }
     const eating = next.x === this.apple?.x && next.y === this.apple?.y;
     // On a non-eating move the tail cell is vacated by the pop() at the end of
     // this tick, so the head may legitimately move into it. Checking the tail
@@ -214,9 +216,10 @@ cellKey(x, y) { return y * this.cols + x; }
       if (!eating && index === this.snake.length - 1) return false;
       return part.x === next.x && part.y === next.y;
     });
-    if (collides) { this.gameOver = true; this.lossReason = "self"; return; }
+    if (collides) { this.gameOver = true; this.lossReason = "self"; this.emit("die"); return; }
     if (eating) {
       this.score += 1;
+      this.emit("eat");
       this.snake.unshift(next);
       this.occupied.add(this.cellKey(next.x, next.y));
       const apple = this.freeApple();
@@ -226,6 +229,7 @@ cellKey(x, y) { return y * this.cols + x; }
         // already covering, and the game limped on to a self-collision.
         this.apple = null;
         this.won = true;
+        this.emit("win");
         return;
       }
       this.apple = apple;

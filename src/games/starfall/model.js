@@ -1,6 +1,6 @@
 import { clamp, circleHitsCircle } from "../../geometry.js";
 import { recordDecision } from "../../decisions.js";
-
+import { installEvents } from "../../events.js";
 // Runner factors. The runner does not roll for mistakes: it can only see stars
 // that have fallen past a certain height, it re-reads them on a clock, and once
 // it commits to a lane it holds that lane for a beat.
@@ -51,6 +51,7 @@ const STARFALL_MODES = [
 
 export class StarfallModel {
   constructor({ aiTuning = {} } = {}) {
+    installEvents(this);
     this.aiTuning = { ...STARFALL_AI_DEFAULTS, ...aiTuning, lanes: [...(aiTuning.lanes || STARFALL_AI_DEFAULTS.lanes)] };
     this.id = "starfall";
     this.title = "Starfall";
@@ -100,6 +101,7 @@ export class StarfallModel {
     }
   }
   reset(keepScore = false) {
+    this.clearEvents();
     if (!keepScore) this.score = 0; this.runner = { x: 400, y: 500, radius: RUNNER_RADIUS }; this.stars = []; this.gems = []; this.spawnClock = 0.3; this.aiTargetX = null; this.aiTargetGem = null; this.aiTargetLock = 0; this.aiLaneCommit = 0; this.aiPerceptionClock = 0; this.aiSeenStars = []; this.decisionLog = []; this.lastDecision = null; this.eventLog = []; this.nextEntityId = 1; this.gemHoldTime = 0; this.gemSpawnClock = 0; this.gemSpawnCooldown = 0; this.lifeLost = false; this.pendingLifeLoss = false; this.gameOver = false; this.won = false;
     if (this.side === "runner") for (let index = 0; index < 3; index += 1) this.gems.push(this.newGem(undefined, -20 - index * 80));
   }
@@ -201,6 +203,7 @@ export class StarfallModel {
       }
       if (circleHitsCircle(this.runner.x, this.runner.y, this.runner.radius, gem.x, gem.y, 10)) {
         this.score += 50;
+        this.emit("gem");
         if (!gem.outcome) {
           gem.outcome = "gem-collected";
           this.recordEvent("gem-collected", { gemId: gem.id ?? null });
@@ -230,6 +233,7 @@ export class StarfallModel {
         if (!this.lifeLost) {
           this.lifeLost = true;
           this.pendingLifeLoss = true;
+          this.emit("life");
           this.recordEvent("life-loss", { cause: "star" });
         }
       }

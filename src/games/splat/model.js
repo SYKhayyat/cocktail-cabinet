@@ -1,6 +1,6 @@
 import { clamp } from "../../geometry.js";
 import { recordDecision } from "../../decisions.js";
-
+import { installEvents } from "../../events.js";
 const COLUMN_WIDTH = 30;
 const COLUMN_COUNT = 50;
 // Supported editor workload: finite routes, with no unbounded pointer/key growth.
@@ -35,6 +35,7 @@ export const SPLAT_SETTINGS = {
 
 export class SplatModel {
   constructor({ aiTuning = {} } = {}) {
+    installEvents(this);
     this.aiTuning = { ...SPLAT_AI_DEFAULTS, ...aiTuning };
     this.id = "splat";
     this.title = "Splat";
@@ -95,6 +96,7 @@ export class SplatModel {
   }
   applyPendingSettings() { this.columnSpacing = this.pendingSettings.columnSpacing; }
   reset(keepScore = false, preserveLayout = this.side === "builder" && this.layoutAuthored, { startingLives = 3 } = {}) {
+    this.clearEvents();
     const preservedColumns = preserveLayout && this.columns ? this.columns.map((column) => ({ ...column, passed: false })) : null;
     if (!keepScore) {
       this.score = 0;
@@ -161,7 +163,7 @@ export class SplatModel {
     this.player.y = clamp(this.player.y + this.player.vy * dt, 18, 542);
     this.cameraX = clamp(this.player.x - 110, 0, this.columns.at(-1).x - 650);
     this.resolvePlayer(this.player);
-    if (this.player.x >= this.columns.at(-1).x + 100) { this.won = true; this.winner = "human"; }
+    if (this.player.x >= this.columns.at(-1).x + 100) { this.won = true; this.winner = "human"; this.emit("win"); }
   }
   updateBuilder(dt, input) {
     this.updateBuilderInput(input);
@@ -176,6 +178,7 @@ export class SplatModel {
       this.won = true;
       this.winner = "human";
       this.puzzleResult = "solved";
+      this.emit("win");
     }
   }
   updateRace(dt, input) {
@@ -199,6 +202,7 @@ export class SplatModel {
     const computerTime = crossingTime(this.computerPlayer, previousComputerX, this.aiTuning.horizontalSpeed);
     if (Number.isFinite(humanTime) || Number.isFinite(computerTime)) {
       this.won = true;
+      this.emit("win");
       this.versusTie = Number.isFinite(humanTime) && Number.isFinite(computerTime) && Math.abs(humanTime - computerTime) < 1e-9;
       this.winner = this.versusTie ? null : humanTime < computerTime ? "human" : "computer";
     }
@@ -360,12 +364,13 @@ export class SplatModel {
           this.recordEvent("life-loss", { owner: player === this.player ? "human" : "computer", attempt: player.attempt, cause: "column" });
         }
         this.lifeLost = true;
+        this.emit("life");
         player.vy *= -0.25;
         break;
       }
       if (player.x > column.x + column.width / 2) {
         if (this.side === "race") player.passedColumns.add(column);
-        else column.passed = true;
+        else { column.passed = true; this.emit("column"); }
         player.columnsPassed += 1;
         this.recordEvent("column-cleared", { columnId: column.id ?? null, attempt: player.attempt, owner: player === this.player ? "human" : "computer" });
         if (human) {
@@ -393,11 +398,13 @@ export class SplatModel {
     if (!drift && this.driftActive) this.player.vy = 0;
     if (!drift) this.driftActive = 0;
     if (input.bounce < 0) {
+      this.emit("bounce");
       this.player.y = clamp(this.player.y - BOUNCE_DISTANCE, 18, 542);
       this.player.vy = 0;
       this.driftActive = 0;
     }
     if (input.bounce > 0) {
+      this.emit("bounce");
       this.player.y = clamp(this.player.y + BOUNCE_DISTANCE, 18, 542);
       this.player.vy = 0;
       this.driftActive = 0;

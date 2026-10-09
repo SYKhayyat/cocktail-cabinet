@@ -8,7 +8,7 @@ import * as host from "../src/engine.js";
 import { checkModelBoundary } from "../scripts/check-model-boundary.mjs";
 
 test("the complete arcade model dependency graph stays model-safe", async () => {
-  assert.equal(await checkModelBoundary(), 9);
+  assert.equal(await checkModelBoundary(), 10);
 });
 
 test("neutral helpers retain identical engine compatibility exports", () => {

@@ -2,6 +2,7 @@ import { SnakeModel } from "./model.js";
 import { SnakeController } from "./controller.js";
 import { draw } from "./view.js";
 import { createGameLifecycle } from "../../game-lifecycle.js";
+import { playSounds } from "../../audio.js";
 
 export class SnakeGame {
   constructor() {
@@ -20,9 +21,19 @@ export class SnakeGame {
   get snake() { return this.model.snake; }
   get apple() { return this.model.apple; }
   get gameOver() { return this.model.gameOver; }
-  set gameOver(value) { this.model.gameOver = value; }
+  set gameOver(value) {
+    // The host decides a loss as often as the model does, so this is where
+    // a won/lose transition is caught whichever side set it.
+    if (value && !this.model.gameOver) this.model.emit("lose");
+    this.model.gameOver = value;
+  }
   get won() { return this.model.won; }
-  set won(value) { this.model.won = value; }
+  set won(value) {
+    // The host decides a loss as often as the model does, so this is where
+    // a won/lose transition is caught whichever side set it.
+    if (value && !this.model.won) this.model.emit("win");
+    this.model.won = value;
+  }
   winMessage() { return `You filled the board — ${this.model.score} apples!`; }
   get lifeLost() { return this.model.lifeLost; }
   set lifeLost(value) { this.model.lifeLost = value; }
@@ -43,7 +54,12 @@ export class SnakeGame {
   cellFromPointer(pointer) { return this.model.cellFromPointer(pointer); }
   cellCenter(cell) { return this.model.cellCenter(cell); }
   moveInterval() { return this.model.moveInterval(); }
-  update(dt, input) { this.controller.update(dt, input); }
+  update(dt, input) {
+    this.controller.update(dt, input);
+    // The one bridge from a model's events to the audio hardware. Models never
+    // touch AudioContext, which the boundary check rightly forbids.
+    playSounds("snake", this.model.drainEvents());
+  }
   draw(context) { draw(this.model, context); }
   publicState() { return this.model.publicState(); }
 }

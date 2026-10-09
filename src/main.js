@@ -9,6 +9,7 @@ import { ImitationGame } from "./games/imitation.js";
 import { StarfallGame } from "./games/starfall.js";
 import { LampGame } from "./games/lamp.js";
 import { NonvisualPanel } from "./nonvisual-panel.js";
+import { isAudioMuted, setAudioMuted, setAudioSuppressed, unlockAudio } from "./audio.js";
 
 const gameFactories = [
   ["snake", "Snake", "Grow or feed the snake", () => new SnakeGame()],
@@ -74,6 +75,7 @@ const lampCoins = document.querySelector("#lampCoins");
 const lampHazards = document.querySelector("#lampHazards");
 const lampWisps = document.querySelector("#lampWisps");
 const lampPatrol = document.querySelector("#lampPatrol");
+const soundButton = document.querySelector("#soundButton");
 let lastChatRevision = -1;
 const announcements = new Announcements(document.querySelector("#announcements"));
 const chatRows = new Map();
@@ -92,6 +94,17 @@ const announcedChat = new WeakSet();
 function focusBoardAfterPointerClick(event) {
   if (event.detail === 0) return;
   canvas.focus({ preventScroll: true });
+}
+
+// Browsers refuse to start audio until the page has been interacted with, so the
+// context is built on the first real gesture and never before. This runs once.
+window.addEventListener("pointerdown", () => unlockAudio(), { once: true });
+window.addEventListener("keydown", () => unlockAudio(), { once: true });
+
+function renderSoundButton() {
+  const muted = isAudioMuted();
+  soundButton.textContent = muted ? "Sound off" : "Sound on";
+  soundButton.setAttribute("aria-pressed", String(!muted));
 }
 
 function showMessage(text) {
@@ -400,6 +413,9 @@ const engine = new GameEngine(canvas, {
     title.textContent = state.title;
     description.textContent = state.description;
     renderRoundStatus(state);
+    // Nonvisual assistance freezes time and asks the player to read the board as
+    // text; sound on top of that is noise, so it is suppressed there.
+    setAudioSuppressed(engine.assistance);
     if (activeId === "splat") updateSplatTools();
     if (activeId === "imitation") {
       renderImitationControls(state);
@@ -448,6 +464,14 @@ for (const [id, inputs] of Object.entries(settingsInputs)) {
     });
   }
 }
+soundButton.addEventListener("click", () => {
+  // Turning sound back on is itself a gesture, so this is where the context is
+  // finally allowed to start for a player who had it muted.
+  unlockAudio();
+  setAudioMuted(!isAudioMuted());
+  renderSoundButton();
+});
+renderSoundButton();
 splatAddColumn.addEventListener("click", () => { games.get("splat").setTool("column"); updateSplatTools(); });
 splatAddGap.addEventListener("click", () => { games.get("splat").setTool("gap"); updateSplatTools(); });
 restartButton.addEventListener("click", () => { engine.restart(); nonvisual.refresh(); });
