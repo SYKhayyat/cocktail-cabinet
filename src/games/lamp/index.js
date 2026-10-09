@@ -44,11 +44,6 @@ export class LampGame {
   restartAfterLife() { this.model.restartAfterLife(); }
   handleLifeLoss() { return this.model.handleLifeLoss(); }
   winMessage() { return this.model.winMessage(); }
-  // The host's default losing heading is "OUT OF LIVES", which is simply the
-  // wrong story when the run ended because the light ran out.
-  resultHeading() {
-    return this.model.lossReason === "dark" ? "THE LAMP WENT OUT" : undefined;
-  }
   sideLabel() { return this.model.sideLabel(); }
   controlHint() { return this.controller.controlHint(); }
   update(dt, input) { this.controller.update(dt, input); }

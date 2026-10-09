@@ -82,13 +82,15 @@ test("mode hints correspond to real controller effects and inactive keys do noth
   lamp.update(1 / 60, input("ArrowRight"));
   assert.deepEqual(lamp.model.player, at, "and you cannot walk while it is lit");
   for (let tick = 0; tick < 200 && lamp.model.lit(); tick += 1) lamp.update(1 / 60, input());
-  lamp.update(1 / 60, input(null, { down: true }));
-  assert.equal(lamp.model.lit(), true, "the advertised Hold lights the lamp");
-  lamp.update(1 / 60, input(null, { down: true }));
-  lamp.update(1 / 60, input(null, { down: false }));
-  assert.equal(lamp.model.lampHeld, false, "and letting go starts the fade");
   lamp.update(1 / 60, input(null, { down: true, clicked: true }));
   assert.equal(lamp.model.lit(), true, "the advertised Click lights the lamp");
+  assert.equal(lamp.model.lampHeld, false, "a press is a tap, not yet a hold");
+  for (let tick = 0; tick < 10; tick += 1) lamp.update(1 / 60, input(null, { down: true }));
+  assert.equal(lamp.model.lampHeld, false, "still only a tap inside the hold delay");
+  for (let tick = 0; tick < 30; tick += 1) lamp.update(1 / 60, input(null, { down: true }));
+  assert.equal(lamp.model.lampHeld, true, "the advertised Hold sustains once the button is held");
+  lamp.update(1 / 60, input(null, { down: false }));
+  assert.equal(lamp.model.lampHeld, false, "and letting go starts the fade");
 
   const stars = new StarfallGame(); stars.model.side = "stars"; stars.reset();
   stars.update(0, input(null, { clicked: true, released: true }));

@@ -30,9 +30,15 @@ export function draw(model, context) {
   context.fillStyle = CANVAS_PALETTE.background;
   context.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
 
-  const brightness = model.brightness();
+  // After the run ends the maze is shown whole, and the pickups that are gone
+  // are drawn back in, so the end of a run is the one time the board can be
+  // read as a map rather than a glimpse.
+  const over = model.revealed();
+  const brightness = over ? 1 : model.brightness();
   const topPad = 44;
-  const bottomPad = 44;
+  // Room for two lines under the maze: the status sentence, and the out-of-light
+  // band above it when it shows.
+  const bottomPad = 60;
   const tile = Math.min((BOARD_WIDTH - 48) / model.cols, (BOARD_HEIGHT - topPad - bottomPad) / model.rows);
   const originX = (BOARD_WIDTH - tile * model.cols) / 2;
   const originY = topPad + (BOARD_HEIGHT - topPad - bottomPad - tile * model.rows) / 2;
@@ -52,8 +58,8 @@ export function draw(model, context) {
       }
     }
     drawExit(context, model, point, tile, brightness);
-    for (const coin of model.coins) if (!coin.taken) drawCoin(context, point(coin.x, coin.y), tile);
-    for (const wisp of model.wisps) if (!wisp.taken) drawWisp(context, point(wisp.x, wisp.y), tile);
+    for (const coin of model.coins) if (over || !coin.taken) drawCoin(context, point(coin.x, coin.y), tile);
+    for (const wisp of model.wisps) if (over || !wisp.taken) drawWisp(context, point(wisp.x, wisp.y), tile);
     for (const hazard of model.hazards) drawHazard(context, point(hazard.x, hazard.y), tile);
   }
 
@@ -155,8 +161,8 @@ function drawReadouts(context, model) {
   context.fillRect(left, barY, barWidth * share, 8);
   drawText(context, `Light ${Math.round(model.light)} of ${model.lightMax}`, left, 22, 13, CANVAS_PALETTE.warning);
   drawText(context, `Wisps ${model.wispsCollected}`, BOARD_WIDTH - 20, 22, 13, CANVAS_PALETTE.accent, "right");
-  drawText(context, model.statusText(), left, BOARD_HEIGHT - 18, 13, CANVAS_PALETTE.secondary);
-  if (share <= 0) drawText(context, "NO LIGHT", BOARD_WIDTH / 2, BOARD_HEIGHT - 18, 13, HAZARD, "center");
+  if (share <= 0 && !model.revealed()) drawText(context, "NO LIGHT", BOARD_WIDTH / 2, BOARD_HEIGHT - 36, 14, HAZARD, "center");
+  drawText(context, model.statusText(), left, BOARD_HEIGHT - 14, 13, CANVAS_PALETTE.secondary);
   const hint = model.lit() ? "Standing still — the lamp is lit." : "Dark — arrows or WASD to walk.";
   drawText(context, hint, BOARD_WIDTH / 2, 22, 12, CANVAS_PALETTE.muted, "center");
 }

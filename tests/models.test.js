@@ -3538,14 +3538,18 @@ const lamp = (settings = {}) => {
 };
 // Driven through the facade with the same engine-shaped input the engine
 // builds, so these exercise the controller and the model together.
-const lampStep = (game, dt, { move = null, lampDown = false } = {}) => {
+const lampStep = (game, dt, { move = null, spaceDown = false, spaceTap = false, pointerDown = false, pointerTap = false } = {}) => {
   const keys = new Set();
   if (move?.x < 0) keys.add("ArrowLeft");
   if (move?.x > 0) keys.add("ArrowRight");
   if (move?.y < 0) keys.add("ArrowUp");
   if (move?.y > 0) keys.add("ArrowDown");
-  if (lampDown) keys.add(" ");
-  game.update(dt, input({ keys, pressed: keys, pointer: pointer({ down: lampDown }) }));
+  if (spaceDown) keys.add(" ");
+  game.update(dt, input({
+    keys,
+    pressed: spaceTap ? new Set([" "]) : new Set(),
+    pointer: pointer({ down: pointerDown, clicked: pointerTap })
+  }));
 };
 // Past the free opening reveal, in the dark, ready to walk.
 const lampDark = (game) => { lampStep(game, LAMP_TUNING.startFlash + 0.01); assert.equal(game.model.lit(), false); return game; };
@@ -3594,7 +3598,7 @@ test("Lamp: the exit is chosen from the braided maze, and nothing is placed arou
   });
 });
 
-test("Lamp: every requested coin, hazard and wisp is placed, once, on floor and clear of the start", () => {
+test("Lamp: every requested coin, hazard and wisp is placed, on floor and clear of the start", () => {
   withSeededRandom(77, () => {
     for (const preset of ["little", "medium", "big"]) {
       for (let round = 0; round < 30; round += 1) {
@@ -3603,14 +3607,93 @@ test("Lamp: every requested coin, hazard and wisp is placed, once, on floor and 
         assert.equal(model.coins.length, wanted.coins, `${preset} placed every requested coin`);
         assert.equal(model.hazards.length, wanted.hazards, `${preset} placed every requested hazard`);
         assert.equal(model.wisps.length, wanted.wisps, `${preset} placed every requested wisp`);
-        const seen = new Set();
-        for (const item of [...model.coins, ...model.wisps, ...model.hazards]) {
+        // Coins may share a tile -- that is what keeps the chosen count honest
+        // on a small maze. Nothing lethal or life-giving may ever share one.
+        const exclusive = new Set();
+        for (const item of [...model.wisps, ...model.hazards]) {
           const tile = `${item.x},${item.y}`;
-          assert.equal(seen.has(tile), false, `${tile} is claimed by two things at once`);
-          seen.add(tile);
-          assert.equal(model.maze[item.y - 0.5][item.x - 0.5], 0, `${tile} is inside a wall`);
+          assert.equal(exclusive.has(tile), false, `${tile} is claimed by a wisp and a hazard`);
+          exclusive.add(tile);
+        }
+        for (const coin of model.coins) {
+          assert.equal(exclusive.has(`${coin.x},${coin.y}`), false, "no coin shares a tile with a hazard or a wisp");
+        }
+        for (const item of [...model.coins, ...model.wisps, ...model.hazards]) {
+          assert.equal(model.maze[item.y - 0.5][item.x - 0.5], 0, "nothing is placed inside a wall");
           assert.equal(item.x === 1.5 && item.y === 1.5, false, "nothing is placed on the start tile");
         }
+      }
+    }
+  });
+});
+
+test("Lamp: every maze has a way to the exit that crosses no hazard", () => {
+  // A run lost to a door it could not open is not a decision the player made.
+  // Hazards used to be placed anywhere in the corridors, so a maze could wall
+  // off the exit completely.
+  withSeededRandom(83, () => {
+    for (const preset of ["little", "medium", "big"]) {
+      for (let round = 0; round < 40; round += 1) {
+        const model = lamp({ preset }).model;
+        const blocked = new Set(model.hazards.map((hazard) => `${hazard.x - 0.5},${hazard.y - 0.5}`));
+        const route = model.routeBetween(model.maze, { x: 1, y: 1 }, model.exitTile, blocked);
+        assert.ok(route.length > 0, `${preset}/${round}: the exit is unreachable without crossing a hazard`);
+        for (const tile of route) {
+          assert.equal(blocked.has(tile), false, `${preset}/${round}: the open route steps on ${tile}`);
+        }
+      }
+    }
+  });
+});
+
+test("Lamp: the route is guaranteed to exist, not announced", () => {
+  withSeededRandom(87, () => {
+    const model = lamp().model;
+    // A guaranteed way through is not a gift: nothing on the board says which
+    // way it is, and every other way through is still lethal.
+    const blocked = new Set(model.hazards.map((hazard) => `${hazard.x - 0.5},${hazard.y - 0.5}`));
+    const route = new Set(model.routeBetween(model.maze, { x: 1, y: 1 }, model.exitTile, blocked));
+    assert.ok(model.hazards.length > 0, "the maze still has hazards in it");
+    const onRoute = model.hazards.filter((hazard) => route.has(`${hazard.x - 0.5},${hazard.y - 0.5}`));
+    assert.equal(onRoute.length, 0);
+    assert.equal(model.hazards.length + route.size > model.maze.length / 4, true, "the hazards are not merely the whole floor");
+  });
+});
+
+test("Lamp: the board is only revealed once the run is over", () => {
+  withSeededRandom(89, () => {
+    const game = lamp();
+    const model = game.model;
+    assert.equal(model.revealed(), false, "a live run shows nothing it has not lit");
+    lampDark(game);
+    assert.equal(model.revealed(), false, "walking blind does not reveal the maze");
+    model.player = { ...model.exit };
+    lampStep(game, 1 / 60, {});
+    assert.equal(model.revealed(), true, "winning reveals the maze you just crossed");
+    const won = game;
+    won.reset();
+    lampDark(won);
+    won.model.lifeLost = true;
+    assert.equal(won.model.revealed(), false, "a life in hand is not the end of the run");
+    won.model.gameOver = true;
+    assert.equal(won.model.revealed(), true, "losing reveals it too");
+  });
+});
+
+test("Lamp: coins are spent on the long walk, near the far end of the route", () => {
+  withSeededRandom(79, () => {
+    for (const preset of ["little", "medium", "big"]) {
+      const model = lamp({ preset }).model;
+      const distances = model.distancesFrom(model.maze, { x: 1, y: 1 });
+      const path = distances[model.exitTile.y][model.exitTile.x];
+      const coinDistances = model.coins.map((coin) => distances[coin.y - 0.5][coin.x - 0.5]);
+      const mean = coinDistances.reduce((sum, value) => sum + value, 0) / coinDistances.length;
+      // Coins are met while heading for the exit, not stood on at the start.
+      assert.ok(mean > path * 0.5, `${preset}: mean coin distance ${mean.toFixed(1)} of a ${path}-tile path`);
+      // The exit's own bubble stays clear, so the last tiles are an approach
+      // and not a gift.
+      for (const coin of model.coins) {
+        assert.ok(distances[coin.y - 0.5][coin.x - 0.5] < path, `${preset}: no coin sits past the exit`);
       }
     }
   });
@@ -3634,8 +3717,7 @@ test("Lamp: a tap is one full pulse plus a fade, and never blinks to dark inside
   withSeededRandom(5, () => {
     const game = lamp();
     lampStep(game, LAMP_TUNING.startFlash + 0.01, {});
-    lampStep(game, 0.01, { lampDown: true });
-    lampStep(game, 0.01, { lampDown: false });
+    lampStep(game, 0.01, { spaceTap: true });
     let elapsed = 0;
     let fullFor = 0;
     let previous = game.model.brightness();
@@ -3656,30 +3738,46 @@ test("Lamp: holding keeps the lamp lit and burns the whole meter", () => {
   withSeededRandom(11, () => {
     const game = lamp();
     lampDark(game);
-    lampStep(game, 1 / 60, { lampDown: true });
+    lampStep(game, 1 / 60, { spaceDown: true });
     let held = 0;
     while (game.model.lit() && held < 60) {
-      lampStep(game, 1 / 60, { lampDown: true });
+      lampStep(game, 1 / 60, { spaceDown: true });
       held += 1 / 60;
     }
     assert.ok(Math.abs(held - LAMP_TUNING.lightMax / LAMP_TUNING.lightDrain) < 0.05, `held for ${held}`);
-    // Running the lamp out is the one ending that is not a life: there is
-    // nothing left to see with, so the run is over rather than retried.
-    assert.equal(game.model.lossReason, "dark");
-    assert.deepEqual(game.model.handleLifeLoss(), {
-      gameOver: true,
-      message: "The lamp went out in the dark — press New game to light a new maze."
-    });
   });
 });
 
-test("Lamp: the lamp cannot be relit once the meter is empty", () => {
+test("Lamp: a lamp that has run out is a state, not a life and not the end", () => {
   withSeededRandom(13, () => {
     const game = lamp();
+    const model = game.model;
     lampDark(game);
-    game.model.light = 0;
-    lampStep(game, 1 / 60, { lampDown: true });
-    assert.equal(game.model.lit(), false, "an empty lamp stays dark however long it is held");
+    model.light = 0;
+    lampStep(game, 1 / 60, { spaceDown: true, spaceTap: true });
+    assert.equal(model.lit(), false, "an empty lamp cannot be relit however hard it is pressed");
+    lampStep(game, 1 / 60, { move: { x: 1, y: 0 } });
+    assert.equal(model.lifeLost, false, "and running it out costs no life");
+    assert.equal(model.won, false);
+    assert.equal(model.gameOver, false, "the run is still live");
+    // The run continues to the exit in the dark, which is the whole point of it
+    // not being an ending.
+    model.player = { ...model.exit };
+    lampStep(game, 1 / 60, {});
+    assert.equal(model.won, true, "the exit still wins from a dark lamp");
+  });
+});
+
+test("Lamp: a wisp still refills a lamp that has run out, found by walking blind", () => {
+  withSeededRandom(15, () => {
+    const game = lamp();
+    const model = game.model;
+    lampDark(game);
+    model.light = 0;
+    model.player = { ...model.wisps[0] };
+    lampStep(game, 1 / 60, { move: { x: 1, y: 0 } });
+    assert.equal(model.light, LAMP_TUNING.wispLight, "stumbling into a wisp refills the meter");
+    assert.equal(model.lampHeld, false);
   });
 });
 
@@ -3714,8 +3812,10 @@ test("Lamp: a hazard spends a life and costs nothing else, and the retry is the 
   withSeededRandom(23, () => {
     const game = lampDark(lamp());
     const model = game.model;
-    model.invulnerable = 0;
-    model.player = { x: model.hazards[0].x, y: model.hazards[0].y };
+    // Captured before the collision: hazards[0] is a different hazard once the
+    // first one has been spent.
+    const stood = { x: model.hazards[0].x, y: model.hazards[0].y };
+    model.player = { ...stood };
     const light = model.light;
     const coins = model.score;
     const exit = { ...model.exit };
@@ -3728,25 +3828,73 @@ test("Lamp: a hazard spends a life and costs nothing else, and the retry is the 
     assert.equal(model.light, light, "the lamp keeps its light");
     assert.equal(model.score, coins, "the coins are kept");
     game.restartAfterLife();
-    assert.deepEqual(model.player, { x: model.hazards[0].x, y: model.hazards[0].y }, "you keep your place");
+    assert.deepEqual(model.player, stood, "you keep your place");
     assert.deepEqual(model.exit, exit, "and your maze");
   });
 });
 
-test("Lamp: the grace after a loss stops one hazard from costing every life", () => {
+test("Lamp: a hazard is spent by the life it takes, so standing still cannot cost every life", () => {
   withSeededRandom(29, () => {
     const game = lampDark(lamp());
     const model = game.model;
-    model.invulnerable = 0;
-    model.player = { x: model.hazards[0].x, y: model.hazards[0].y };
+    const doomed = { x: model.hazards[0].x, y: model.hazards[0].y };
+    model.player = { ...doomed };
+    const before = model.hazards.length;
     lampStep(game, 1 / 60, {});
     assert.equal(model.lifeLost, true);
+    assert.equal(model.hazards.length, before - 1, "the hazard is gone");
+    // The retry resumes the walker on the very tile that killed it. An unspent
+    // hazard there would claim every remaining life in a single row.
     game.restartAfterLife();
-    assert.equal(model.invulnerable, LAMP_TUNING.hazardGrace);
+    assert.deepEqual(model.player, doomed, "the walker resumes where it died");
     lampStep(game, 1 / 60, {});
-    assert.equal(model.lifeLost, false, "standing on the hazard is survivable during the grace");
-    lampStep(game, LAMP_TUNING.hazardGrace, {});
-    assert.equal(model.lifeLost, true, "and the hazard is lethal again once it expires");
+    assert.equal(model.lifeLost, false, "and standing still there is now safe");
+    assert.equal(model.hazards.length, before - 1, "the hazard does not come back");
+    for (let tick = 0; tick < 120; tick += 1) lampStep(game, 1 / 60, {});
+    assert.equal(model.lifeLost, false, "nor does it return later");
+  });
+});
+
+test("Lamp: a click is a tap, and only a held button sustains the lamp", () => {
+  withSeededRandom(27, () => {
+    const tapCost = LAMP_TUNING.lightDrain * LAMP_TUNING.tapDuration
+      + LAMP_TUNING.lightDrain * LAMP_TUNING.fadeDrainScale * LAMP_TUNING.fadeTime;
+
+    // A click is a press held for as long as the hand takes. Folding press and
+    // hold together made an ordinary click cost a tap plus that hold, which is
+    // how a click quietly became a hold and drank the meter.
+    const quick = lampDark(lamp());
+    const quickBefore = quick.model.light;
+    lampStep(quick, 1 / 60, { pointerDown: true, pointerTap: true });
+    lampStep(quick, 1 / 60, { pointerDown: false });
+    for (let tick = 0; tick < 600 && quick.model.lit(); tick += 1) lampStep(quick, 1 / 60, {});
+    assert.ok(Math.abs((quickBefore - quick.model.light) - tapCost) < 0.5,
+      `a quick click cost ${(quickBefore - quick.model.light).toFixed(2)}, expected about ${tapCost.toFixed(2)}`);
+
+    // A press inside the hold delay is still only a tap, however long it lasts.
+    const brief = lampDark(lamp());
+    const briefBefore = brief.model.light;
+    const briefFrames = Math.round(LAMP_TUNING.pointerHoldDelay * 60) - 4;
+    lampStep(brief, 1 / 60, { pointerDown: true, pointerTap: true });
+    for (let tick = 0; tick < briefFrames; tick += 1) lampStep(brief, 1 / 60, { pointerDown: true });
+    lampStep(brief, 1 / 60, {});
+    for (let tick = 0; tick < 600 && brief.model.lit(); tick += 1) lampStep(brief, 1 / 60, {});
+    assert.ok(Math.abs((briefBefore - brief.model.light) - tapCost) < 0.5,
+      `a ${briefFrames}-frame press cost ${(briefBefore - brief.model.light).toFixed(2)}, expected about ${tapCost.toFixed(2)}`);
+
+    // Held past the threshold, the same button sustains and keeps burning. The
+    // hold has to outlast a whole tap for the comparison to mean anything.
+    const sustained = lampDark(lamp());
+    const sustainedBefore = sustained.model.light;
+    lampStep(sustained, 1 / 60, { pointerDown: true, pointerTap: true });
+    const holdFrames = Math.round((LAMP_TUNING.pointerHoldDelay + 3) * 60);
+    for (let tick = 0; tick < holdFrames; tick += 1) {
+      lampStep(sustained, 1 / 60, { pointerDown: true });
+    }
+    assert.equal(sustained.model.lit(), true, "a held button keeps the lamp lit");
+    assert.equal(sustained.controller.pointerHold > LAMP_TUNING.pointerHoldDelay, true, "and is past the hold delay");
+    assert.ok(sustainedBefore - sustained.model.light > tapCost,
+      `a ${(holdFrames / 60).toFixed(1)}s hold cost ${(sustainedBefore - sustained.model.light).toFixed(2)}, more than a tap's ${tapCost.toFixed(2)}`);
   });
 });
 

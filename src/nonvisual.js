@@ -69,7 +69,7 @@ export function semanticState(game, engine) {
     const tile = (entity) => ({ x: entity.x + 1, y: entity.y + 1 });
     snapshot.coordinates = `Coordinates are maze tiles: column x 1–${m.cols}; row y 1–${m.rows}, counted from the top left. The maze is black until the lamp is lit, and you cannot walk while it is lit, so a walk action does nothing until the lamp has faded.`;
     snapshot.objective = "Reach the green exit to win. Pulse the lamp to stand still and reveal the maze: you cannot walk while it is lit, so a pulse is spent looking rather than moving, and you can only walk once it has faded. A gold coin is a point and a cyan wisp refills light. A red hazard spends one life and leaves your light, your coins and your place unchanged; running the light out ends the run.";
-    snapshot.players = [entry("walker", "Your walker", tile(m.player), `light ${Math.round(m.light)} of ${m.lightMax}; coins collected ${m.score}; wisps collected ${m.wispsCollected}; collision grace ${m.invulnerable.toFixed(2)} seconds`)];
+    snapshot.players = [entry("walker", "Your walker", tile(m.player), `light ${Math.round(m.light)} of ${m.lightMax}; coins collected ${m.score}; wisps collected ${m.wispsCollected}; a hazard that has already been spent is no longer listed among the hazards`)];
     snapshot.targets = [
       entry("exit", "Exit", tile(m.exit), "reaching it ends the run as a win"),
       ...m.coins.filter((coin) => !coin.taken).map((coin, index) => entry(`coin-${index}`, `Coin ${index + 1}`, tile(coin), "uncollected")),
@@ -146,7 +146,7 @@ export function performSemanticAction(engine, command) {
     if (game.id === "starfall") input = { mode: "keyboard", keyDirection: id === "left" ? -1 : id === "right" ? 1 : 0, spawnStar: first && id === "star" ? { x: Math.max(20, Math.min(780, x)) } : null, spawnGem: first && id === "gem" ? { x } : null };
     // One rising/falling edge on a single flag is all the lamp needs, so the
     // pulse and the walks drive the model exactly as a key does.
-    if (game.id === "lamp") input = { move: directions[id] ?? null, lampDown: id === "pulse" };
+    if (game.id === "lamp") input = { move: directions[id] ?? null, lampDown: id === "pulse", lampTap: id === "pulse" };
     m.update(dt, input);
   });
   if (!stepped) return "No step performed. Choose a duration between 0 and 1 second.";

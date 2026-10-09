@@ -19,7 +19,10 @@ export const LAMP_TUNING = Object.freeze({
   fadeDrainScale: 0.6,
   walkSpeed: 4.6,
   startFlash: 2,
-  hazardGrace: 1.2,
+  // A key has a clean press edge and a mouse does not: a click is a press held
+  // for as long as the hand takes. Past this the controller treats a held
+  // button as a deliberate hold, and before it the same press is only a tap.
+  pointerHoldDelay: 0.3,
   bodyRadius: 0.3,
   coinRadius: 0.42,
   wispRadius: 0.45,
@@ -83,7 +86,7 @@ export class LampModel {
   constructor() {
     this.id = "lamp";
     this.title = "Lamp";
-    this.description = "The maze is black until you light it, and lighting it pins you in place. Stand still to see, walk in the dark to travel, and reach the green exit before your light runs out.";
+    this.description = "A game of borrowed light. Tap to pulse — the maze reveals for a moment, then fades. Hold to keep it lit as long as you dare. While it is lit you cannot move, so a pulse buys a moment of sight you cannot spend on walking; walk in the dark. Light only burns while the lamp is lit, and a cyan wisp refills it. Reach the green exit. Gold coins are points. Red hazards spend a life and leave your light and your place untouched.";
     this.side = "walk";
     this.score = 0;
     this.gameOver = false;
@@ -107,7 +110,6 @@ export class LampModel {
     this.fullRemaining = 0;
     this.fadeRemaining = 0;
     this.fadePending = false;
-    this.invulnerable = 0;
     this.revealRemaining = 0;
     this.pendingSettings = { preset: "medium", ...LAMP_PRESETS.medium };
     this.roundSettings = { ...this.pendingSettings };
@@ -173,7 +175,6 @@ export class LampModel {
     this.fullRemaining = 0;
     this.fadeRemaining = 0;
     this.fadePending = false;
-    this.invulnerable = LAMP_TUNING.hazardGrace;
     // One free look at the start of every life: it teaches the central rule
     // before it can cost anything, because the reveal itself is what stops you
     // walking.
@@ -190,15 +191,11 @@ export class LampModel {
     this.fullRemaining = 0;
     this.fadeRemaining = 0;
     this.fadePending = false;
-    this.invulnerable = LAMP_TUNING.hazardGrace;
   }
 
   handleLifeLoss() {
-    const dark = this.lossReason === "dark";
     this.lifeLost = false;
-    return dark
-      ? { gameOver: true, message: "The lamp went out in the dark — press New game to light a new maze." }
-      : { gameOver: false, message: "A hazard. Your lamp keeps its light and you keep your place. Starting again in 3…" };
+    return { gameOver: false, message: "A hazard spent itself on you. Your lamp keeps its light and you keep your place. Starting again in 3…" };
   }
 
   // ---------------------------------------------------------------------
@@ -272,6 +269,37 @@ export class LampModel {
         }
       }
     }
+  }
+
+  // The tiles of the shortest route between two floor tiles, optionally
+  // treating some as walls. `blocked` is what makes this the solvability check:
+  // pass the hazards placed so far and the route returned is one that avoids
+  // every one of them.
+  routeBetween(grid, start, goal, blocked = new Set()) {
+    const cameFrom = new Map();
+    const seen = new Set([key(start.x, start.y)]);
+    const queue = [start];
+    for (let head = 0; head < queue.length; head += 1) {
+      const cell = queue[head];
+      if (cell.x === goal.x && cell.y === goal.y) break;
+      for (const [dx, dy] of DIRECTIONS) {
+        const nx = cell.x + dx;
+        const ny = cell.y + dy;
+        if (nx < 0 || ny < 0 || nx >= this.cols || ny >= this.rows) continue;
+        const next = key(nx, ny);
+        if (grid[ny][nx] !== 0 || blocked.has(next) || seen.has(next)) continue;
+        seen.add(next);
+        cameFrom.set(next, cell);
+        queue.push({ x: nx, y: ny });
+      }
+    }
+    const route = [];
+    let current = goal;
+    while (current && (current.x !== start.x || current.y !== start.y)) {
+      route.push(key(current.x, current.y));
+      current = cameFrom.get(key(current.x, current.y));
+    }
+    return route;
   }
 
   distancesFrom(grid, start) {
@@ -356,13 +384,57 @@ export class LampModel {
       return chosen;
     };
 
-    // Dead ends first, then corridors to top up. A maze has fewer dead ends
-    // than a player asking for twenty coins, and quietly placing eight would
-    // make the coin setting a lie. The number chosen is the number that exists.
-    const coinTiles = [
-      ...take(coinEnds.filter((tile) => !nearExit(tile)), this.roundSettings.coins),
-      ...take(shuffle(corridors.slice()), this.roundSettings.coins)
-    ].slice(0, this.roundSettings.coins);
+    // Every hazard is checked before it is kept.
+    //
+    // Placing them at random meant a maze could wall off the only way to the
+    // exit, and a run lost to a door it could not open is not a decision the
+    // player made. Banning one nominated route instead would starve a small
+    // maze of hazards entirely, so each candidate is placed provisionally and
+    // dropped unless a route to the exit still avoids every hazard so far.
+    //
+    // The guarantee is only that a way through exists. The player still has to
+    // find it, still has to walk it blind, and every other way is still lethal.
+    const goal = { x: farthest.x, y: farthest.y };
+    const hazardCandidates = [...shuffle(corridors.slice()), ...shuffle(deadEnds.slice())];
+    const blocked = new Set();
+    this.hazards = [];
+    for (const tile of hazardCandidates) {
+      if (this.hazards.length >= this.roundSettings.hazards) break;
+      const tileKey = key(tile.x, tile.y);
+      if (blocked.has(tileKey)) continue;
+      blocked.add(tileKey);
+      if (this.routeBetween(grid, { x: 1, y: 1 }, goal, blocked).length === 0) {
+        blocked.delete(tileKey);
+        continue;
+      }
+      // A wisp or a coin under a hazard would have to be walked into to be
+      // reached, so hazards claim their tiles before the pickups place.
+      placed.add(tileKey);
+      this.hazards.push({ x: tile.x + 0.5, y: tile.y + 0.5 });
+    }
+
+    // Coins go where the walk is long. Ranking by distance from the start puts
+    // them on the far half of the route the player is about to cover, so coins
+    // are met while heading for the exit rather than stood on top of at the
+    // start. The exit's own bubble stays clear, so the last few tiles are the
+    // approach and not a gift.
+    const coinCandidates = [...deadEnds, ...corridors]
+      .sort((a, b) => (distances[b.y][b.x] ?? 0) - (distances[a.y][a.x] ?? 0));
+    const coinTiles = [];
+    for (const tile of coinCandidates) {
+      if (coinTiles.length >= this.roundSettings.coins) break;
+      if (placed.has(key(tile.x, tile.y))) continue;
+      placed.add(key(tile.x, tile.y));
+      coinTiles.push(tile);
+    }
+    // A small maze can run out of distinct tiles before it runs out of coins.
+    // Rather than quietly place fewer than the player asked for, the remainder
+    // shares a tile with a coin that is already there: one tile, two points,
+    // and the chosen count is still the count that exists.
+    const distinct = coinTiles.slice();
+    for (let index = 0; index < distinct.length && coinTiles.length < this.roundSettings.coins; index += 1) {
+      coinTiles.push(distinct[index]);
+    }
     this.coins = coinTiles.map((tile) => ({ x: tile.x + 0.5, y: tile.y + 0.5, taken: false }));
 
     // Wisps go as far from the start as the finished maze allows, so the light
@@ -374,9 +446,6 @@ export class LampModel {
     this.wisps = take(wispCandidates, this.roundSettings.wisps)
       .map((tile) => ({ x: tile.x + 0.5, y: tile.y + 0.5, taken: false }));
 
-    shuffle(corridors);
-    this.hazards = take(corridors, this.roundSettings.hazards)
-      .map((tile) => ({ x: tile.x + 0.5, y: tile.y + 0.5 }));
   }
 
   // ---------------------------------------------------------------------
@@ -394,15 +463,31 @@ export class LampModel {
 
   lit() { return this.brightness() > 0.01; }
 
-  stepLight(dt, lampDown) {
+  // Once the run is over there is nothing left to hide: the board shows the
+  // whole maze, so the end of a run is also the one time the route you actually
+  // walked can be looked at.
+  revealed() { return this.won || this.gameOver; }
+
+  stepLight(dt, { lampDown = false, lampTap = false } = {}) {
     const tuning = LAMP_TUNING;
     if (this.revealRemaining > 0) {
       // The opening look is free: no drain, and nothing you can do about it.
       this.revealRemaining = Math.max(0, this.revealRemaining - dt);
       return;
     }
-    // Edges are detected here rather than in the controller so that a headless
-    // caller, and the nonvisual step, drive the lamp exactly as a key does.
+    // Pressing and holding are two separate acts here, on purpose.
+    //
+    // A press banks one whole tap and asks for the fade tail. Sustaining keeps
+    // re-banking it. They are separate because a mouse click is a press held
+    // for as long as the hand happens to stay down, and folding the two together
+    // made an ordinary click cost a tap *plus* however long the button was held
+    // -- which is how a click quietly became a hold and drank the meter. The
+    // controller decides what counts as a hold; the model only obeys.
+    if (lampTap) {
+      this.fadePending = true;
+      this.fadeRemaining = 0;
+      this.fullRemaining = Math.max(this.fullRemaining, tuning.tapDuration);
+    }
     if (lampDown && this.light > 0) {
       this.lampHeld = true;
       this.fadePending = false;
@@ -435,12 +520,14 @@ export class LampModel {
     const rate = tuning.lightDrain * (brightness >= 1 ? 1 : tuning.fadeDrainScale);
     this.light = Math.max(0, this.light - rate * dt);
     if (this.light <= 0) {
+      // An empty lamp is a state, not an ending. The pulse can no longer be
+      // relit, so from here the run is walked entirely in the dark -- but the
+      // exit is still standing there, and a wisp still refills the meter if you
+      // happen to walk into one. Nothing about this costs a life.
       this.lampHeld = false;
       this.fullRemaining = 0;
       this.fadeRemaining = 0;
       this.fadePending = false;
-      this.lifeLost = true;
-      this.lossReason = "dark";
     }
   }
 
@@ -495,16 +582,16 @@ export class LampModel {
         this.light = Math.min(tuning.lightMax, this.light + tuning.wispLight);
       }
     }
-    // Grace only covers hazards. It exists because a life loss resumes with the
-    // walker still standing on the hazard that killed it, so without it the
-    // player would lose every remaining life to one tile in a single row.
-    if (this.invulnerable <= 0) {
-      for (const hazard of this.hazards) {
-        if (Math.hypot(hazard.x - this.player.x, hazard.y - this.player.y) < tuning.hazardRadius) {
-          this.lifeLost = true;
-          this.lossReason = "hazard";
-          return;
-        }
+    // A hazard is spent by the life it takes. It is the other half of keeping
+    // the walk: a retry resumes the walker on the very tile that killed it, so
+    // an unspent hazard there would claim every remaining life in a single row.
+    for (let index = 0; index < this.hazards.length; index += 1) {
+      const hazard = this.hazards[index];
+      if (Math.hypot(hazard.x - this.player.x, hazard.y - this.player.y) < tuning.hazardRadius) {
+        this.hazards.splice(index, 1);
+        this.lifeLost = true;
+        this.lossReason = "hazard";
+        return;
       }
     }
     if (Math.hypot(this.exit.x - this.player.x, this.exit.y - this.player.y) < tuning.exitTriggerRadius) {
@@ -514,8 +601,7 @@ export class LampModel {
 
   update(dt, input = {}) {
     if (this.gameOver || this.won) return;
-    if (this.invulnerable > 0) this.invulnerable = Math.max(0, this.invulnerable - dt);
-    this.stepLight(dt, input.lampDown === true);
+    this.stepLight(dt, { lampDown: input.lampDown === true, lampTap: input.lampTap === true });
     // The rule the whole game turns on: light means still. This is not a
     // limitation bolted on, it is the trade — a pulse buys a moment of sight
     // you cannot spend on walking.
@@ -529,7 +615,8 @@ export class LampModel {
 
   statusText() {
     if (this.won) return `Escaped with ${this.score} ${this.score === 1 ? "coin" : "coins"}.`;
-    if (this.gameOver || this.lossReason === "dark") return "The lamp went out — the run is over.";
+    if (this.gameOver) return "Out of lives — the run is over.";
+    if (this.light <= 0) return "The lamp is out. You cannot light it again, but the exit is still there.";
     if (this.lit()) return "Lit. You are standing still and the maze is visible.";
     return `Dark. Walk blind — light ${Math.round(this.light)} of ${this.lightMax}.`;
   }

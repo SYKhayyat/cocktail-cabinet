@@ -78,6 +78,21 @@ const announcements = new Announcements(document.querySelector("#announcements")
 const chatRows = new Map();
 const announcedChat = new WeakSet();
 
+// The engine gives Space and Enter to a focused native control and only lets
+// the arrow keys reach the board, which is right for a select or a text field --
+// and wrong for a game whose primary verb is Space. Clicking New game left that
+// button focused, so the next Space pressed New game again and Lamp's lamp never
+// lit.
+//
+// So a pointer click hands the board the focus, and a keyboard activation
+// (detail 0) deliberately does not: a keyboard player must still be able to
+// press Space on the button again, and in that state the arrow keys already
+// reach the board.
+function focusBoardAfterPointerClick(event) {
+  if (event.detail === 0) return;
+  canvas.focus({ preventScroll: true });
+}
+
 function showMessage(text) {
   message.textContent = text;
   announcements.publish("notice", text, text);
@@ -258,6 +273,7 @@ function renderCards() {
     button.className = `game-card${id === activeId ? " active" : ""}`;
     button.innerHTML = `<strong><span class="number">0${index + 1}</span>${name}</strong><small>${shortDescription}</small>`;
     button.addEventListener("click", () => loadGame(id));
+    button.addEventListener("click", focusBoardAfterPointerClick);
     gameCards.append(button);
   });
 }
@@ -416,6 +432,9 @@ for (const [id, inputs] of Object.entries(settingsInputs)) {
 splatAddColumn.addEventListener("click", () => { games.get("splat").setTool("column"); updateSplatTools(); });
 splatAddGap.addEventListener("click", () => { games.get("splat").setTool("gap"); updateSplatTools(); });
 restartButton.addEventListener("click", () => { engine.restart(); nonvisual.refresh(); });
+for (const control of [restartButton, pauseButton, continueButton]) {
+  control.addEventListener("click", focusBoardAfterPointerClick);
+}
 pauseButton.addEventListener("click", () => { engine.pauseGame(); nonvisual.refresh(); });
 continueButton.addEventListener("click", () => { engine.continueGame(); nonvisual.refresh(); });
 livesInput.addEventListener("change", () => {
