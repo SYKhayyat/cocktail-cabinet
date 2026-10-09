@@ -35,7 +35,8 @@ export function draw(model, context) {
   // read as a map rather than a glimpse.
   const over = model.revealed();
   const brightness = over ? 1 : model.brightness();
-  const { tile, originX, originY } = model.layout();
+  const layout = model.layout();
+  const { tile, originX, originY } = layout;
   const point = (wx, wy) => ({ x: originX + wx * tile, y: originY + wy * tile });
 
   // Nothing at all is remembered between pulses: at the end of a fade the maze
@@ -59,6 +60,7 @@ export function draw(model, context) {
 
   drawWalker(context, point(model.player.x, model.player.y), tile, brightness);
   drawReadouts(context, model);
+  drawHint(context, model, layout);
 }
 
 // A doorway, not a dot. Coins and wisps are both small round pickups, so a
@@ -137,6 +139,19 @@ function drawWalker(context, centre, tile, brightness) {
   context.beginPath();
   context.arc(centre.x, centre.y, tile * 0.16, 0, TAU);
   context.fill();
+}
+
+// One reminder of the freeze, over the maze, for the first few seconds of a
+// round. It is the only piece of tutorial in the game and it deliberately
+// expires: the control hint, the description and the nonvisual objective all say
+// it too, but a rule that is stated in four places and demonstrated in the
+// first three seconds is a rule you stop reading.
+function drawHint(context, model, layout) {
+  if (model.hintRemaining <= 0) return;
+  const centreX = layout.originX + (layout.tile * model.cols) / 2;
+  const centreY = layout.originY + (layout.tile * model.rows) / 2;
+  drawText(context, "You cannot walk while the lamp is lit", centreX, centreY, 16, CANVAS_PALETTE.warning, "center");
+  drawText(context, "pulse to see  ·  walk in the dark", centreX, centreY + 28, 13, CANVAS_PALETTE.secondary, "center");
 }
 
 // The light meter and the wisp count live on the canvas, because the cabinet's

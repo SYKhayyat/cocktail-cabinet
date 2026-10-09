@@ -1718,9 +1718,14 @@ test("settings descriptors are the single source of bounds, labels, and validati
   assert.equal(lamp.settings.cols.step, 2);
   // Choosing a difficulty has to hand back a whole maze, not just a name, so
   // the shell can grey the number fields out and still show what it chose.
-  assert.deepEqual(lamp.validateSettings({ preset: "big" }), { preset: "big", ...LAMP_PRESETS.big });
+  assert.deepEqual(lamp.validateSettings({ preset: "big" }), { preset: "big", patrol: false, ...LAMP_PRESETS.big });
   assert.deepEqual(lamp.validateSettings({ preset: "custom", cols: 21, rows: 13, coins: 30, hazards: 0, wisps: 0 }),
-    { preset: "custom", cols: 21, rows: 13, coins: 30, hazards: 0, wisps: 0 });
+    { preset: "custom", patrol: false, cols: 21, rows: 13, coins: 30, hazards: 0, wisps: 0 });
+  // The patrol is a checkbox and belongs to no bundle, but it has to survive a
+  // difficulty being chosen or picking one would silently switch it back off.
+  assert.equal(lamp.settings.patrol.type, "checkbox");
+  assert.equal(lamp.settings.patrol.default, false);
+  assert.deepEqual(lamp.validateSettings({ preset: "big", patrol: true }), { preset: "big", patrol: true, ...LAMP_PRESETS.big });
   assert.equal(lamp.validateSettings({ preset: "custom", cols: 20, rows: 13, coins: 4, hazards: 2, wisps: 1 }), null, "an even column count cannot be carved");
   assert.equal(lamp.validateSettings({ preset: "custom", cols: 21, rows: 13, coins: 141, hazards: 2, wisps: 1 }), null, "above the coin maximum");
   assert.equal(lamp.validateSettings({ preset: "custom", cols: 21, rows: 13, coins: 4.5, hazards: 2, wisps: 1 }), null, "not a whole number");
@@ -4100,5 +4105,136 @@ test("Lamp: a fresh round restarts a chain from nothing", () => {
     assert.equal(model.mazesCleared, 0, "New game starts the count again");
     assert.equal(model.light, LAMP_TUNING.lightMax, "and refills the lamp");
     assert.equal(model.score, 0, "and the coins");
+  });
+});
+
+test("Lamp: the patrol is off until it is asked for, and then only some hazards move", () => {
+  withSeededRandom(113, () => {
+    const off = lamp({ preset: "medium" });
+    assert.equal(off.model.roundSettings.patrol, false);
+    assert.equal(off.model.hazards.filter((hazard) => hazard.patrol).length, 0, "unchecked, nothing patrols");
+
+    const on = lamp({ preset: "medium", patrol: true });
+    const model = on.model;
+    assert.equal(model.roundSettings.patrol, true);
+    const patrols = model.hazards.filter((hazard) => hazard.patrol);
+    assert.ok(patrols.length > 0, "checked, something patrols");
+    assert.ok(patrols.length < model.hazards.length, "but not all of them");
+    assert.equal(patrols.length, Math.ceil(model.hazards.length / 3), "every third hazard, so the moving ones are learnable");
+    assert.ok(patrols.every((hazard) => hazard.patrol !== undefined), "a patrol carries its own direction");
+  });
+});
+
+test("Lamp: a patrol stays on the floor, and starts off the guaranteed route", () => {
+  withSeededRandom(127, () => {
+    for (let round = 0; round < 25; round += 1) {
+      const model = lamp({ preset: "medium", patrol: true }).model;
+      const patrols = model.hazards.filter((hazard) => hazard.patrol);
+      if (!patrols.length) continue;
+      const blocked = new Set(model.hazards.map((hazard) => `${hazard.x - 0.5},${hazard.y - 0.5}`));
+      const route = new Set(model.routeBetween(model.maze, { x: 1, y: 1 }, model.exitTile, blocked));
+      for (const hazard of patrols) {
+        assert.equal(route.has(`${hazard.ax},${hazard.ay}`), false, "a patrol is never seeded on the open route");
+        assert.equal(model.maze[hazard.ay][hazard.ax], 0, "and never seeded inside a wall");
+      }
+      // Half a minute of walking: a patrol that ends up inside a wall, off the
+      // board, or non-finite would make the board unplayable rather than harder.
+      for (let tick = 0; tick < 900; tick += 1) for (const hazard of patrols) model.stepPatrol(hazard, 1 / 60);
+      for (const hazard of patrols) {
+        assert.equal(model.isSolid(Math.floor(hazard.x), Math.floor(hazard.y)), false, "a patrol never enters a wall");
+        assert.ok(hazard.x >= 0 && hazard.y >= 0 && hazard.x <= model.cols && hazard.y <= model.rows, "a patrol never leaves the maze");
+        assert.ok(Number.isFinite(hazard.x) && Number.isFinite(hazard.y), "a patrol stays finite");
+      }
+    }
+  });
+});
+
+test("Lamp: a patrol actually moves, and turns around at a wall", () => {
+  withSeededRandom(131, () => {
+    const model = lamp({ preset: "medium", patrol: true }).model;
+    const patrol = model.hazards.find((hazard) => hazard.patrol);
+    const start = { x: patrol.x, y: patrol.y };
+    for (let tick = 0; tick < 300; tick += 1) model.stepPatrol(patrol, 1 / 60);
+    assert.notDeepEqual({ x: patrol.x, y: patrol.y }, start, "a patrol is not a static hazard wearing a flag");
+    // Reversing at a wall means the whole of its life is a corridor, which a
+    // player can learn instead of a route they have to memorise. It also means
+    // it cannot teleport: five seconds of walking at patrolSpeed is the most
+    // ground it is allowed to cover.
+    const walked = Math.hypot(patrol.x - start.x, patrol.y - start.y);
+    assert.ok(walked > 1, `a patrol covered ${walked.toFixed(2)} tiles in five seconds`);
+    const ceiling = LAMP_TUNING.patrolSpeed * 5 * 1.5;
+    assert.ok(walked <= ceiling, `a patrol covered ${walked.toFixed(2)} tiles, beyond the ${ceiling.toFixed(1)} its speed allows`);
+  });
+});
+
+test("Lamp: a patrol still costs a life, exactly like a static one", () => {
+  withSeededRandom(137, () => {
+    const game = lamp({ preset: "medium", patrol: true });
+    const model = game.model;
+    const patrol = model.hazards.find((hazard) => hazard.patrol);
+    if (!patrol) return;
+    lampDark(game);
+    // Land it on the walker and let the next tick resolve it.
+    patrol.x = model.player.x;
+    patrol.y = model.player.y;
+    lampStep(game, 1 / 60, {});
+    assert.equal(model.lifeLost, true, "walking into a moving hazard spends a life");
+    assert.equal(model.lossReason, "hazard");
+  });
+});
+
+test("Lamp: wisps are spread along the walk instead of clustering at the far end", () => {
+  withSeededRandom(139, () => {
+    for (const preset of ["medium", "big", "huge"]) {
+      const model = lamp({ preset }).model;
+      const distances = model.distancesFrom(model.maze, { x: 1, y: 1 });
+      const reach = distances[model.exitTile.y][model.exitTile.x];
+      const along = model.wisps.map((wisp) => distances[wisp.y - 0.5][wisp.x - 0.5]).sort((a, b) => a - b);
+      assert.equal(along.length, model.wisps.length);
+      // One wisp per equal slice of the route. Taking the furthest tiles
+      // clustered them all into the last stretch, where you sweep up six at
+      // once and never have to choose.
+      const quarters = new Set(along.map((value) => Math.min(3, Math.floor((value / reach) * 4))));
+      assert.ok(quarters.size >= 3, `${preset}: the ${model.wisps.length} wisps fall in only ${quarters.size} quarter(s) of a ${reach}-tile walk`);
+      // And none of them is dropped at the start, where a wisp would cost nothing.
+      assert.ok(along[0] >= 3, `${preset}: the first wisp is ${along[0]} tiles in`);
+    }
+  });
+});
+
+test("Lamp: the freeze reminder shows once per round and then stops", () => {
+  withSeededRandom(149, () => {
+    const game = lamp({ preset: "small" });
+    const model = game.model;
+    assert.equal(model.hintRemaining, LAMP_TUNING.hintSeconds, "a fresh round reminds you");
+    for (let tick = 0; tick < 60 * (LAMP_TUNING.hintSeconds + 1); tick += 1) lampStep(game, 1 / 60, {});
+    assert.equal(model.hintRemaining, 0, "and then it is gone");
+    // Not per life: by the second life the player has either learned the rule
+    // or lost the run trying to break it.
+    model.lifeLost = true;
+    game.handleLifeLoss();
+    game.restartAfterLife();
+    assert.equal(model.hintRemaining, 0, "a retry does not bring it back");
+    game.reset();
+    assert.equal(model.hintRemaining, LAMP_TUNING.hintSeconds, "but a new round does");
+  });
+});
+
+test("Lamp: a pulse costs what the meter says it costs", () => {
+  withSeededRandom(151, () => {
+    const game = lamp({ preset: "small" });
+    const model = game.model;
+    lampDark(game);
+    const before = model.light;
+    lampStep(game, 1 / 60, { spaceDown: true, spaceTap: true });
+    let guard = 0;
+    while (model.lit() && guard < 600) { lampStep(game, 1 / 60, {}); guard += 1; }
+    const spent = before - model.light;
+    const expected = LAMP_TUNING.lightDrain * LAMP_TUNING.tapDuration
+      + LAMP_TUNING.lightDrain * LAMP_TUNING.fadeDrainScale * LAMP_TUNING.fadeTime;
+    assert.ok(Math.abs(spent - expected) < 0.5, `one pulse cost ${spent.toFixed(2)}, expected about ${expected.toFixed(2)}`);
+    // The meter was deliberately tightened: at a drain of 10 a perfect player
+    // finished every difficulty with 58-77 in hand, so it never bit at all.
+    assert.ok(expected / LAMP_TUNING.lightMax > 0.25, `a pulse costs ${(100 * expected / LAMP_TUNING.lightMax).toFixed(0)}% of a full meter`);
   });
 });

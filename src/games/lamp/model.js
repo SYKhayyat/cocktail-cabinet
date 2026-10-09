@@ -16,18 +16,30 @@ export const LAMP_BOTTOM = 60;
 // player picks the size and the contents of a maze, not how a pulse feels.
 // Exported and frozen so a test can assert the model never writes to them.
 export const LAMP_TUNING = Object.freeze({
+  // Measured, not guessed. A perfect-memory player tapping every 25-40 tiles
+  // finished every difficulty with 58-77 light in hand, and a chain settled at
+  // 50-60 and held there, so the meter only bit if you were greedy about
+  // pulsing. Raising the drain and trimming the refill tightens it without
+  // touching the maze: a tap now costs about 23 of 80 instead of about 18.
   lightMax: 80,
-  lightDrain: 10,
-  wispLight: 25,
+  lightDrain: 12,
+  wispLight: 22,
   tapDuration: 1.4,
   fadeTime: 0.6,
   fadeDrainScale: 0.6,
   walkSpeed: 4.6,
+  // Well under walkSpeed on purpose: a patrol you cannot outrun is not a
+  // decision, it is a wall. This one you can always wait out.
+  patrolSpeed: 1.8,
   startFlash: 2,
   // A key has a clean press edge and a mouse does not: a click is a press held
   // for as long as the hand takes. Past this the controller treats a held
   // button as a deliberate hold, and before it the same press is only a tap.
   pointerHoldDelay: 0.3,
+  // The freeze reads as a bug for about the first ten seconds of any first
+  // play, whatever the hint panel says. One reminder per round, then never
+  // again: an instruction that never goes away stops being read.
+  hintSeconds: 7,
   bodyRadius: 0.3,
   coinRadius: 0.42,
   wispRadius: 0.45,
@@ -90,7 +102,8 @@ export const LAMP_SETTINGS = {
   rows: { label: "Maze rows", min: 11, max: 51, step: 2, default: 17 },
   coins: { label: "Coins", min: 0, max: 140, step: 1, default: 16 },
   hazards: { label: "Hazards", min: 0, max: 100, step: 1, default: 14 },
-  wisps: { label: "Light wisps", min: 0, max: 40, step: 1, default: 6 }
+  wisps: { label: "Light wisps", min: 0, max: 40, step: 1, default: 6 },
+  patrol: { type: "checkbox", default: false }
 };
 
 const DIRECTIONS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
@@ -135,7 +148,8 @@ export class LampModel {
     this.fadeRemaining = 0;
     this.fadePending = false;
     this.revealRemaining = 0;
-    this.pendingSettings = { preset: "medium", ...LAMP_PRESETS.medium };
+    this.hintRemaining = LAMP_TUNING.hintSeconds;
+    this.pendingSettings = { preset: "medium", patrol: false, ...LAMP_PRESETS.medium };
     this.roundSettings = { ...this.pendingSettings };
   }
 
@@ -152,7 +166,11 @@ export class LampModel {
   validateSettings(values = {}) {
     const preset = String(values.preset ?? "medium");
     if (!PRESET_CHOICES.includes(preset)) return null;
-    if (preset !== "custom") return { preset, ...LAMP_PRESETS[preset] };
+    // The patrol is a checkbox, so it belongs to no bundle -- but it has to
+    // survive a difficulty being chosen, or picking one silently switches it
+    // back off.
+    const patrol = Boolean(values.patrol);
+    if (preset !== "custom") return { preset, patrol, ...LAMP_PRESETS[preset] };
     const read = (name) => {
       const descriptor = LAMP_SETTINGS[name];
       const value = Number(values[name]);
@@ -166,7 +184,7 @@ export class LampModel {
     const wisps = read("wisps");
     if (cols === null || rows === null || coins === null || hazards === null || wisps === null) return null;
     if (cols % 2 === 0 || rows % 2 === 0) return null;
-    return { preset, cols, rows, coins, hazards, wisps };
+    return { preset, patrol, cols, rows, coins, hazards, wisps };
   }
 
   // Public API: validates exactly as validateSettings does and keeps the
@@ -204,6 +222,7 @@ export class LampModel {
     // before it can cost anything, because the reveal itself is what stops you
     // walking.
     this.revealRemaining = LAMP_TUNING.startFlash;
+    this.hintRemaining = LAMP_TUNING.hintSeconds;
   }
 
   // A life costs the counter and nothing else. The maze, the position, the
@@ -216,6 +235,8 @@ export class LampModel {
     this.fullRemaining = 0;
     this.fadeRemaining = 0;
     this.fadePending = false;
+    // The reminder is per round, not per life: by the second life the player
+    // has either learned the rule or lost the run trying to break it.
   }
 
   handleLifeLoss() {
@@ -458,8 +479,25 @@ export class LampModel {
       // A wisp or a coin under a hazard would have to be walked into to be
       // reached, so hazards claim their tiles before the pickups place.
       placed.add(tileKey);
-      this.hazards.push({ x: tile.x + 0.5, y: tile.y + 0.5 });
+      this.hazards.push({
+        x: tile.x + 0.5,
+        y: tile.y + 0.5,
+        // Every third hazard patrols. A clean third is predictable, and a
+        // player who knows which ones move can plan a corridor rather than
+        // treating the whole board as moving.
+        patrol: this.roundSettings.patrol && this.hazards.length % 3 === 0,
+        ax: tile.x,
+        ay: tile.y,
+        dx: 0,
+        dy: 0
+      });
     }
+    // Patrols are seeded on tiles the open route does not use, because every
+    // hazard -- patrolling or not -- is in `blocked` while the route is chosen.
+    // They can wander onto it afterwards, which is the point: a memorised route
+    // gains a timing, and a player who cannot move while lit waits for a gap.
+    // Waiting is always available, so this adds pressure and never a dead end.
+    for (const hazard of this.hazards) if (hazard.patrol) this.aimPatrol(hazard);
 
     // Coins go where the walk is long. Ranking by distance from the start puts
     // them on the far half of the route the player is about to cover, so coins
@@ -485,14 +523,34 @@ export class LampModel {
     }
     this.coins = coinTiles.map((tile) => ({ x: tile.x + 0.5, y: tile.y + 0.5, taken: false }));
 
-    // Wisps go as far from the start as the finished maze allows, so the light
-    // you need is never the light that happens to be close.
+    // Wisps get the same treatment as coins: they are placed by how far along
+    // the route they sit, always, rather than left to chance. But taking the
+    // furthest tiles clustered every wisp into the last stretch of the maze,
+    // where you would sweep up six of them at once and never have to choose.
+    //
+    // So they are spread: one target at each equal fraction of the walk, each
+    // filled by the nearest free tile. The journey then keeps asking the same
+    // question the whole way -- press on, or spend the detour -- and a coin and
+    // a wisp are both worth leaving the corridor for.
+    const reach = distances[farthest.y][farthest.x];
     const wispCandidates = [...deadEnds, ...corridors]
       .filter((tile) => !placed.has(key(tile.x, tile.y)))
-      .filter((tile) => (distances[tile.y][tile.x] ?? 0) >= 3)
-      .sort((a, b) => (distances[b.y][b.x] ?? 0) - (distances[a.y][a.x] ?? 0));
-    this.wisps = take(wispCandidates, this.roundSettings.wisps)
-      .map((tile) => ({ x: tile.x + 0.5, y: tile.y + 0.5, taken: false }));
+      .filter((tile) => (distances[tile.y][tile.x] ?? 0) >= 3);
+    this.wisps = [];
+    for (let index = 0; index < this.roundSettings.wisps; index += 1) {
+      const target = reach * ((index + 0.5) / this.roundSettings.wisps);
+      let best = null;
+      let bestGap = Infinity;
+      for (const tile of wispCandidates) {
+        const tileKey = key(tile.x, tile.y);
+        if (placed.has(tileKey)) continue;
+        const gap = Math.abs((distances[tile.y][tile.x] ?? 0) - target);
+        if (gap < bestGap) { bestGap = gap; best = tile; }
+      }
+      if (!best) continue;
+      placed.add(key(best.x, best.y));
+      this.wisps.push({ x: best.x + 0.5, y: best.y + 0.5, taken: false });
+    }
 
   }
 
@@ -590,6 +648,50 @@ export class LampModel {
   }
 
   // ---------------------------------------------------------------------
+  // Patrols
+  // ---------------------------------------------------------------------
+
+  // Point a patrol down the first open direction it is given. A patrol that
+  // cannot move at all is left facing a wall, which reads as a static hazard.
+  aimPatrol(hazard) {
+    for (const [dx, dy] of shuffle(DIRECTIONS.slice())) {
+      if (!this.isSolid(hazard.ax + dx, hazard.ay + dy)) {
+        hazard.dx = dx;
+        hazard.dy = dy;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Walks a patrol along its corridor and turns it around at a wall. It is
+  // deliberately not a pathfinding agent: it reverses, so its whole life is
+  // predictable and a player can learn a corridor instead of a routine.
+  stepPatrol(hazard, dt) {
+    let remaining = LAMP_TUNING.patrolSpeed * dt;
+    for (let guard = 0; remaining > 0 && guard < 64; guard += 1) {
+      const targetX = hazard.ax + hazard.dx + 0.5;
+      const targetY = hazard.ay + hazard.dy + 0.5;
+      const dx = targetX - hazard.x;
+      const dy = targetY - hazard.y;
+      const distance = Math.hypot(dx, dy);
+      if (distance <= 1e-9) {
+        hazard.ax += hazard.dx;
+        hazard.ay += hazard.dy;
+        if (this.isSolid(hazard.ax + hazard.dx, hazard.ay + hazard.dy)) {
+          hazard.dx = -hazard.dx;
+          hazard.dy = -hazard.dy;
+        }
+        continue;
+      }
+      const travel = Math.min(remaining, distance);
+      hazard.x += (dx / distance) * travel;
+      hazard.y += (dy / distance) * travel;
+      remaining -= travel;
+    }
+  }
+
+  // ---------------------------------------------------------------------
   // Movement
   // ---------------------------------------------------------------------
 
@@ -662,6 +764,8 @@ export class LampModel {
 
   update(dt, input = {}) {
     if (this.gameOver || this.won) return;
+    if (this.hintRemaining > 0) this.hintRemaining = Math.max(0, this.hintRemaining - dt);
+    for (const hazard of this.hazards) if (hazard.patrol) this.stepPatrol(hazard, dt);
     this.stepLight(dt, { lampDown: input.lampDown === true, lampTap: input.lampTap === true });
     // The rule the whole game turns on: light means still. This is not a
     // limitation bolted on, it is the trade — a pulse buys a moment of sight

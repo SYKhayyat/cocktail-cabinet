@@ -73,6 +73,7 @@ const lampRows = document.querySelector("#lampRows");
 const lampCoins = document.querySelector("#lampCoins");
 const lampHazards = document.querySelector("#lampHazards");
 const lampWisps = document.querySelector("#lampWisps");
+const lampPatrol = document.querySelector("#lampPatrol");
 let lastChatRevision = -1;
 const announcements = new Announcements(document.querySelector("#announcements"));
 const chatRows = new Map();
@@ -117,7 +118,7 @@ function renderRoundStatus(state) {
 const settingsInputs = {
   snake: { cols: snakeCols, rows: snakeRows, startingLength: snakeLength, wrap: snakeWrap },
   splat: { columnSpacing: splatSpacing },
-  lamp: { preset: lampPreset, cols: lampCols, rows: lampRows, coins: lampCoins, hazards: lampHazards, wisps: lampWisps }
+  lamp: { preset: lampPreset, cols: lampCols, rows: lampRows, coins: lampCoins, hazards: lampHazards, wisps: lampWisps, patrol: lampPatrol }
 };
 
 // A setting key is only unique within a game. Snake and Lamp both have `cols`
@@ -200,7 +201,11 @@ function syncPresetAvailability(id) {
   if (id !== "lamp") return;
   const inputs = settingsInputs.lamp;
   const chosen = inputs.preset.value !== "custom";
-  for (const [key, input] of Object.entries(inputs)) input.disabled = key === "preset" ? false : chosen;
+  // The patrol is a checkbox, not part of a difficulty bundle, so it stays
+  // editable whichever difficulty is chosen.
+  for (const [key, input] of Object.entries(inputs)) {
+    input.disabled = key === "preset" || key === "patrol" ? false : chosen;
+  }
   if (!chosen) return;
   const validated = games.get(id)?.validateSettings?.(readSettingsInputs(id));
   if (!validated) return;

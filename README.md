@@ -36,6 +36,12 @@ Each game's controls are defined by its controller and rendered into the
 | **Starfall** | `runner` — Solo (runner); `stars` — Stars (send hazards) | Runner: Arrows, WASD, or Mouse to guide the runner. Stars: Click to send a star; Drag for sideways velocity; Double-click to send a gem; Hold to send gems |
 | **Lamp** | `walk` — Solo (walk blind); `continue` — Chained (clear mazes back to back) | Arrows or WASD to walk blind; Space or Click to pulse the lamp; Hold to keep it lit |
 
+Lamp's settings panel offers four difficulties — Small, Medium, Big and Huge,
+which run from a 21x13 maze to a 53x31 one — or Custom, which hands the numbers
+back. Choosing a difficulty greys the number fields out and shows what it set.
+One checkbox, **Some hazards patrol**, makes every third hazard walk its
+corridor and turn around at the walls; it is off by default.
+
 In Missile Command, Left/Right selects which of the three batteries fires. Space
 and clicking both launch an interceptor at the current crosshair; in Attacker
 mode, clicking launches an enemy missile toward the nearest city or battery and dragging
