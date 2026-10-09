@@ -1616,7 +1616,7 @@ test("every game registers the side values it accepts", () => {
     lamp: new LampGame()
   };
   for (const [id, game] of Object.entries(games)) {
-    assert.ok(game.sides.length > 1 || soloOnly.includes(id), `${id} registers more than one side`);
+    assert.ok(game.sides.length > 1, `${id} registers more than one side`);
     for (const side of game.sides) assert.equal(typeof side, "string");
   }
   assert.deepEqual(games.missile.sides, ["defender", "attacker"]);
@@ -1638,13 +1638,6 @@ test("setSide rejects unregistered values instead of silently accepting them", (
   assert.equal(splat.side, "race");
 });
 
-// Lamp is the one game with a single mode. It is a game about a human's
-// memory, and the obvious second mode -- a computer navigating the same maze --
-// is decided against a machine with perfect recall of a maze the human is
-// explicitly built to forget. It is deliberately absent rather than stubbed, so
-// these two assertions are where that fact is recorded.
-const soloOnly = ["lamp"];
-
 const allGames = () => ({
   snake: new SnakeGame(),
   breakout: new BreakoutGame(),
@@ -1658,7 +1651,7 @@ const allGames = () => ({
 
 test("every registered mode is selectable, labelled, and reaches its own model", () => {
   for (const [id, game] of Object.entries(allGames())) {
-    assert.ok(Array.isArray(game.modes) && game.modes.length > 1 || soloOnly.includes(id), `${id} registers multiple modes`);
+    assert.ok(Array.isArray(game.modes) && game.modes.length > 1, `${id} registers multiple modes`);
     for (const mode of game.modes) {
       assert.equal(typeof mode.value, "string", `${id} mode has a value`);
       assert.ok(mode.label && mode.label.length > 2, `${id}/${mode.value} has a human label`);
@@ -3956,5 +3949,88 @@ test("Lamp: the light meter never escapes its bounds, whatever the input does", 
       assert.ok(Number.isFinite(model.player.x) && Number.isFinite(model.player.y), "the walker stayed finite");
       if (model.won || model.lifeLost) { game.reset(); }
     }
+  });
+});
+
+test("Lamp: a chained maze opens the next one without refreshing anything", () => {
+  withSeededRandom(101, () => {
+    const game = lamp({ preset: "little" });
+    game.setSide("continue");
+    game.reset();
+    const model = game.model;
+    lampDark(game);
+    model.light = 30;
+    const coins = model.score;
+    const before = model.maze.map((row) => row.join("")).join("/");
+
+    model.player = { ...model.exit };
+    lampStep(game, 1 / 60, {});
+
+    assert.equal(model.won, false, "a chained run never reports a win, so the host never stops the round");
+    assert.equal(model.mazesCleared, 1);
+    assert.equal(model.light, 30, "the light carries over untouched");
+    assert.equal(model.score, coins, "and so do the coins");
+    assert.deepEqual(model.player, { x: 1.5, y: 1.5 }, "the walker starts the next maze");
+    assert.equal(model.revealRemaining, 0, "and gets no free look for it");
+    assert.notEqual(model.maze.map((row) => row.join("")).join("/"), before, "a genuinely different maze");
+  });
+});
+
+test("Lamp: a chained run is only ever ended by spending every life", () => {
+  withSeededRandom(103, () => {
+    const game = lamp({ preset: "medium" });
+    game.setSide("continue");
+    game.reset();
+    const model = game.model;
+    lampDark(game);
+
+    let previous = model.light;
+    for (let maze = 0; maze < 12; maze += 1) {
+      model.player = { ...model.exit };
+      lampStep(game, 1 / 60, {});
+      assert.equal(model.won, false, `still running after maze ${maze + 1}`);
+      assert.ok(model.light <= previous, "nothing refills the lamp between mazes");
+      previous = model.light;
+    }
+    assert.equal(model.mazesCleared, 12);
+    assert.equal(model.gameOver, false);
+
+    // The only exit left is a life, and a life is reported the ordinary way.
+    model.player = { x: model.hazards[0].x, y: model.hazards[0].y };
+    lampStep(game, 1 / 60, {});
+    assert.equal(model.lifeLost, true);
+    assert.equal(model.handleLifeLoss().gameOver, false, "one life is not the end of a chain");
+  });
+});
+
+test("Lamp: a solo run still ends at the exit, and only there", () => {
+  withSeededRandom(107, () => {
+    const game = lamp({ preset: "little" });
+    const model = game.model;
+    lampDark(game);
+    assert.equal(model.mazesCleared, 0, "a solo run counts no mazes");
+    model.player = { ...model.exit };
+    lampStep(game, 1 / 60, {});
+    assert.equal(model.won, true);
+    assert.equal(model.mazesCleared, 0, "and clearing it is not a chain");
+  });
+});
+
+test("Lamp: a fresh round restarts a chain from nothing", () => {
+  withSeededRandom(109, () => {
+    const game = lamp({ preset: "little" });
+    game.setSide("continue");
+    game.reset();
+    const model = game.model;
+    lampDark(game);
+    for (let maze = 0; maze < 3; maze += 1) {
+      model.player = { ...model.exit };
+      lampStep(game, 1 / 60, {});
+    }
+    assert.equal(model.mazesCleared, 3);
+    game.reset();
+    assert.equal(model.mazesCleared, 0, "New game starts the count again");
+    assert.equal(model.light, LAMP_TUNING.lightMax, "and refills the lamp");
+    assert.equal(model.score, 0, "and the coins");
   });
 });

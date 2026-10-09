@@ -34,7 +34,7 @@ Each game's controls are defined by its controller and rendered into the
 | **Missile Command** | `defender` — Defender (defend cities); `attacker` — Attacker (attack cities) | Defender: Arrows to choose a battery; Mouse to aim; Space or Click to launch. Attacker: Click to send an enemy missile toward the nearest city or battery; Drag to release it with velocity |
 | **Imitation** | `ai` — Chat with AI; `human` — Chat with a player; `guess` — Guess; `provide` — Provide; `write` — Classify | Enter sends a message (AI/Human), prompt (Guess), response (Provide), or classification sample (Classify). Guess only: Click AI/Human after the mystery reply |
 | **Starfall** | `runner` — Solo (runner); `stars` — Stars (send hazards) | Runner: Arrows, WASD, or Mouse to guide the runner. Stars: Click to send a star; Drag for sideways velocity; Double-click to send a gem; Hold to send gems |
-| **Lamp** | `walk` — Solo (walk blind) | Arrows or WASD to walk blind; Space or Click to pulse the lamp; Hold to keep it lit |
+| **Lamp** | `walk` — Solo (walk blind); `continue` — Chained (clear mazes back to back) | Arrows or WASD to walk blind; Space or Click to pulse the lamp; Hold to keep it lit |
 
 In Missile Command, Left/Right selects which of the three batteries fires. Space
 and clicking both launch an interceptor at the current crosshair; in Attacker
@@ -125,10 +125,10 @@ a third tab replace an active peer. BFCache restoration reopens discovery.
 | --- | --- |
 | `npm test` | Model/host contracts, event accounting, seeded computer-policy bands/tuning, and independent bounded HUMAN-input experience proxies |
 | `npm run check` | Syntax, architectural dependencies, dead code and README control descriptors |
-| `npm run test:browser` | 27 CDP suites: all twenty-one modes, hints, lifecycle/input, low-frequency announcements, native keyboard and emulated touch editing, capped Builder workload, race ties, narrow layouts, provider fixtures, cross-tab protocol and isolation |
+| `npm run test:browser` | 27 CDP suites: all twenty-two modes, hints, lifecycle/input, low-frequency announcements, native keyboard and emulated touch editing, capped Builder workload, race ties, narrow layouts, provider fixtures, cross-tab protocol and isolation |
 | `npm run test:imitation:browser` | Real RTCDataChannels in both invite directions, human chat, no-model Guess/Provide and cancellation; `CDP_PEER_URL` selects a second browser process |
-| `npm run test:nonvisual-browser` | Accessibility tree and native keyboard flow in all twenty-one modes |
-| `npm run test:canvas:browser` | Actual canvas text and full-size companions across 63 mode/viewport cases |
+| `npm run test:nonvisual-browser` | Accessibility tree and native keyboard flow in all twenty-two modes |
+| `npm run test:canvas:browser` | Actual canvas text and full-size companions across 66 mode/viewport cases |
 | `npm run test:ai-runtime:browser` | Vendored runtime/WASM execution under CSP and real download cancellation |
 | `npm run test:browser:all` | All five browser runners; required in CI with the actual security headers |
 

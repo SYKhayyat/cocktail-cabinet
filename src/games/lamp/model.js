@@ -45,7 +45,11 @@ export const LAMP_PRESETS = Object.freeze({
 const PRESET_CHOICES = ["custom", "little", "medium", "big"];
 
 export const LAMP_MODES = [
-  { value: "walk", label: "Solo — walk blind to the exit" }
+  { value: "walk", label: "Solo — walk blind to the exit" },
+  // Reaching the exit does not end this one. It opens the next maze in the same
+  // breath, with the light, the coins and the lives exactly as they were, so
+  // the run is a question of how far a single lamp can get.
+  { value: "continue", label: "Chained — clear mazes back to back" }
 ];
 
 export const LAMP_SETTINGS = {
@@ -106,6 +110,7 @@ export class LampModel {
     this.hazards = [];
     this.light = LAMP_TUNING.lightMax;
     this.wispsCollected = 0;
+    this.mazesCleared = 0;
     this.lampHeld = false;
     this.fullRemaining = 0;
     this.fadeRemaining = 0;
@@ -166,6 +171,7 @@ export class LampModel {
     this.buildLevel();
     this.score = 0;
     this.wispsCollected = 0;
+    this.mazesCleared = 0;
     this.light = LAMP_TUNING.lightMax;
     this.gameOver = false;
     this.lifeLost = false;
@@ -448,6 +454,16 @@ export class LampModel {
 
   }
 
+  // Opens the next maze without resetting anything the run has earned. The
+  // opening reveal is not repeated either: a free look per maze would be a free
+  // gift, and the whole point is that one lamp has to make it through all of
+  // them. buildLevel() is the same function a new round uses, so the second
+  // maze is built by exactly the rules the first one was.
+  nextLevel() {
+    this.mazesCleared += 1;
+    this.buildLevel();
+  }
+
   // ---------------------------------------------------------------------
   // Light
   // ---------------------------------------------------------------------
@@ -595,7 +611,10 @@ export class LampModel {
       }
     }
     if (Math.hypot(this.exit.x - this.player.x, this.exit.y - this.player.y) < tuning.exitTriggerRadius) {
-      this.won = true;
+      // Chained never reports a win, so the host never stops the round. The run
+      // ends the only other way it can: by spending every life.
+      if (this.side === "continue") this.nextLevel();
+      else this.won = true;
     }
   }
 

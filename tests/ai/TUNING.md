@@ -14,10 +14,11 @@ const result = measureMissile({ runs: 150, aiTuning: { lead: 0 } });
 ```
 
 **Lamp has no fixture here, and its absence is a decision rather than an
-omission.** It is the cabinet's only single-mode game: the mode a computer
-opponent would need is navigating a maze under a light budget, and a policy that
-solved that by remembering the maze would be deciding against perfect recall of
-a map the human is explicitly built to forget. There is no opponent to tune, so
+omission.** Both of its modes are solo -- walking one maze, or chaining many --
+and the mode a computer opponent would need is navigating that maze under a
+light budget. A policy that solved it by remembering the maze would be deciding
+against perfect recall of a map the human is explicitly built to forget. There
+is no opponent to tune, so
 `LAMP_TUNING` in `src/games/lamp/model.js` is a frozen feel-and-content export
 with no `AI_DEFAULTS`, and `tests/ai/lamp.mjs` is not written. Lamp's own
 invariants are asserted directly in `tests/models.test.js` instead, including

@@ -68,7 +68,9 @@ export function semanticState(game, engine) {
   } else if (game.id === "lamp") {
     const tile = (entity) => ({ x: entity.x + 1, y: entity.y + 1 });
     snapshot.coordinates = `Coordinates are maze tiles: column x 1–${m.cols}; row y 1–${m.rows}, counted from the top left. The maze is black until the lamp is lit, and you cannot walk while it is lit, so a walk action does nothing until the lamp has faded.`;
-    snapshot.objective = "Reach the green exit to win. Pulse the lamp to stand still and reveal the maze: you cannot walk while it is lit, so a pulse is spent looking rather than moving, and you can only walk once it has faded. A gold coin is a point and a cyan wisp refills light. A red hazard spends one life and leaves your light, your coins and your place unchanged; running the light out ends the run.";
+    snapshot.objective = m.side === "continue"
+      ? "Clear as many mazes as you can, back to back. Reaching the exit does not end the run or refill anything: it opens the next maze at once, keeping your light, your coins and your remaining lives exactly as they are. A life is the only thing that ends a chained run. Pulse the lamp to stand still and reveal the maze -- you cannot walk while it is lit, so a pulse is spent looking rather than moving. A gold coin is a point, a cyan wisp refills light, and a red hazard spends a life and leaves your light, your coins and your place unchanged."
+      : "Reach the green exit to win. Pulse the lamp to stand still and reveal the maze: you cannot walk while it is lit, so a pulse is spent looking rather than moving, and you can only walk once it has faded. A gold coin is a point and a cyan wisp refills light. A red hazard spends one life and leaves your light, your coins and your place unchanged.";
     snapshot.players = [entry("walker", "Your walker", tile(m.player), `light ${Math.round(m.light)} of ${m.lightMax}; coins collected ${m.score}; wisps collected ${m.wispsCollected}; a hazard that has already been spent is no longer listed among the hazards`)];
     snapshot.targets = [
       entry("exit", "Exit", tile(m.exit), "reaching it ends the run as a win"),
@@ -83,6 +85,7 @@ export function semanticState(game, engine) {
       wait
     ];
     snapshot.outcome += ` Light ${Math.round(m.light)} of ${m.lightMax}. ${m.lit() ? "The lamp is lit, so you are standing still and the maze is visible." : "The lamp is out, so you are walking blind."}`;
+    if (m.side === "continue") snapshot.outcome += ` Mazes cleared ${m.mazesCleared}; the light carries into the next one.`;
   } else if (game.id === "imitation") {
     const state = game.publicState();
     snapshot.objective = ({ ai: "Chat with the local AI using the Message field and Send button. Load the model first.", human: "Connect a separate browser, then exchange messages using Message and Send.", guess: "Send a prompt, then decide whether the mystery reply is AI or Human using the guess buttons. Restart round begins another mystery.", provide: "Connect to a guesser in another browser and provide human replies using Message and Send.", write: "Load the AI model, then submit text with Message and Send for AI, Human, or Unclear classification. Read the result in Chat messages." })[m.side] || game.description;

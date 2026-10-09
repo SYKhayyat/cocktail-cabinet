@@ -160,7 +160,10 @@ function drawReadouts(context, model) {
   context.fillStyle = share < 0.25 ? HAZARD : CANVAS_PALETTE.warning;
   context.fillRect(left, barY, barWidth * share, 8);
   drawText(context, `Light ${Math.round(model.light)} of ${model.lightMax}`, left, 22, 13, CANVAS_PALETTE.warning);
-  drawText(context, `Wisps ${model.wispsCollected}`, BOARD_WIDTH - 20, 22, 13, CANVAS_PALETTE.accent, "right");
+  // The maze count is the headline of a chained run, so it shares the readout
+  // rather than hiding in a corner. Score stays coins, as it is everywhere.
+  const cleared = model.side === "continue" ? `Mazes ${model.mazesCleared} · ` : "";
+  drawText(context, `${cleared}Wisps ${model.wispsCollected}`, BOARD_WIDTH - 20, 22, 13, CANVAS_PALETTE.accent, "right");
   if (share <= 0 && !model.revealed()) drawText(context, "NO LIGHT", BOARD_WIDTH / 2, BOARD_HEIGHT - 36, 14, HAZARD, "center");
   drawText(context, model.statusText(), left, BOARD_HEIGHT - 14, 13, CANVAS_PALETTE.secondary);
   const hint = model.lit() ? "Standing still — the lamp is lit." : "Dark — arrows or WASD to walk.";

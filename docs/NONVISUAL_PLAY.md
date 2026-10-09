@@ -44,6 +44,7 @@ system.
 | Starfall, runner | Read the runner, stars and gems with positions/velocities; move left/right or advance. |
 | Starfall, stars | Send a star or gem lure at an entered x coordinate; advance the real computer runner. Limits and gem cooldown/removal rules are retained. |
 | Lamp, walk | Read the walker's tile, light, coins and wisps; read the exit, every uncollected coin and wisp, and every hazard by name. Walk in four directions, pulse the lamp, or advance. A walk attempted while the lamp is lit is refused in words, because the model will not move. |
+| Lamp, continue | As Lamp/walk, plus the count of mazes cleared. Reaching the exit advances to a new maze in the same step, keeping light, coins and lives, so the counter and the meter are the whole read. |
 | Imitation, all five modes | Native Message/Send, model download, invite/answer, guessing and Restart round controls remain available. Mode-specific objectives/status are readable with Refresh state. No arcade stepping is applied to connection/model timers. |
 
 Coordinates are explicitly explained in the panel: Snake uses 1-based cells,
@@ -55,13 +56,13 @@ advertised mode without sight.
 
 ## Checks and limits
 
-- `npm test`: includes `tests/nonvisual.test.js`, catalogue checks for all 16
+- `npm test`: includes `tests/nonvisual.test.js`, catalogue checks for all 17
   arcade modes and targeted rule/lifecycle/editing tests.
 - `npm run check`: syntax, model boundary, dead-code and README checks.
 - `npm run test:nonvisual-browser`: **required** Chromium CDP test (default port
   9321; explicitly refuses Electron 9223). It creates an isolated context, reads
   Chromium's real accessibility tree, sends native keyboard events, checks all
-  21 modes, exercises named edits/attacks and outcomes, and verifies freeze/resume.
+  22 modes, exercises named edits/attacks and outcomes, and verifies freeze/resume.
   Two real same-origin tabs cover keyboard human chat and provider/guesser flow;
   local AI and classification replies are deterministic fixtures.
 

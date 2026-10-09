@@ -287,7 +287,7 @@ const GAME_CARDS = [
   { id: "missile", modes: ["defender", "attacker"] },
   { id: "imitation", modes: ["ai", "human", "guess", "provide", "write"] },
   { id: "starfall", modes: ["runner", "stars"] },
-  { id: "lamp", modes: ["walk"] }
+  { id: "lamp", modes: ["walk", "continue"] }
 ];
 
 async function testBootAndDescriptors(page) {
@@ -929,9 +929,9 @@ async function testEveryModeSurvivesPlay(page, step) {
     });
     return out;
   })()`);
-  assertEqual(catalogue.length, 21, "twenty-one modes are reachable through the UI");
+  assertEqual(catalogue.length, 22, "twenty-two modes are reachable through the UI");
 
-  // Select, play, and inspect one mode at a time: selecting all twenty-one up
+  // Select, play, and inspect one mode at a time: selecting all twenty-two up
   // front would leave only the last one loaded when the frames are driven.
   for (const entry of catalogue) {
     await selectMode(page, entry.index, entry.mode);
@@ -1720,7 +1720,7 @@ async function main() {
 
     const suites = [
       ["boot, descriptors, and mode catalogue", () => testBootAndDescriptors(first.page)],
-      ["mode-aware control hints for all twenty-one modes", () => testModeAwareHints(first.page)],
+      ["mode-aware control hints for all twenty-two modes", () => testModeAwareHints(first.page)],
       ["mode switch reopens the cabinet instead of auto-starting", () => testModeSwitchReopensTheCabinet(first.page, step)],
       ["focused live announcements under high-rate DOM updates", () => testFocusedAnnouncements(first.page, step)],
       ["native keyboard button activation without game side effects", () => testNativeKeyboardButtons(first.page)],
@@ -1729,7 +1729,7 @@ async function main() {
       ["pause and continue around the countdown", () => testPauseDuringCountdown(first.page, step)],
       ["keyboard and pointer controls", () => testKeyboardAndPointerControls(first.page, step)],
       ["retained retry pressure and late-score human recovery", () => testRetryPressureAndRecovery(first.page, step)],
-      ["all twenty-one modes load and run", () => testEveryModeSurvivesPlay(first.page, step)],
+      ["all twenty-two modes load and run", () => testEveryModeSurvivesPlay(first.page, step)],
       ["life loss, game over, and restart", () => testGameOverAndRestart(first.page, step)],
       ["Splat builder tools", () => testSplatBuilderTools(first.page, step)],
       ["native keyboard authoring and emulated touch pan/cancel", () => testSplatNativeEditor(first.page, step)],
