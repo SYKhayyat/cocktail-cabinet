@@ -208,21 +208,42 @@ function describeInvalidSettings(id) {
   return `Use whole numbers within range: ${parts.join(", ")}${snakeLengthRule}${lampRule}.`;
 }
 
+const LAMP_NUMBER_KEYS = ["cols", "rows", "coins", "hazards", "wisps"];
+// What the player last typed under Custom. Choosing a difficulty fills the fields
+// with that difficulty's numbers, which is the whole point -- but it used to
+// destroy a hand-built maze with no way back, so the draft is kept and restored.
+let lampCustomDraft = null;
+// Which difficulty was last in force. Saving and restoring the draft happen only
+// on a change of difficulty: doing it on every change meant that typing a number
+// under Custom was overwritten by the draft before the next keystroke.
+let lastLampPreset = null;
+
 // A difficulty that owns the numbers greys the number fields out and shows what
 // it set, rather than leaving stale custom values on screen looking editable.
 function syncPresetAvailability(id) {
   if (id !== "lamp") return;
   const inputs = settingsInputs.lamp;
-  const chosen = inputs.preset.value !== "custom";
+  const preset = inputs.preset.value;
+  const chosen = preset !== "custom";
+  const custom = preset === "custom";
   // The patrol is a checkbox, not part of a difficulty bundle, so it stays
   // editable whichever difficulty is chosen.
   for (const [key, input] of Object.entries(inputs)) {
     input.disabled = key === "preset" || key === "patrol" ? false : chosen;
   }
-  if (!chosen) return;
+  const changed = preset !== lastLampPreset;
+  lastLampPreset = preset;
+  if (custom) {
+    // Coming back to Custom hands the player their own numbers again -- once, on
+    // the way in, and never while they are typing into the fields.
+    if (changed && lampCustomDraft) for (const [key, value] of Object.entries(lampCustomDraft)) inputs[key].value = value;
+    return;
+  }
+  // Leaving Custom: remember what was on screen before the preset overwrites it.
+  if (changed) lampCustomDraft = Object.fromEntries(LAMP_NUMBER_KEYS.map((key) => [key, inputs[key].value]));
   const validated = games.get(id)?.validateSettings?.(readSettingsInputs(id));
   if (!validated) return;
-  for (const key of ["cols", "rows", "coins", "hazards", "wisps"]) inputs[key].value = validated[key];
+  for (const key of LAMP_NUMBER_KEYS) inputs[key].value = validated[key];
 }
 
 function applySettings(id) {

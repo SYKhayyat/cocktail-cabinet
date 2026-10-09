@@ -379,9 +379,22 @@ async function testBootAndDescriptors(page) {
       const layout = game.model.layout();
       sizes.push({ choice, cols: game.model.cols, rows: game.model.rows, tile: Number(layout.tile.toFixed(1)), shown: cols.value, disabled: cols.disabled });
     }
-    preset.value = 'custom';
-    preset.dispatchEvent(new Event('change', { bubbles: true }));
-    return { options: [...preset.options].map((option) => option.value), sizes, customDisabled: cols.disabled, caption: document.querySelector('#lampSettings [data-setting-label="cols"]').textContent };
+    // Hand-building a maze and then choosing a difficulty used to destroy it with no
+    // way back. The draft is kept and handed back when Custom is chosen again.
+    preset.value = 'custom'; preset.dispatchEvent(new Event('change', { bubbles: true }));
+    const keys = ['cols', 'rows', 'coins', 'hazards', 'wisps'];
+    const field = (key) => document.querySelector('#lamp' + key[0].toUpperCase() + key.slice(1));
+    const typed = { cols: '27', rows: '15', coins: '19', hazards: '12', wisps: '7' };
+    for (const [key, value] of Object.entries(typed)) { field(key).value = value; field(key).dispatchEvent(new Event('change', { bubbles: true })); }
+    preset.value = 'big'; preset.dispatchEvent(new Event('change', { bubbles: true }));
+    const whileBig = cols.value;
+    preset.value = 'custom'; preset.dispatchEvent(new Event('change', { bubbles: true }));
+    return {
+      options: [...preset.options].map((option) => option.value), sizes,
+      customDisabled: cols.disabled,
+      caption: document.querySelector('#lampSettings [data-setting-label="cols"]').textContent,
+      whileBig, restored: keys.map((key) => field(key).value).join(',')
+    };
   })()`);
   assertEqual(lamp.options.join(","), "custom,small,medium,big,huge", "the difficulty dropdown comes from the descriptor");
   assertEqual(lamp.sizes.map((size) => size.cols).join(","), "21,29,41,53", "every difficulty reaches the model");
@@ -390,6 +403,8 @@ async function testBootAndDescriptors(page) {
   assertEqual(lamp.sizes.every((size) => size.disabled), true, "a chosen difficulty greys the number fields out");
   assertEqual(lamp.sizes.map((size) => size.shown).join(","), "21,29,41,53", "and shows what it chose");
   assertEqual(lamp.customDisabled, false, "custom hands the numbers back");
+  assertEqual(lamp.whileBig, "41", "a chosen difficulty shows its own numbers");
+  assertEqual(lamp.restored, "27,15,19,12,7", "and choosing Custom again gives back the maze you typed, not the preset's");
   assertEqual(lamp.caption, "Maze columns", "Lamp's label comes from Lamp's descriptor, not Snake's");
 
   // A sound toggle that cannot be turned off is a bug waiting to happen. It is a

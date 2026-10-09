@@ -771,6 +771,10 @@ export class LampModel {
   }
 
   update(dt, input = {}) {
+    // The reminder is cleared rather than left to decay, because the early return
+    // below means a run that ended inside the first seven seconds kept the banner
+    // over the maze reveal for ever.
+    if (this.won || this.gameOver) this.hintRemaining = 0;
     if (this.gameOver || this.won) return;
     if (this.hintRemaining > 0) this.hintRemaining = Math.max(0, this.hintRemaining - dt);
     for (const hazard of this.hazards) if (hazard.patrol) this.stepPatrol(hazard, dt);

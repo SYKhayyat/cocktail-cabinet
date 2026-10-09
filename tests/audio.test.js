@@ -1,8 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createAudio, RECIPES, SOUNDED_GAMES } from "../src/audio.js";
 import { installEvents } from "../src/events.js";
 import { LampGame } from "../src/games/lamp.js";
+import { LampModel } from "../src/games/lamp/model.js";
+import { MissileModel } from "../src/games/missile/model.js";
 import { SnakeGame } from "../src/games/snake.js";
 import { BreakoutGame } from "../src/games/breakout.js";
 import { SplatGame } from "../src/games/splat.js";
@@ -59,6 +62,47 @@ function fakeAudio() {
 }
 
 const noAudio = () => createAudio({ contextFactory: () => null });
+
+const GAMES = {
+  snake: SnakeGame, breakout: BreakoutGame, splat: SplatGame,
+  asteroids: AsteroidsGame, missile: MissileCommandGame, starfall: StarfallGame, lamp: LampGame
+};
+
+// Drives a game hard enough to reach every outcome it can reach, and reports
+// every event id it emitted along the way. Static reading of the source is not
+// enough: an event behind a branch the driver never enters is still an event the
+// recipe has to exist for.
+const collectEvents = (Game) => {
+  const game = new Game();
+  const seen = new Set();
+  const record = () => { for (const event of game.model.drainEvents()) seen.add(event); };
+  const input = { keys: new Set(), pressed: new Set(), mode: "keyboard", pointer: { x: 200, y: 200, down: false, clicked: false } };
+  // The model is driven directly on purpose. The facade drains the queue on every
+  // update, so going through it would collect nothing at all.
+  let sawWin = false;
+  const run = (dt, keys) => { game.model.update(dt, { ...input, ...keys }); for (const e of game.model.events) seen.add(e); game.model.events.length = 0; if (game.model.won) sawWin = true; };
+  for (const side of game.sides ?? [undefined]) {
+    if (side !== undefined) game.setSide(side);
+    for (let round = 0; round < 3; round += 1) {
+      game.reset();
+      game.model.events.length = 0;
+      for (const key of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "w", "d", "n", "q", "e", "c", "g", "g", "n"]) {
+        run(1 / 60, { keys: { x: 0, y: 0 }, lampDown: false, lampTap: false, keyDirection: 1, drift: 1, bounce: 1 });
+        run(1 / 60, { keyDirection: -1, drift: -1, bounce: -1 });
+        run(1 / 60, { turn: 1, thrust: 1, fire: true });
+        run(1 / 60, { turn: -1, launch: true, aim: { x: 200, y: 200 } });
+        run(1 / 60, { lampDown: true, lampTap: true });
+        run(1 / 60, { lampDown: false, lampTap: false });
+        run(1 / 60, { bounce: -1, drift: -1 });
+      }
+      for (let tick = 0; tick < 240; tick += 1) {
+        run(1 / 60, { lampDown: tick % 40 < 2, lampTap: tick % 40 === 0, fire: tick % 12 === 0, launch: tick % 20 === 0 });
+        if (game.model.gameOver || game.model.won) break;
+      }
+    }
+  }
+  return { seen, sawWin };
+};
 
 test("a sound is built only after a gesture, and never without a context", () => {
   const fake = fakeAudio();
@@ -141,6 +185,97 @@ test("every sounded game has a recipe for every event it emits", () => {
       assert.ok(RECIPES[`${id}:${event}`], `${id} emits "${event}" but nothing knows how to play it`);
     }
   }
+});
+
+test("every sound has an emitter, and every emitter has a sound", () => {
+  // A recipe nothing ever emits is a sound that can never be heard, and an event
+  // with no recipe is a silence. Both were true on the first pass -- five games
+  // could lose in complete silence -- and neither shows up in a run that only
+  // checks the events one drive happens to reach.
+  //
+  // This cross-references the two sets of literals rather than driving the games,
+  // because driving can only prove a sound happens on the paths it takes. Reaching
+  // a coin or an exit is not something a generic driver can be relied on to do.
+  const declared = new Set();
+  for (const [id] of Object.entries(GAMES)) {
+    const model = readFileSync(new URL(`../src/games/${id}/model.js`, import.meta.url), "utf8");
+    for (const [, name] of model.matchAll(/\.emit\("([^"]+)"\)/g)) declared.add(`${id}:${name}`);
+    // The host ends every run by setting gameOver on the facade, so a loss is
+    // declared for every game even where the model has no losing branch.
+    declared.add(`${id}:lose`);
+  }
+  const recipes = Object.keys(RECIPES);
+  assert.deepEqual(recipes.filter((name) => !declared.has(name)), [], "these sounds can never be heard");
+  assert.deepEqual([...declared].filter((name) => !recipes.includes(name)), [], "these events have nothing to play them");
+});
+
+test("a game with no win to hear has no win recipe", () => {
+  // Starfall is an endless runner: a run ends by running out of lives and never by
+  // clearing a board, so the facade's win sound could never play for it. Its
+  // absence is asserted rather than left to be discovered as dead code.
+  assert.equal(RECIPES["starfall:win"], undefined);
+  const model = readFileSync(new URL("../src/games/starfall/model.js", import.meta.url), "utf8");
+  assert.equal(/this\.won = true/.test(model), false, "because Starfall never wins");
+});
+
+test("every game can lose out loud", () => {
+  // The host ends a run by setting gameOver on the facade, so "lose" is emitted
+  // for every game whether or not its model has a losing branch of its own.
+  for (const [id, game] of Object.entries(GAMES)) {
+    const instance = new game();
+    instance.reset();
+    instance.model.events.length = 0;
+    instance.gameOver = true;
+    assert.ok(instance.model.events.includes("lose"), `${id} could lose in silence`);
+    assert.ok(RECIPES[`${id}:lose`], `${id} has nothing to play its loss`);
+  }
+});
+
+test("Missile Command's two best moments are audible", () => {
+  // Both had a recipe and no emitter, which is the same defect as a silent loss
+  // wearing a different hat: the recipe exists, so a reading of the map says the
+  // game is sounded.
+  assert.ok(RECIPES["missile:intercept"]);
+  assert.ok(RECIPES["missile:city"]);
+  const model = new MissileModel();
+  model.reset();
+  // Nothing is in the air until the first wave has spawned.
+  for (let tick = 0; tick < 300 && !model.enemyMissiles.length; tick += 1) model.update(1 / 60, {});
+  const city = model.cities.find((entry) => entry.alive);
+  const enemy = model.enemyMissiles[0];
+  assert.ok(city, "there is a city to lose");
+  assert.ok(enemy, "and a missile to lose it to");
+  enemy.targetObject = city;
+  enemy.kind = "city";
+  model.events.length = 0;
+  model.impactEnemy(enemy);
+  assert.ok(model.events.includes("city"), "a city going up is heard");
+});
+
+test("the queue cannot grow without bound", () => {
+  // The nonvisual panel steps the model directly and never goes through the
+  // facade, so on a long assisted session nothing ever drains it.
+  const model = installEvents({});
+  for (let index = 0; index < 5000; index += 1) model.emit("coin");
+  assert.ok(model.events.length <= 256, `the queue grew to ${model.events.length}`);
+  assert.equal(model.events.at(-1), "coin", "and the newest event is still there");
+});
+
+test("the reminder does not outlive the run", () => {
+  // update() returns early once a run is over, so a countdown left to decay
+  // froze on screen for ever -- and a run that ended inside the first seven
+  // seconds showed the banner over the maze reveal from then on.
+  const model = new LampModel();
+  model.reset();
+  assert.ok(model.hintRemaining > 0);
+  model.won = true;
+  model.update(1 / 60, {});
+  assert.equal(model.hintRemaining, 0, "winning puts the reminder away");
+  const lost = new LampModel();
+  lost.reset();
+  lost.gameOver = true;
+  lost.update(1 / 60, {});
+  assert.equal(lost.hintRemaining, 0, "and so does losing");
 });
 
 test("Imitation is deliberately unsounded, and says why", () => {

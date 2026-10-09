@@ -102,7 +102,6 @@ export const RECIPES = Object.freeze({
     tone(ctx, out, { type: "triangle", from: 520, duration: 0.11, gain: 0.13 });
     tone(ctx, out, { type: "triangle", from: 780, at: 0.1, duration: 0.15, gain: 0.12 });
   },
-  "lamp:life": arpeggio([392, 330]),
   "lamp:dark": (ctx, out, n) => {
     tone(ctx, out, { type: "sawtooth", from: 150, to: 70, duration: 0.9, gain: 0.13 });
     tone(ctx, out, { type: "sawtooth", from: 151, to: 71, duration: 0.9, gain: 0.1 });
@@ -112,14 +111,16 @@ export const RECIPES = Object.freeze({
   "lamp:lose": arpeggio([392, 349, 294, 220], { type: "sawtooth" }),
 
   // ---- Snake
-  "snake:eat": blip,
+  "snake:eat": (ctx, out, n) => blip(ctx, out, n, { from: 760, to: 1180 }),
   "snake:die": fall(420, 90, { type: "square" }),
+  "snake:lose": arpeggio([392, 349, 294, 220], { type: "square" }),
   "snake:win": arpeggio([523, 659, 784, 1047]),
 
   // ---- Breakout
   "breakout:bounce": (ctx, out) => tone(ctx, out, { type: "sine", from: 660, to: 880, duration: 0.06, gain: 0.12 }),
-  "breakout:brick": blip,
+  "breakout:brick": (ctx, out, n) => blip(ctx, out, n, { from: 520, to: 760, type: "square" }),
   "breakout:life": fall(380, 110, { type: "square" }),
+  "breakout:lose": arpeggio([392, 349, 294, 220], { type: "square" }),
   "breakout:win": arpeggio([523, 659, 784, 1047]),
 
   // ---- Splat
@@ -129,6 +130,7 @@ export const RECIPES = Object.freeze({
     noise(ctx, out, n, { duration: 0.12, gain: 0.1, from: 1800, to: 300 });
   },
   "splat:life": fall(360, 100, { type: "square" }),
+  "splat:lose": arpeggio([392, 349, 294, 220], { type: "square" }),
   "splat:win": arpeggio([523, 659, 784, 1047]),
 
   // ---- Asteroids
@@ -139,14 +141,12 @@ export const RECIPES = Object.freeze({
     tone(ctx, out, { type: "square", from: 220, to: 80, duration: 0.18, gain: 0.12 });
   },
   "asteroids:life": fall(340, 90, { type: "sawtooth" }),
+  "asteroids:lose": arpeggio([392, 349, 294, 220], { type: "sawtooth" }),
   "asteroids:win": arpeggio([523, 659, 784, 1047]),
 
   // ---- Missile Command
   "missile:launch": rise(300, 1400),
-  "missile:intercept": (ctx, out) => {
-    tone(ctx, out, { type: "sine", from: 1400, to: 700, duration: 0.14, gain: 0.13 });
-    noise(ctx, out, null, { duration: 0.01, gain: 0 });
-  },
+  "missile:intercept": (ctx, out) => tone(ctx, out, { type: "sine", from: 1400, to: 700, duration: 0.14, gain: 0.13 }),
   "missile:city": fall(240, 60, { type: "sawtooth" }),
   "missile:wave": rise(500, 1900),
   "missile:win": arpeggio([523, 659, 784, 1047]),
@@ -159,7 +159,10 @@ export const RECIPES = Object.freeze({
   },
   "starfall:star": (ctx, out, n) => noise(ctx, out, n, { duration: 0.08, gain: 0.09, from: 2200, to: 800 }),
   "starfall:life": fall(360, 100, { type: "square" }),
-  "starfall:win": arpeggio([523, 659, 784, 1047])
+  // Starfall has no win recipe and cannot need one: it is an endless runner, so
+  // a run ends by running out of lives and never by clearing a board.
+  "starfall:lose": arpeggio([392, 349, 294, 220], { type: "square" }),
+
 });
 
 // Imitation is a conversation, not a simulation: it has no gameplay events to

@@ -231,6 +231,7 @@ export class MissileModel {
       for (const enemy of this.enemyMissiles) {
         if (enemy.dead) continue;
         if (!circleHitsCircle(interceptor.x, interceptor.y, INTERCEPTOR_RADIUS, enemy.x, enemy.y, ENEMY_RADIUS)) continue;
+        this.emit("intercept");
         interceptor.dead = true;
         enemy.dead = true;
         this.recordEnemyOutcome(enemy, "intercepted", { mode: "attacker" });
@@ -263,6 +264,7 @@ export class MissileModel {
       this.gameOver = true;
       this.won = false;
       this.winner = "computer";
+      this.emit("lose");
     }
     this.checkGameOver();
   }
@@ -286,6 +288,7 @@ export class MissileModel {
       for (const enemy of this.enemyMissiles) {
         if (!enemy.dead && circleHitsCircle(fireball.x, fireball.y, fireball.radius, enemy.x, enemy.y, ENEMY_RADIUS + FIREBALL_ENEMY_BONUS)) {
           enemy.dead = true;
+          this.emit("intercept");
           this.recordEnemyOutcome(enemy, "intercepted", { mode: "defender" });
           this.score += enemy.smart ? 35 : 15;
           if (enemy.splitCount > 0) this.splitEnemy(enemy);
@@ -355,6 +358,7 @@ export class MissileModel {
     const destroyed = target?.alive === true;
     if (target) target.alive = false;
     const targetKind = enemy.kind || (target?.radius === 12 ? "city" : "battery");
+    if (destroyed && targetKind === "city") this.emit("city");
     const reward = this.side === "attacker" && destroyed ? (targetKind === "city" ? ATTACKER_CITY_SCORE : ATTACKER_BATTERY_SCORE) : 0;
     this.score += reward;
     this.recordEnemyOutcome(enemy, "target-impact", { target: targetKind, score: reward });

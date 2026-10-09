@@ -10,9 +10,18 @@
 
 const NO_EVENTS = Object.freeze([]);
 
+// The nonvisual panel steps the model directly and never goes through the
+// facade, so on a long assisted session nothing drains the queue. It is capped
+// rather than trimmed on read, because a caller that never reads should still not
+// be able to grow an array without limit.
+const MAX_QUEUED = 256;
+
 export function installEvents(model) {
   model.events = [];
-  model.emit = (id) => { model.events.push(id); };
+  model.emit = (id) => {
+    model.events.push(id);
+    if (model.events.length > MAX_QUEUED) model.events.splice(0, model.events.length - MAX_QUEUED);
+  };
   model.drainEvents = () => {
     if (!model.events.length) return NO_EVENTS;
     const drained = model.events;

@@ -134,6 +134,7 @@ export class StarfallModel {
         const dragX = input.spawnStar.dragDeltaX || 0;
         const dragY = input.spawnStar.dragDeltaY || 0;
         const horizontalSpeed = input.spawnStar.dragDistance ? clamp(dragX / Math.max(Math.abs(dragY), 1) * 180, -240, 240) : 0;
+        this.emit("star");
         this.stars.push({ id: this.nextEntityId++, x: input.spawnStar.x, y: 20, vx: horizontalSpeed, vy: 130 + this.score * 2, radius: 10, age: 0, userCreated: true, outcome: null, threatened: false });
       }
       if (input.spawnGem && this.gemSpawnCooldown <= 0 && this.gems.length < 12) {
