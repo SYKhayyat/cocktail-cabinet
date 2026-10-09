@@ -6,6 +6,11 @@ import { clamp } from "../../geometry.js";
 export const BOARD_WIDTH = 800;
 export const BOARD_HEIGHT = 560;
 
+// Bands reserved above and below the maze for the readouts. Two lines are needed
+// under it: the status sentence, and the out-of-light band above it.
+export const LAMP_TOP = 44;
+export const LAMP_BOTTOM = 60;
+
 // Feel, not content. These are the numbers a designer would want to reach for
 // when changing how Lamp reads, and they are deliberately not settings: the
 // player picks the size and the contents of a maze, not how a pulse feels.
@@ -32,17 +37,30 @@ export const LAMP_TUNING = Object.freeze({
   braidChance: 0.75
 });
 
-// Three coherent bundles. Each is a whole maze rather than four separate
-// numbers, so choosing one can never produce a configuration that no preset
-// would. "custom" is the fourth dropdown option and hands the numbers back to
-// the player.
+// A geometric ladder, and every bundle is a whole maze rather than four
+// separate numbers, so choosing one can never produce a configuration that no
+// preset would. "custom" is the fifth dropdown option and hands the numbers back
+// to the player.
+//
+// Two things forced the shape of this. The board is 800x560 with room for a
+// 752x456 maze, so a square maze is height-limited and every square size drew
+// an identical 456x456 block in the middle of the screen -- three options that
+// looked the same. The bundles are therefore wider than they are tall, roughly
+// the board's own 1.65 aspect, so a maze fills the space it is given and the
+// sizes are obvious at a glance.
+//
+// And the wisps scale with the maze. Light is only spent while the lamp is lit,
+// so the cost of a journey is the number of pulses needed to walk it blind,
+// which grows with the route; a 17x17's five wisps would strand a player in the
+// dark by the third corridor of a 53x31.
 export const LAMP_PRESETS = Object.freeze({
-  little: Object.freeze({ cols: 11, rows: 11, coins: 6, hazards: 5, wisps: 3 }),
-  medium: Object.freeze({ cols: 17, rows: 17, coins: 14, hazards: 11, wisps: 5 }),
-  big: Object.freeze({ cols: 25, rows: 25, coins: 24, hazards: 22, wisps: 8 })
+  small: Object.freeze({ cols: 21, rows: 13, coins: 8, hazards: 8, wisps: 4 }),
+  medium: Object.freeze({ cols: 29, rows: 17, coins: 16, hazards: 14, wisps: 6 }),
+  big: Object.freeze({ cols: 41, rows: 25, coins: 34, hazards: 30, wisps: 16 }),
+  huge: Object.freeze({ cols: 53, rows: 31, coins: 52, hazards: 46, wisps: 24 })
 });
 
-const PRESET_CHOICES = ["custom", "little", "medium", "big"];
+const PRESET_CHOICES = ["custom", "small", "medium", "big", "huge"];
 
 export const LAMP_MODES = [
   { value: "walk", label: "Solo — walk blind to the exit" },
@@ -59,19 +77,20 @@ export const LAMP_SETTINGS = {
     default: "medium",
     options: [
       { value: "custom", label: "Custom — pick the numbers below" },
-      { value: "little", label: "Little" },
+      { value: "small", label: "Small" },
       { value: "medium", label: "Medium" },
-      { value: "big", label: "Big" }
+      { value: "big", label: "Big" },
+      { value: "huge", label: "Huge" }
     ]
   },
   // The recursive backtracker walks a 2-cell lattice, so both dimensions have
   // to be odd. Even numbers are rejected rather than silently rounded, because
   // a rounded maze is not the maze the player asked for.
-  cols: { label: "Maze columns", min: 11, max: 31, step: 2, default: 17 },
-  rows: { label: "Maze rows", min: 11, max: 31, step: 2, default: 17 },
-  coins: { label: "Coins", min: 0, max: 40, step: 1, default: 14 },
-  hazards: { label: "Hazards", min: 0, max: 40, step: 1, default: 11 },
-  wisps: { label: "Light wisps", min: 0, max: 20, step: 1, default: 5 }
+  cols: { label: "Maze columns", min: 11, max: 61, step: 2, default: 25 },
+  rows: { label: "Maze rows", min: 11, max: 51, step: 2, default: 17 },
+  coins: { label: "Coins", min: 0, max: 140, step: 1, default: 16 },
+  hazards: { label: "Hazards", min: 0, max: 100, step: 1, default: 14 },
+  wisps: { label: "Light wisps", min: 0, max: 40, step: 1, default: 6 }
 };
 
 const DIRECTIONS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
@@ -204,6 +223,23 @@ export class LampModel {
     return { gameOver: false, message: "A hazard spent itself on you. Your lamp keeps its light and you keep your place. Starting again in 3…" };
   }
 
+  // Where the maze sits on the board, in tiles. This lives in the model rather
+  // than the view so that "do the four sizes actually look different" is a
+  // question a test can ask, instead of a formula duplicated in two places that
+  // could disagree.
+  layout() {
+    const width = BOARD_WIDTH - 48;
+    const height = BOARD_HEIGHT - LAMP_TOP - LAMP_BOTTOM;
+    const tile = Math.min(width / this.cols, height / this.rows);
+    return {
+      tile,
+      width,
+      height,
+      originX: (BOARD_WIDTH - tile * this.cols) / 2,
+      originY: LAMP_TOP + (height - tile * this.rows) / 2
+    };
+  }
+
   // ---------------------------------------------------------------------
   // Maze
   // ---------------------------------------------------------------------
@@ -277,10 +313,15 @@ export class LampModel {
     }
   }
 
-  // The tiles of the shortest route between two floor tiles, optionally
-  // treating some as walls. `blocked` is what makes this the solvability check:
-  // pass the hazards placed so far and the route returned is one that avoids
-  // every one of them.
+  // The tiles of the shortest route between two floor tiles, treating
+  // `blocked` as walls, or null when there is no such route.
+  //
+  // Null is the whole point of this function and it has to be distinguishable
+  // from a route. An earlier version fell out of the reconstruction loop with
+  // the goal alone in hand, so an unreachable goal came back as a one-tile route
+  // rather than nothing -- and the solvability check that calls it tested
+  // `length > 0`, which is true either way. It reported every maze as solvable
+  // while never having checked one.
   routeBetween(grid, start, goal, blocked = new Set()) {
     const cameFrom = new Map();
     const seen = new Set([key(start.x, start.y)]);
@@ -299,6 +340,7 @@ export class LampModel {
         queue.push({ x: nx, y: ny });
       }
     }
+    if (!cameFrom.has(key(goal.x, goal.y))) return null;
     const route = [];
     let current = goal;
     while (current && (current.x !== start.x || current.y !== start.y)) {
@@ -409,7 +451,7 @@ export class LampModel {
       const tileKey = key(tile.x, tile.y);
       if (blocked.has(tileKey)) continue;
       blocked.add(tileKey);
-      if (this.routeBetween(grid, { x: 1, y: 1 }, goal, blocked).length === 0) {
+      if (this.routeBetween(grid, { x: 1, y: 1 }, goal, blocked) === null) {
         blocked.delete(tileKey);
         continue;
       }

@@ -120,10 +120,24 @@ const settingsInputs = {
   lamp: { preset: lampPreset, cols: lampCols, rows: lampRows, coins: lampCoins, hazards: lampHazards, wisps: lampWisps }
 };
 
+// A setting key is only unique within a game. Snake and Lamp both have `cols`
+// and `rows`, so the label lookup has to be scoped to that game's own group --
+// searching the whole panel found Snake's caption for Lamp's descriptor and
+// renamed it, because the settings panel is shared and both groups are in it.
+// The browser suite caught this; no unit test could, since nothing else reads
+// the markup.
+const settingsGroups = { snake: snakeSettings, splat: splatSettings, lamp: lampSettings };
+
 function readSettingsInputs(id) {
   const values = {};
   for (const [key, input] of Object.entries(settingsInputs[id] || {})) {
-    values[key] = input.type === "checkbox" ? input.checked : Number(input.value);
+    if (input.type === "checkbox") values[key] = input.checked;
+    // A select holds a name, not a number. Number("big") is NaN, which every
+    // validator then refuses, so Lamp's difficulty dropdown was silently
+    // ignored and the maze stayed whatever it was before. Nothing else in the
+    // cabinet had a select, which is why no test covered it.
+    else if (input.tagName === "SELECT") values[key] = input.value;
+    else values[key] = Number(input.value);
   }
   return values;
 }
@@ -138,7 +152,7 @@ function applySettingDescriptors() {
     for (const [key, descriptor] of Object.entries(descriptors)) {
       const input = inputs[key];
       if (!input) continue;
-      const caption = settingsPanel.querySelector(`[data-setting-label="${key}"]`);
+      const caption = (settingsGroups[id] || settingsPanel).querySelector(`[data-setting-label="${key}"]`);
       if (caption && descriptor.label) caption.textContent = descriptor.label;
       if (descriptor.type === "checkbox") {
         input.checked = Boolean(descriptor.default);

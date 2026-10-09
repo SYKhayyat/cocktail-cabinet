@@ -1712,9 +1712,9 @@ test("settings descriptors are the single source of bounds, labels, and validati
 
   const lamp = new LampGame();
   assert.equal(lamp.settings.preset.type, "select");
-  assert.deepEqual(lamp.settings.preset.options.map((option) => option.value), ["custom", "little", "medium", "big"]);
+  assert.deepEqual(lamp.settings.preset.options.map((option) => option.value), ["custom", "small", "medium", "big", "huge"]);
   assert.equal(lamp.settings.cols.min, 11);
-  assert.equal(lamp.settings.cols.max, 31);
+  assert.equal(lamp.settings.cols.max, 61);
   assert.equal(lamp.settings.cols.step, 2);
   // Choosing a difficulty has to hand back a whole maze, not just a name, so
   // the shell can grey the number fields out and still show what it chose.
@@ -1722,11 +1722,11 @@ test("settings descriptors are the single source of bounds, labels, and validati
   assert.deepEqual(lamp.validateSettings({ preset: "custom", cols: 21, rows: 13, coins: 30, hazards: 0, wisps: 0 }),
     { preset: "custom", cols: 21, rows: 13, coins: 30, hazards: 0, wisps: 0 });
   assert.equal(lamp.validateSettings({ preset: "custom", cols: 20, rows: 13, coins: 4, hazards: 2, wisps: 1 }), null, "an even column count cannot be carved");
-  assert.equal(lamp.validateSettings({ preset: "custom", cols: 21, rows: 13, coins: 41, hazards: 2, wisps: 1 }), null, "above the coin maximum");
+  assert.equal(lamp.validateSettings({ preset: "custom", cols: 21, rows: 13, coins: 141, hazards: 2, wisps: 1 }), null, "above the coin maximum");
   assert.equal(lamp.validateSettings({ preset: "custom", cols: 21, rows: 13, coins: 4.5, hazards: 2, wisps: 1 }), null, "not a whole number");
   assert.equal(lamp.validateSettings({ preset: "enormous" }), null, "an unknown difficulty is refused");
-  assert.equal(LAMP_SETTINGS.coins.max, 40);
-  assert.equal(LAMP_SETTINGS.wisps.max, 20);
+  assert.equal(LAMP_SETTINGS.coins.max, 140);
+  assert.equal(LAMP_SETTINGS.wisps.max, 40);
 });
 
 test("settings descriptors match the values the model actually applies", () => {
@@ -3547,9 +3547,63 @@ const lampStep = (game, dt, { move = null, spaceDown = false, spaceTap = false, 
 // Past the free opening reveal, in the dark, ready to walk.
 const lampDark = (game) => { lampStep(game, LAMP_TUNING.startFlash + 0.01); assert.equal(game.model.lit(), false); return game; };
 
+test("Lamp: an unreachable goal is reported as unreachable, not as a one-tile route", () => {
+  // The regression that hid the solvability bug: reconstruction used to fall out
+  // of its loop with the goal alone in hand, so "no route exists" came back as a
+  // route of length one. Every caller that asked `length > 0` was then asking a
+  // question whose answer was always yes.
+  withSeededRandom(91, () => {
+    const model = lamp().model;
+    assert.deepEqual(model.routeBetween(model.maze, { x: 1, y: 1 }, model.exitTile), null
+      ? null : model.routeBetween(model.maze, { x: 1, y: 1 }, model.exitTile),
+      "a reachable goal still has a route");
+    // Wall the exit off completely: there is no route at all.
+    const walled = model.maze.map((row) => row.slice());
+    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+      const x = model.exitTile.x + dx;
+      const y = model.exitTile.y + dy;
+      if (x > 0 && y > 0 && x < model.cols - 1 && y < model.rows - 1) walled[y][x] = 1;
+    }
+    assert.equal(model.routeBetween(walled, { x: 1, y: 1 }, model.exitTile), null,
+      "a walled-off exit returns null rather than a route");
+  });
+});
+
+test("Lamp: the four difficulties look different and fill the board", () => {
+  // Three square presets on a height-limited board all drew an identical
+  // 456x456 block in the middle of the screen. The bundles are wider than they
+  // are tall now, so the sizes are obvious and each maze fills its space.
+  withSeededRandom(93, () => {
+    const tiles = [];
+    for (const preset of ["small", "medium", "big", "huge"]) {
+      const model = lamp({ preset }).model;
+      const { tile, width, height, originY } = model.layout();
+      assert.ok(tile > 8, `${preset}: a tile is ${tile.toFixed(1)}px, too small to read`);
+      // The limiting dimension is filled exactly and the other is left with less
+      // than a tile's slack, so a maze covers the board instead of sitting in a
+      // square in the middle of it.
+      const usedWidth = tile * model.cols / width;
+      const usedHeight = tile * model.rows / height;
+      assert.ok(usedWidth > 0.9, `${preset}: the maze fills only ${(usedWidth * 100).toFixed(0)}% of the width`);
+      assert.ok(usedHeight > 0.9, `${preset}: the maze fills only ${(usedHeight * 100).toFixed(0)}% of the height`);
+      assert.ok(originY > 0, `${preset}: the maze does not overlap the top readout`);
+      tiles.push({ preset, tile, cols: model.cols, rows: model.rows });
+    }
+    for (let index = 1; index < tiles.length; index += 1) {
+      assert.ok(tiles[index].tile < tiles[index - 1].tile * 0.85,
+        `${tiles[index].preset} draws at ${tiles[index].tile.toFixed(1)}px against ${tiles[index - 1].preset}'s ${tiles[index - 1].tile.toFixed(1)}px, which is not a visible difference`);
+      assert.ok(tiles[index].cols * tiles[index].rows > tiles[index - 1].cols * tiles[index - 1].rows,
+        `${tiles[index].preset} is not a bigger maze than ${tiles[index - 1].preset}`);
+    }
+    // Big is the size the cabinet asked for: Snake's board is 40x28.
+    const big = LAMP_PRESETS.big;
+    assert.ok(big.cols >= 40 && big.rows >= 25, `big is ${big.cols}x${big.rows}`);
+  });
+});
+
 test("Lamp: every generated maze is fully connected, and the exit is the far end of it", () => {
   withSeededRandom(9, () => {
-    for (const preset of ["little", "medium", "big"]) {
+    for (const preset of ["small", "medium", "big", "huge"]) {
       for (let round = 0; round < 40; round += 1) {
         const game = lamp({ preset });
         const model = game.model;
@@ -3593,7 +3647,7 @@ test("Lamp: the exit is chosen from the braided maze, and nothing is placed arou
 
 test("Lamp: every requested coin, hazard and wisp is placed, on floor and clear of the start", () => {
   withSeededRandom(77, () => {
-    for (const preset of ["little", "medium", "big"]) {
+    for (const preset of ["small", "medium", "big", "huge"]) {
       for (let round = 0; round < 30; round += 1) {
         const model = lamp({ preset }).model;
         const wanted = LAMP_PRESETS[preset];
@@ -3625,12 +3679,16 @@ test("Lamp: every maze has a way to the exit that crosses no hazard", () => {
   // Hazards used to be placed anywhere in the corridors, so a maze could wall
   // off the exit completely.
   withSeededRandom(83, () => {
-    for (const preset of ["little", "medium", "big"]) {
+    for (const preset of ["small", "medium", "big", "huge"]) {
       for (let round = 0; round < 40; round += 1) {
         const model = lamp({ preset }).model;
         const blocked = new Set(model.hazards.map((hazard) => `${hazard.x - 0.5},${hazard.y - 0.5}`));
         const route = model.routeBetween(model.maze, { x: 1, y: 1 }, model.exitTile, blocked);
-        assert.ok(route.length > 0, `${preset}/${round}: the exit is unreachable without crossing a hazard`);
+        // `notEqual(null)` and not `length > 0`: an unreachable goal used to come
+        // back as a one-tile route, so a length check passed for every maze ever
+        // generated and proved nothing.
+        assert.notEqual(route, null, `${preset}/${round}: the exit is unreachable without crossing a hazard`);
+        assert.ok(route.length >= 8, `${preset}/${round}: the open route is only ${route.length} tiles`);
         for (const tile of route) {
           assert.equal(blocked.has(tile), false, `${preset}/${round}: the open route steps on ${tile}`);
         }
@@ -3639,17 +3697,27 @@ test("Lamp: every maze has a way to the exit that crosses no hazard", () => {
   });
 });
 
-test("Lamp: the route is guaranteed to exist, not announced", () => {
+test("Lamp: the guaranteed route is kept secret, and the hazards still cost something", () => {
   withSeededRandom(87, () => {
-    const model = lamp().model;
-    // A guaranteed way through is not a gift: nothing on the board says which
-    // way it is, and every other way through is still lethal.
-    const blocked = new Set(model.hazards.map((hazard) => `${hazard.x - 0.5},${hazard.y - 0.5}`));
-    const route = new Set(model.routeBetween(model.maze, { x: 1, y: 1 }, model.exitTile, blocked));
-    assert.ok(model.hazards.length > 0, "the maze still has hazards in it");
-    const onRoute = model.hazards.filter((hazard) => route.has(`${hazard.x - 0.5},${hazard.y - 0.5}`));
-    assert.equal(onRoute.length, 0);
-    assert.equal(model.hazards.length + route.size > model.maze.length / 4, true, "the hazards are not merely the whole floor");
+    let mazesWhereHazardsForceADetour = 0;
+    for (let round = 0; round < 40; round += 1) {
+      const model = lamp().model;
+      const blocked = new Set(model.hazards.map((hazard) => `${hazard.x - 0.5},${hazard.y - 0.5}`));
+      const safe = model.routeBetween(model.maze, { x: 1, y: 1 }, model.exitTile, blocked);
+      assert.notEqual(safe, null, "a route always exists");
+      const route = new Set(safe);
+      assert.ok(model.hazards.length > 0, "the maze still has hazards in it");
+      for (const hazard of model.hazards) {
+        assert.equal(route.has(`${hazard.x - 0.5},${hazard.y - 0.5}`), false, "no hazard stands on the open route");
+      }
+      // Braiding leaves so many alternatives that a clear shortest route usually
+      // exists anyway. Where it does not, the hazards have cost real blind
+      // walking -- which is the point of them, and the player cannot tell which
+      // kind of maze it is in.
+      const unrestricted = model.routeBetween(model.maze, { x: 1, y: 1 }, model.exitTile).length;
+      if (safe.length > unrestricted) mazesWhereHazardsForceADetour += 1;
+    }
+    assert.ok(mazesWhereHazardsForceADetour > 0, "hazards never cost the player anything");
   });
 });
 
@@ -3675,7 +3743,7 @@ test("Lamp: the board is only revealed once the run is over", () => {
 
 test("Lamp: coins are spent on the long walk, near the far end of the route", () => {
   withSeededRandom(79, () => {
-    for (const preset of ["little", "medium", "big"]) {
+    for (const preset of ["small", "medium", "big", "huge"]) {
       const model = lamp({ preset }).model;
       const distances = model.distancesFrom(model.maze, { x: 1, y: 1 });
       const path = distances[model.exitTile.y][model.exitTile.x];

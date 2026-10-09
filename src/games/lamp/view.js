@@ -35,13 +35,7 @@ export function draw(model, context) {
   // read as a map rather than a glimpse.
   const over = model.revealed();
   const brightness = over ? 1 : model.brightness();
-  const topPad = 44;
-  // Room for two lines under the maze: the status sentence, and the out-of-light
-  // band above it when it shows.
-  const bottomPad = 60;
-  const tile = Math.min((BOARD_WIDTH - 48) / model.cols, (BOARD_HEIGHT - topPad - bottomPad) / model.rows);
-  const originX = (BOARD_WIDTH - tile * model.cols) / 2;
-  const originY = topPad + (BOARD_HEIGHT - topPad - bottomPad - tile * model.rows) / 2;
+  const { tile, originX, originY } = model.layout();
   const point = (wx, wy) => ({ x: originX + wx * tile, y: originY + wy * tile });
 
   // Nothing at all is remembered between pulses: at the end of a fade the maze

@@ -360,6 +360,37 @@ async function testBootAndDescriptors(page) {
   assertEqual(settings.length.join(","), "3,12,1,3", "Snake length bounds come from the descriptor");
   assertEqual(settings.spacing.join(","), "90,240,10,130", "Splat spacing bounds come from the descriptor");
   assertEqual(settings.caption, "Columns", "setting labels come from the descriptor");
+
+  // Lamp is the only game with a select, and a select holds a name rather than a
+  // number. Coercing it to Number made every difficulty validate as NaN and the
+  // dropdown did nothing at all, which no unit test could see because they all
+  // go through the model API instead of the markup.
+  const lamp = await page.evaluate(`(() => {
+    document.querySelectorAll('.game-card')[7].click();
+    const preset = document.querySelector('#lampPreset');
+    const cols = document.querySelector('#lampCols');
+    const sizes = [];
+    for (const choice of ['small', 'medium', 'big', 'huge']) {
+      preset.value = choice;
+      preset.dispatchEvent(new Event('change', { bubbles: true }));
+      const game = globalThis.__cocktailCabinet.games.get('lamp');
+      game.applyPendingSettings();
+      game.reset();
+      const layout = game.model.layout();
+      sizes.push({ choice, cols: game.model.cols, rows: game.model.rows, tile: Number(layout.tile.toFixed(1)), shown: cols.value, disabled: cols.disabled });
+    }
+    preset.value = 'custom';
+    preset.dispatchEvent(new Event('change', { bubbles: true }));
+    return { options: [...preset.options].map((option) => option.value), sizes, customDisabled: cols.disabled, caption: document.querySelector('#lampSettings [data-setting-label="cols"]').textContent };
+  })()`);
+  assertEqual(lamp.options.join(","), "custom,small,medium,big,huge", "the difficulty dropdown comes from the descriptor");
+  assertEqual(lamp.sizes.map((size) => size.cols).join(","), "21,29,41,53", "every difficulty reaches the model");
+  assertEqual(lamp.sizes.map((size) => size.rows).join(","), "13,17,25,31", "and its maze gets taller too");
+  assertEqual(new Set(lamp.sizes.map((size) => size.tile)).size, 4, "the four sizes draw at four different tile sizes");
+  assertEqual(lamp.sizes.every((size) => size.disabled), true, "a chosen difficulty greys the number fields out");
+  assertEqual(lamp.sizes.map((size) => size.shown).join(","), "21,29,41,53", "and shows what it chose");
+  assertEqual(lamp.customDisabled, false, "custom hands the numbers back");
+  assertEqual(lamp.caption, "Maze columns", "Lamp's label comes from Lamp's descriptor, not Snake's");
 }
 
 async function testSettingsValidation(page) {
