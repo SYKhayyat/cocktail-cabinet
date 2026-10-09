@@ -7,6 +7,7 @@ import { AsteroidsGame } from "./games/asteroids.js";
 import { MissileCommandGame } from "./games/missile.js";
 import { ImitationGame } from "./games/imitation.js";
 import { StarfallGame } from "./games/starfall.js";
+import { LampGame } from "./games/lamp.js";
 import { NonvisualPanel } from "./nonvisual-panel.js";
 
 const gameFactories = [
@@ -16,7 +17,8 @@ const gameFactories = [
   ["asteroids", "Asteroids", "Fly or launch rocks", () => new AsteroidsGame()],
   ["missile", "Missile Command", "Defend or attack", () => new MissileCommandGame()],
   ["imitation", "Imitation", "Chat with AI or a second tab", () => new ImitationGame()],
-  ["starfall", "Starfall", "Dodge or send stars", () => new StarfallGame()]
+  ["starfall", "Starfall", "Dodge or send stars", () => new StarfallGame()],
+  ["lamp", "Lamp", "Walk blind by lantern light", () => new LampGame()]
 ];
 
 const canvas = document.querySelector("#gameCanvas");
@@ -64,6 +66,13 @@ const snakeCols = document.querySelector("#snakeCols");
 const snakeRows = document.querySelector("#snakeRows");
 const snakeLength = document.querySelector("#snakeLength");
 const snakeWrap = document.querySelector("#snakeWrap");
+const lampSettings = document.querySelector("#lampSettings");
+const lampPreset = document.querySelector("#lampPreset");
+const lampCols = document.querySelector("#lampCols");
+const lampRows = document.querySelector("#lampRows");
+const lampCoins = document.querySelector("#lampCoins");
+const lampHazards = document.querySelector("#lampHazards");
+const lampWisps = document.querySelector("#lampWisps");
 let lastChatRevision = -1;
 const announcements = new Announcements(document.querySelector("#announcements"));
 const chatRows = new Map();
@@ -92,7 +101,8 @@ function renderRoundStatus(state) {
 
 const settingsInputs = {
   snake: { cols: snakeCols, rows: snakeRows, startingLength: snakeLength, wrap: snakeWrap },
-  splat: { columnSpacing: splatSpacing }
+  splat: { columnSpacing: splatSpacing },
+  lamp: { preset: lampPreset, cols: lampCols, rows: lampRows, coins: lampCoins, hazards: lampHazards, wisps: lampWisps }
 };
 
 function readSettingsInputs(id) {
@@ -119,6 +129,21 @@ function applySettingDescriptors() {
         input.checked = Boolean(descriptor.default);
         continue;
       }
+      // A select is declared, not hand-written: the dropdown's options come
+      // from the descriptor so the list of difficulties cannot drift from the
+      // bundles the model actually has.
+      if (descriptor.type === "select") {
+        if (!input.options.length) {
+          for (const option of descriptor.options) {
+            const element = document.createElement("option");
+            element.value = option.value;
+            element.textContent = option.label;
+            input.append(element);
+          }
+        }
+        input.value = descriptor.default;
+        continue;
+      }
       input.min = descriptor.min;
       input.max = descriptor.max;
       input.step = descriptor.step ?? 1;
@@ -131,10 +156,26 @@ function describeInvalidSettings(id) {
   const game = games.get(id);
   const descriptors = game?.settings || {};
   const parts = Object.entries(descriptors)
-    .filter(([key, descriptor]) => descriptor.type !== "checkbox")
-    .map(([key, descriptor]) => `${descriptor.label} ${descriptor.min}–${descriptor.max}`);
+    .filter(([, descriptor]) => descriptor.type !== "checkbox" && descriptor.type !== "select")
+    .map(([, descriptor]) => `${descriptor.label} ${descriptor.min}–${descriptor.max}`);
   const snakeLengthRule = id === "snake" ? ", start length must be smaller than both board dimensions" : "";
-  return `Use whole numbers within range: ${parts.join(", ")}${snakeLengthRule}.`;
+  // The maze is carved on a two-cell lattice, so an even width is a maze the
+  // generator cannot build rather than one it will round for you.
+  const lampRule = id === "lamp" ? ", maze columns and rows must be odd numbers" : "";
+  return `Use whole numbers within range: ${parts.join(", ")}${snakeLengthRule}${lampRule}.`;
+}
+
+// A difficulty that owns the numbers greys the number fields out and shows what
+// it set, rather than leaving stale custom values on screen looking editable.
+function syncPresetAvailability(id) {
+  if (id !== "lamp") return;
+  const inputs = settingsInputs.lamp;
+  const chosen = inputs.preset.value !== "custom";
+  for (const [key, input] of Object.entries(inputs)) input.disabled = key === "preset" ? false : chosen;
+  if (!chosen) return;
+  const validated = games.get(id)?.validateSettings?.(readSettingsInputs(id));
+  if (!validated) return;
+  for (const key of ["cols", "rows", "coins", "hazards", "wisps"]) inputs[key].value = validated[key];
 }
 
 function applySettings(id) {
@@ -287,12 +328,14 @@ function loadGame(id) {
   screenFrame.hidden = id === "imitation";
   downloadModelButton.hidden = id !== "imitation";
   document.querySelector(".machine").classList.toggle("imitation-layout", id === "imitation");
-  settingsPanel.hidden = id !== "snake" && id !== "splat";
-  settingsTitle.textContent = id === "splat" ? "Splat settings" : "Snake settings";
+  settingsPanel.hidden = !["snake", "splat", "lamp"].includes(id);
+  settingsTitle.textContent = `${game.title} settings`;
   snakeSettings.hidden = id !== "snake";
   splatSettings.hidden = id !== "splat";
+  lampSettings.hidden = id !== "lamp";
   const settings = game.validateSettings?.(readSettingsInputs(id));
   if (settings) game.setSettings(settings);
+  syncPresetAvailability(id);
   chatPanel.hidden = id !== "imitation";
   lastChatRevision = -1;
   game.setStateListener?.(() => {
@@ -364,7 +407,10 @@ sideSelect.addEventListener("change", () => {
 });
 for (const [id, inputs] of Object.entries(settingsInputs)) {
   for (const control of Object.values(inputs)) {
-    control.addEventListener("change", () => applySettings(id));
+    control.addEventListener("change", () => {
+      applySettings(id);
+      syncPresetAvailability(id);
+    });
   }
 }
 splatAddColumn.addEventListener("click", () => { games.get("splat").setTool("column"); updateSplatTools(); });
@@ -416,6 +462,7 @@ chatForm.addEventListener("submit", (event) => {
   if (sent) chatInput.value = "";
 });
 applySettingDescriptors();
+syncPresetAvailability("lamp");
 loadGame(activeId);
 
 // Exposed for the CDP smoke suite in tests/browser-smoke.mjs. It drives the

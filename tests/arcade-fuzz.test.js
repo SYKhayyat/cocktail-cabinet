@@ -7,6 +7,7 @@ import { SplatGame } from "../src/games/splat/index.js";
 import { AsteroidsGame } from "../src/games/asteroids/index.js";
 import { MissileCommandGame } from "../src/games/missile/index.js";
 import { StarfallGame } from "../src/games/starfall/index.js";
+import { LampGame } from "../src/games/lamp/index.js";
 
 function seeded(seed) {
   let state = seed >>> 0;
@@ -34,7 +35,7 @@ test("seeded arcade lifecycle/input fuzz preserves finite state, bounds, and rou
       Math.random = seeded(seed);
       const engine = new GameEngine(canvas);
       try {
-        for (const Game of [SnakeGame, BreakoutGame, SplatGame, AsteroidsGame, MissileCommandGame, StarfallGame]) {
+        for (const Game of [SnakeGame, BreakoutGame, SplatGame, AsteroidsGame, MissileCommandGame, StarfallGame, LampGame]) {
           const game = new Game();
           engine.load(game);
           for (const mode of game.modes) {

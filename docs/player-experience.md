@@ -7,6 +7,16 @@ bounded keyboard/pointer recipe acting through the real game controller. The
 six arcade games are Snake, Breakout, Splat, Asteroids, Missile Command and
 Starfall. Imitation is a conversation game and is not an arcade simulation.
 
+**Lamp is deliberately absent from this harness.** It is the cabinet's eighth
+game and it is covered by the model, contract, rendering, fuzz and boundary
+suites, but not here. Every metric below is a distribution over a scripted
+player reacting to positions and hazards, and Lamp is a game about remembering a
+maze that the board deliberately refuses to show. A scripted player cannot hold
+that map, so its survival and pressure numbers would describe the script's
+failure to remember rather than the game's difficulty, and publishing a band for
+it would make this document confidently wrong. A human playtest is the right
+instrument here; until one exists, the claim is made nowhere.
+
 ## Run and inspect
 
 ```sh
@@ -304,7 +314,8 @@ Observed progressed p25 (duration / actionable polls / one-second agency bins /
 objectives): Snake 45 / 443 / 45 / 14; Breakout 33.48 / 67 / 28 / 41;
 Splat 22.42 completed / 74 / 22 / 20; Asteroids 9 / 44 / 9 / 9;
 Missile 29.73 / 57 / 12 / 22; Starfall 15.80 / 50 / 12 / 2. All six satisfy
-the joint 10/12 sustained-run gate. Breakout makes thirteen paddle returns in
+the joint 10/12 sustained-run gate. Lamp is not among them, for the reason given
+above. Breakout makes thirteen paddle returns in
 every default first life and six in every progressed first life. The seed phases
 do not make its world random: identical score/duration results are reported
 honestly rather than presented as independent random outcomes.
@@ -375,7 +386,8 @@ balance change:
 1. Save the exact revision, report JSON, device/control mode, frame rate, default
    settings, and seeds. Run the target suite and full suite. Investigate failed
    accounting/controller/lifecycle checks before adjusting balance thresholds.
-2. Play all six default human modes in the browser. At minimum use three people
+2. Play all six default human modes in the browser, plus Lamp, which this harness
+   deliberately cannot stand in for. At minimum use three people
    with different arcade familiarity, two fresh rounds each, and both keyboard
    and pointer where supported. Give only the displayed control hints and one
    practice round; keep practice separate from recorded samples. Record active

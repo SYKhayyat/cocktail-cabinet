@@ -7,12 +7,13 @@ import { AsteroidsGame } from "../src/games/asteroids.js";
 import { MissileCommandGame } from "../src/games/missile.js";
 import { StarfallGame } from "../src/games/starfall.js";
 import { ImitationGame } from "../src/games/imitation.js";
+import { LampGame } from "../src/games/lamp.js";
 
 const input = (key, pointer = {}) => ({ keys: new Set(key ? [key] : []), pressed: new Set(key ? [key] : []), mode: "keyboard", pointer: { x: 200, y: 200, ...pointer } });
 const text = (game) => game.controlHint().map(({ keys, label }) => `${keys.join(" ")} ${label}`).join("; ");
 
-test("all twenty mode hints describe their own role, not an inactive sibling", () => {
-  for (const Game of [SnakeGame, BreakoutGame, SplatGame, AsteroidsGame, MissileCommandGame, StarfallGame, ImitationGame]) {
+test("every mode hint describes its own role, not an inactive sibling", () => {
+  for (const Game of [SnakeGame, BreakoutGame, SplatGame, AsteroidsGame, MissileCommandGame, StarfallGame, ImitationGame, LampGame]) {
     const game = new Game();
     for (const mode of game.modes.filter(({ available }) => available !== false)) {
       game.model.side = mode.value;
@@ -29,7 +30,10 @@ test("all twenty mode hints describe their own role, not an inactive sibling", (
     [StarfallGame, "stars", /send a star.*send gems/, /runner|Arrow/],
     [ImitationGame, "ai", /Enter send a message/, /guess|Click/],
     [ImitationGame, "provide", /response to the Guess player/, /choose|Click/],
-    [ImitationGame, "write", /classification/, /guess|Click/]
+    [ImitationGame, "write", /classification/, /guess|Click/],
+    // The freeze is the rule most likely to read as a bug, so the hint has to
+    // say it rather than leaving it to be discovered.
+    [LampGame, "walk", /walk blind.*Arrows|ArrowUp.*walk blind/s, /place/]
   ]) {
     const game = new Game(); game.model.side = side;
     assert.match(text(game), expected);
@@ -64,6 +68,27 @@ test("mode hints correspond to real controller effects and inactive keys do noth
   assert.equal(missile.model.enemyMissiles.length, 0);
   missile.update(0, input(null, { released: true }));
   assert.equal(missile.model.enemyMissiles.length, 1);
+
+  const lamp = new LampGame(); lamp.reset();
+  // Past the free opening reveal, so the assertions are about the player's
+  // own pulses rather than the round's one free look.
+  for (let tick = 0; tick < 200 && lamp.model.lit(); tick += 1) lamp.update(1 / 60, input());
+  const still = { x: lamp.model.player.x, y: lamp.model.player.y };
+  lamp.update(1 / 60, input("ArrowRight"));
+  assert.notEqual(lamp.model.player.x, still.x, "ArrowRight walks while the lamp is out");
+  const at = { x: lamp.model.player.x, y: lamp.model.player.y };
+  lamp.update(1 / 60, input(" "));
+  assert.equal(lamp.model.lit(), true, "the advertised Space lights the lamp");
+  lamp.update(1 / 60, input("ArrowRight"));
+  assert.deepEqual(lamp.model.player, at, "and you cannot walk while it is lit");
+  for (let tick = 0; tick < 200 && lamp.model.lit(); tick += 1) lamp.update(1 / 60, input());
+  lamp.update(1 / 60, input(null, { down: true }));
+  assert.equal(lamp.model.lit(), true, "the advertised Hold lights the lamp");
+  lamp.update(1 / 60, input(null, { down: true }));
+  lamp.update(1 / 60, input(null, { down: false }));
+  assert.equal(lamp.model.lampHeld, false, "and letting go starts the fade");
+  lamp.update(1 / 60, input(null, { down: true, clicked: true }));
+  assert.equal(lamp.model.lit(), true, "the advertised Click lights the lamp");
 
   const stars = new StarfallGame(); stars.model.side = "stars"; stars.reset();
   stars.update(0, input(null, { clicked: true, released: true }));

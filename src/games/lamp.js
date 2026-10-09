@@ -1,0 +1,1 @@
+export { LampGame, LampModel } from "./lamp/index.js";

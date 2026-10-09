@@ -1,6 +1,6 @@
 # Canvas text palette and the narrow-size decision (#78)
 
-`src/rendering.js` owns `CANVAS_PALETTE`. All seven game views and the engine's
+`src/rendering.js` owns `CANVAS_PALETTE`. All eight game views and the engine's
 ready/countdown/pause/end overlay use it. Apply the **4.5:1 normal-text threshold
 to every color**, even headings: CSS can shrink the 800px board below the
 large-text threshold. The old `#64748b` text on `#080d18` was approximately
@@ -50,7 +50,7 @@ npm test
 npm run check
 ```
 
-The rendering unit tests execute actual view draw calls for all 20 modes at
+The rendering unit tests execute actual view draw calls for all 21 modes at
 800/375/320 widths, check fill-time styles against backing shapes at 4.5:1,
 exercise all six power-up colors, destroyed batteries, split-screen race and
 builder route-limit text, and assert that drawing creates and inserts **no**
@@ -70,7 +70,7 @@ CDP_URL=http://127.0.0.1:9321 COCKTAIL_URL=http://127.0.0.1:8781/ \
 ```
 
 The rendering browser check fails if the browser/server is absent. It uses an
-owned isolated context and verifies all 20 modes at 800/375/320 viewports in
+owned isolated context and verifies all 21 modes at 800/375/320 viewports in
 both the ready and running postures: no label panel exists before or after 40
 drawn frames, 40 frames leave the board's geometry and the number of elements
 after the screen frame byte-identical, the board still paints its own labels,

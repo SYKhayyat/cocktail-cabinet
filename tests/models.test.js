@@ -7,6 +7,7 @@ import { AsteroidsModel } from "../src/games/asteroids/model.js";
 import { MissileModel } from "../src/games/missile/model.js";
 import { ImitationModel, PEER_LIVENESS_TIMEOUT } from "../src/games/imitation/model.js";
 import { StarfallModel } from "../src/games/starfall/model.js";
+import { LampModel, LAMP_PRESETS, LAMP_SETTINGS, LAMP_TUNING } from "../src/games/lamp/model.js";
 import { SnakeGame } from "../src/games/snake.js";
 import { BreakoutGame } from "../src/games/breakout.js";
 import { SplatGame } from "../src/games/splat.js";
@@ -16,6 +17,8 @@ import { ImitationGame } from "../src/games/imitation.js";
 import { ImitationController, CHANNEL_NAME } from "../src/games/imitation/controller.js";
 import { StarfallGame } from "../src/games/starfall.js";
 import { StarfallController } from "../src/games/starfall/controller.js";
+import { LampGame } from "../src/games/lamp.js";
+import { LampController } from "../src/games/lamp/controller.js";
 
 // Several models roll Math.random during reset or on spawn, which makes any
 // assertion about their contents flaky. Tests that assert on random output
@@ -1115,7 +1118,8 @@ test("every game advertises the controls its controller actually binds", () => {
     asteroids: new AsteroidsGame(),
     missile: new MissileCommandGame(),
     imitation: new ImitationGame(),
-    starfall: new StarfallGame()
+    starfall: new StarfallGame(),
+    lamp: new LampGame()
   };
   const advertised = {};
   for (const [id, game] of Object.entries(games)) {
@@ -1512,7 +1516,7 @@ test("Starfall: movement, gem collection, star spawning, and collision loss", ()
 });
 
 test("all game facades reset, update, and expose public state", () => {
-  const games = [new SnakeGame(), new BreakoutGame(), new SplatGame(), new AsteroidsGame(), new MissileCommandGame(), new ImitationGame(), new StarfallGame()];
+  const games = [new SnakeGame(), new BreakoutGame(), new SplatGame(), new AsteroidsGame(), new MissileCommandGame(), new ImitationGame(), new StarfallGame(), new LampGame()];
   for (const game of games) {
     game.reset();
     game.update(0.016, input());
@@ -1608,10 +1612,11 @@ test("every game registers the side values it accepts", () => {
     asteroids: new AsteroidsGame(),
     missile: new MissileCommandGame(),
     imitation: new ImitationGame(),
-    starfall: new StarfallGame()
+    starfall: new StarfallGame(),
+    lamp: new LampGame()
   };
   for (const [id, game] of Object.entries(games)) {
-    assert.ok(game.sides.length > 1, `${id} registers more than one side`);
+    assert.ok(game.sides.length > 1 || soloOnly.includes(id), `${id} registers more than one side`);
     for (const side of game.sides) assert.equal(typeof side, "string");
   }
   assert.deepEqual(games.missile.sides, ["defender", "attacker"]);
@@ -1633,6 +1638,13 @@ test("setSide rejects unregistered values instead of silently accepting them", (
   assert.equal(splat.side, "race");
 });
 
+// Lamp is the one game with a single mode. It is a game about a human's
+// memory, and the obvious second mode -- a computer navigating the same maze --
+// is decided against a machine with perfect recall of a maze the human is
+// explicitly built to forget. It is deliberately absent rather than stubbed, so
+// these two assertions are where that fact is recorded.
+const soloOnly = ["lamp"];
+
 const allGames = () => ({
   snake: new SnakeGame(),
   breakout: new BreakoutGame(),
@@ -1640,12 +1652,13 @@ const allGames = () => ({
   asteroids: new AsteroidsGame(),
   missile: new MissileCommandGame(),
   imitation: new ImitationGame(),
-  starfall: new StarfallGame()
+  starfall: new StarfallGame(),
+  lamp: new LampGame()
 });
 
 test("every registered mode is selectable, labelled, and reaches its own model", () => {
   for (const [id, game] of Object.entries(allGames())) {
-    assert.ok(Array.isArray(game.modes) && game.modes.length > 1, `${id} registers multiple modes`);
+    assert.ok(Array.isArray(game.modes) && game.modes.length > 1 || soloOnly.includes(id), `${id} registers multiple modes`);
     for (const mode of game.modes) {
       assert.equal(typeof mode.value, "string", `${id} mode has a value`);
       assert.ok(mode.label && mode.label.length > 2, `${id}/${mode.value} has a human label`);
@@ -1703,6 +1716,24 @@ test("settings descriptors are the single source of bounds, labels, and validati
   assert.equal(splat.validateSettings({ columnSpacing: 91 }), null, "values outside the descriptor step are rejected");
   assert.equal(splat.validateSettings({ columnSpacing: 89 }), null);
   assert.equal(splat.validateSettings({ columnSpacing: 241 }), null);
+
+  const lamp = new LampGame();
+  assert.equal(lamp.settings.preset.type, "select");
+  assert.deepEqual(lamp.settings.preset.options.map((option) => option.value), ["custom", "little", "medium", "big"]);
+  assert.equal(lamp.settings.cols.min, 11);
+  assert.equal(lamp.settings.cols.max, 31);
+  assert.equal(lamp.settings.cols.step, 2);
+  // Choosing a difficulty has to hand back a whole maze, not just a name, so
+  // the shell can grey the number fields out and still show what it chose.
+  assert.deepEqual(lamp.validateSettings({ preset: "big" }), { preset: "big", ...LAMP_PRESETS.big });
+  assert.deepEqual(lamp.validateSettings({ preset: "custom", cols: 21, rows: 13, coins: 30, hazards: 0, wisps: 0 }),
+    { preset: "custom", cols: 21, rows: 13, coins: 30, hazards: 0, wisps: 0 });
+  assert.equal(lamp.validateSettings({ preset: "custom", cols: 20, rows: 13, coins: 4, hazards: 2, wisps: 1 }), null, "an even column count cannot be carved");
+  assert.equal(lamp.validateSettings({ preset: "custom", cols: 21, rows: 13, coins: 41, hazards: 2, wisps: 1 }), null, "above the coin maximum");
+  assert.equal(lamp.validateSettings({ preset: "custom", cols: 21, rows: 13, coins: 4.5, hazards: 2, wisps: 1 }), null, "not a whole number");
+  assert.equal(lamp.validateSettings({ preset: "enormous" }), null, "an unknown difficulty is refused");
+  assert.equal(LAMP_SETTINGS.coins.max, 40);
+  assert.equal(LAMP_SETTINGS.wisps.max, 20);
 });
 
 test("settings descriptors match the values the model actually applies", () => {
@@ -1719,11 +1750,25 @@ test("settings descriptors match the values the model actually applies", () => {
   assert.equal(splat.model.columnSpacing, 160);
   assert.equal(splat.setSettings({ columnSpacing: 241 }), false, "invalid settings are refused at the model API");
   assert.equal(splat.model.pendingSettings.columnSpacing, 160, "invalid settings do not mutate the pending value");
+
+  const lamp = new LampGame();
+  lamp.setSettings(lamp.validateSettings({ preset: "custom", cols: 21, rows: 13, coins: 7, hazards: 3, wisps: 2 }));
+  lamp.applyPendingSettings();
+  lamp.reset();
+  assert.deepEqual({ cols: lamp.model.cols, rows: lamp.model.rows }, { cols: 21, rows: 13 });
+  // The requested counts are the counts that exist. A maze has fewer dead ends
+  // than a player asking for twenty coins, so placement tops up from corridors
+  // rather than quietly placing eight.
+  assert.equal(lamp.model.coins.length, 7);
+  assert.equal(lamp.model.hazards.length, 3);
+  assert.equal(lamp.model.wisps.length, 2);
+  assert.equal(lamp.setSettings({ preset: "custom", cols: 12, rows: 13, coins: 1, hazards: 1, wisps: 1 }), false, "an even maze is refused at the model API");
+  assert.equal(lamp.model.pendingSettings.cols, 21, "invalid settings do not mutate the pending value");
 });
 
 test("games without settings expose no descriptor or validator", () => {
   for (const [id, game] of Object.entries(allGames())) {
-    if (id === "snake" || id === "splat") continue;
+    if (id === "snake" || id === "splat" || id === "lamp") continue;
     assert.equal(game.settings, undefined, `${id} has no settings descriptor`);
     assert.equal(game.validateSettings({ anything: 1 }), undefined, `${id} has no settings validator`);
   }
@@ -2848,7 +2893,8 @@ test("every model's reset establishes a clean life-loss state", () => {
     asteroids: new AsteroidsModel(),
     missile: new MissileModel(),
     imitation: new ImitationModel(),
-    starfall: new StarfallModel()
+    starfall: new StarfallModel(),
+    lamp: new LampModel()
   };
   // Every model the engine can drive must expose both flags as definite
   // booleans from construction, not just after the first reset.
@@ -3472,4 +3518,295 @@ test("Splat Builder spends lives from its own budget", () => {
   race.setSide("race");
   race.reset();
   assert.deepEqual(race.playerLives, { human: 3, computer: 3 }, "Race exposes per-pilot lives");
+});
+
+// =============================================================
+// Lamp
+//
+// The two rules that are easy to regress and expensive to discover by
+// playing: the maze must be the finished maze the exit was chosen from, and a
+// pulse must cost light without ever producing a frame of darkness in the
+// middle of it.
+// =============================================================
+
+const lamp = (settings = {}) => {
+  const game = new LampGame();
+  game.setSettings(game.validateSettings({ preset: "medium", ...settings }));
+  game.applyPendingSettings();
+  game.reset();
+  return game;
+};
+// Driven through the facade with the same engine-shaped input the engine
+// builds, so these exercise the controller and the model together.
+const lampStep = (game, dt, { move = null, lampDown = false } = {}) => {
+  const keys = new Set();
+  if (move?.x < 0) keys.add("ArrowLeft");
+  if (move?.x > 0) keys.add("ArrowRight");
+  if (move?.y < 0) keys.add("ArrowUp");
+  if (move?.y > 0) keys.add("ArrowDown");
+  if (lampDown) keys.add(" ");
+  game.update(dt, input({ keys, pressed: keys, pointer: pointer({ down: lampDown }) }));
+};
+// Past the free opening reveal, in the dark, ready to walk.
+const lampDark = (game) => { lampStep(game, LAMP_TUNING.startFlash + 0.01); assert.equal(game.model.lit(), false); return game; };
+
+test("Lamp: every generated maze is fully connected, and the exit is the far end of it", () => {
+  withSeededRandom(9, () => {
+    for (const preset of ["little", "medium", "big"]) {
+      for (let round = 0; round < 40; round += 1) {
+        const game = lamp({ preset });
+        const model = game.model;
+        const distances = model.distancesFrom(model.maze, { x: 1, y: 1 });
+        let floor = 0;
+        let reached = 0;
+        for (let y = 1; y < model.rows - 1; y += 1) {
+          for (let x = 1; x < model.cols - 1; x += 1) {
+            if (model.maze[y][x] !== 0) continue;
+            floor += 1;
+            if (distances[y][x] >= 0) reached += 1;
+          }
+        }
+        assert.equal(reached, floor, `${preset}/${round}: every floor tile is reachable from the start`);
+        // The exit has to be far, or there is no maze to learn.
+        assert.ok(distances[model.exitTile.y][model.exitTile.x] >= 8, `${preset}/${round}: exit path is ${distances[model.exitTile.y][model.exitTile.x]}`);
+      }
+    }
+  });
+});
+
+test("Lamp: the exit is chosen from the braided maze, and nothing is placed around it", () => {
+  withSeededRandom(31, () => {
+    for (let round = 0; round < 40; round += 1) {
+      const model = lamp().model;
+      const distances = model.distancesFrom(model.maze, { x: 1, y: 1 });
+      let farthest = 0;
+      for (let y = 0; y < model.rows; y += 1) {
+        for (let x = 0; x < model.cols; x += 1) if (distances[y][x] > farthest) farthest = distances[y][x];
+      }
+      // If the exit were picked before braiding, braiding could shorten the
+      // path to it and this equality would fail.
+      assert.equal(distances[model.exitTile.y][model.exitTile.x], farthest, "the exit is a farthest tile of the maze that exists");
+      const nearExit = (item) => Math.abs(item.x - 0.5 - model.exitTile.x) + Math.abs(item.y - 0.5 - model.exitTile.y);
+      for (const item of [...model.coins, ...model.wisps, ...model.hazards]) {
+        assert.ok(nearExit(item) > LAMP_TUNING.exitClearRadius, "nothing is placed inside the exit's clear bubble");
+      }
+    }
+  });
+});
+
+test("Lamp: every requested coin, hazard and wisp is placed, once, on floor and clear of the start", () => {
+  withSeededRandom(77, () => {
+    for (const preset of ["little", "medium", "big"]) {
+      for (let round = 0; round < 30; round += 1) {
+        const model = lamp({ preset }).model;
+        const wanted = LAMP_PRESETS[preset];
+        assert.equal(model.coins.length, wanted.coins, `${preset} placed every requested coin`);
+        assert.equal(model.hazards.length, wanted.hazards, `${preset} placed every requested hazard`);
+        assert.equal(model.wisps.length, wanted.wisps, `${preset} placed every requested wisp`);
+        const seen = new Set();
+        for (const item of [...model.coins, ...model.wisps, ...model.hazards]) {
+          const tile = `${item.x},${item.y}`;
+          assert.equal(seen.has(tile), false, `${tile} is claimed by two things at once`);
+          seen.add(tile);
+          assert.equal(model.maze[item.y - 0.5][item.x - 0.5], 0, `${tile} is inside a wall`);
+          assert.equal(item.x === 1.5 && item.y === 1.5, false, "nothing is placed on the start tile");
+        }
+      }
+    }
+  });
+});
+
+test("Lamp: the opening reveal is free, pins the walker, and never drains", () => {
+  withSeededRandom(3, () => {
+    const game = lamp();
+    const model = game.model;
+    assert.equal(model.brightness(), 1, "the round opens lit");
+    const start = { ...model.player };
+    lampStep(game, 0.1, { move: { x: 1, y: 0 } });
+    assert.deepEqual(model.player, start, "you cannot walk while the opening reveal is up");
+    lampStep(game, LAMP_TUNING.startFlash, {});
+    assert.equal(model.light, LAMP_TUNING.lightMax, "the opening reveal costs no light");
+    assert.equal(model.lit(), false, "and it ends in the dark");
+  });
+});
+
+test("Lamp: a tap is one full pulse plus a fade, and never blinks to dark inside one", () => {
+  withSeededRandom(5, () => {
+    const game = lamp();
+    lampStep(game, LAMP_TUNING.startFlash + 0.01, {});
+    lampStep(game, 0.01, { lampDown: true });
+    lampStep(game, 0.01, { lampDown: false });
+    let elapsed = 0;
+    let fullFor = 0;
+    let previous = game.model.brightness();
+    while (elapsed < 5 && game.model.lit()) {
+      lampStep(game, 1 / 60, {});
+      elapsed += 1 / 60;
+      if (previous === 1 && game.model.lit() === false) assert.fail("a pulse went dark before it finished fading");
+      if (game.model.brightness() === 1) fullFor = elapsed;
+      assert.ok(game.model.brightness() <= previous, "a fading pulse never gets brighter again");
+      previous = game.model.brightness();
+    }
+    assert.ok(Math.abs(fullFor - LAMP_TUNING.tapDuration) < 0.05, `full brightness lasted ${fullFor}`);
+    assert.ok(Math.abs((elapsed - fullFor) - LAMP_TUNING.fadeTime) < 0.05, `fade tail lasted ${elapsed - fullFor}`);
+  });
+});
+
+test("Lamp: holding keeps the lamp lit and burns the whole meter", () => {
+  withSeededRandom(11, () => {
+    const game = lamp();
+    lampDark(game);
+    lampStep(game, 1 / 60, { lampDown: true });
+    let held = 0;
+    while (game.model.lit() && held < 60) {
+      lampStep(game, 1 / 60, { lampDown: true });
+      held += 1 / 60;
+    }
+    assert.ok(Math.abs(held - LAMP_TUNING.lightMax / LAMP_TUNING.lightDrain) < 0.05, `held for ${held}`);
+    // Running the lamp out is the one ending that is not a life: there is
+    // nothing left to see with, so the run is over rather than retried.
+    assert.equal(game.model.lossReason, "dark");
+    assert.deepEqual(game.model.handleLifeLoss(), {
+      gameOver: true,
+      message: "The lamp went out in the dark — press New game to light a new maze."
+    });
+  });
+});
+
+test("Lamp: the lamp cannot be relit once the meter is empty", () => {
+  withSeededRandom(13, () => {
+    const game = lamp();
+    lampDark(game);
+    game.model.light = 0;
+    lampStep(game, 1 / 60, { lampDown: true });
+    assert.equal(game.model.lit(), false, "an empty lamp stays dark however long it is held");
+  });
+});
+
+test("Lamp: light is only spent while lit, so standing still in the dark is free", () => {
+  withSeededRandom(17, () => {
+    const game = lamp();
+    lampDark(game);
+    lampStep(game, 2, {});
+    assert.equal(game.model.light, LAMP_TUNING.lightMax, "twenty seconds of darkness costs nothing");
+  });
+});
+
+test("Lamp: a wisp refills exactly one wisp of light and is capped at the maximum", () => {
+  withSeededRandom(19, () => {
+    const partial = lampDark(lamp());
+    partial.model.light = 40;
+    partial.model.player = { ...partial.model.wisps[0] };
+    lampStep(partial, 1 / 60, {});
+    assert.equal(partial.model.light, 40 + LAMP_TUNING.wispLight);
+    assert.equal(partial.model.wispsCollected, 1);
+    assert.equal(partial.model.wisps[0].taken, true);
+
+    const nearlyFull = lampDark(lamp());
+    nearlyFull.model.light = LAMP_TUNING.lightMax - 5;
+    nearlyFull.model.player = { ...nearlyFull.model.wisps[0] };
+    lampStep(nearlyFull, 1 / 60, {});
+    assert.equal(nearlyFull.model.light, LAMP_TUNING.lightMax, "a wisp never overflows the meter");
+  });
+});
+
+test("Lamp: a hazard spends a life and costs nothing else, and the retry is the same place", () => {
+  withSeededRandom(23, () => {
+    const game = lampDark(lamp());
+    const model = game.model;
+    model.invulnerable = 0;
+    model.player = { x: model.hazards[0].x, y: model.hazards[0].y };
+    const light = model.light;
+    const coins = model.score;
+    const exit = { ...model.exit };
+    lampStep(game, 1 / 60, {});
+    assert.equal(model.lifeLost, true);
+    assert.equal(model.lossReason, "hazard");
+    assert.equal(model.handleLifeLoss().gameOver, false, "a hazard is a life, not the end of the run");
+    // A death that made you re-walk would be the same puzzle again with the
+    // same light cost, so a life only ever costs the counter.
+    assert.equal(model.light, light, "the lamp keeps its light");
+    assert.equal(model.score, coins, "the coins are kept");
+    game.restartAfterLife();
+    assert.deepEqual(model.player, { x: model.hazards[0].x, y: model.hazards[0].y }, "you keep your place");
+    assert.deepEqual(model.exit, exit, "and your maze");
+  });
+});
+
+test("Lamp: the grace after a loss stops one hazard from costing every life", () => {
+  withSeededRandom(29, () => {
+    const game = lampDark(lamp());
+    const model = game.model;
+    model.invulnerable = 0;
+    model.player = { x: model.hazards[0].x, y: model.hazards[0].y };
+    lampStep(game, 1 / 60, {});
+    assert.equal(model.lifeLost, true);
+    game.restartAfterLife();
+    assert.equal(model.invulnerable, LAMP_TUNING.hazardGrace);
+    lampStep(game, 1 / 60, {});
+    assert.equal(model.lifeLost, false, "standing on the hazard is survivable during the grace");
+    lampStep(game, LAMP_TUNING.hazardGrace, {});
+    assert.equal(model.lifeLost, true, "and the hazard is lethal again once it expires");
+  });
+});
+
+test("Lamp: a coin is a point, the exit is a win, and brushing past the exit is not", () => {
+  withSeededRandom(37, () => {
+    const game = lampDark(lamp());
+    const model = game.model;
+    model.player = { x: model.coins[0].x, y: model.coins[0].y };
+    lampStep(game, 1 / 60, {});
+    assert.equal(model.score, 1);
+    assert.equal(model.coins[0].taken, true);
+    // The trigger matches what is drawn: within sight of the exit is not on it.
+    model.player = { x: model.exit.x + LAMP_TUNING.exitTriggerRadius + 0.2, y: model.exit.y };
+    lampStep(game, 1 / 60, {});
+    assert.equal(model.won, false, "standing near the exit is not reaching it");
+    model.player = { ...model.exit };
+    lampStep(game, 1 / 60, {});
+    assert.equal(model.won, true);
+    assert.match(game.winMessage(), /carrying 1 coin/);
+  });
+});
+
+test("Lamp: the walker is stopped by walls rather than passing through them", () => {
+  withSeededRandom(41, () => {
+    const game = lampDark(lamp());
+    const model = game.model;
+    // Aim at every direction and a full second of walking each. A walker that
+    // tunneled through a wall would end up outside the maze bounds.
+    for (const move of [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }, { x: 1, y: 1 }]) {
+      for (let tick = 0; tick < 60; tick += 1) lampStep(game, 1 / 60, { move });
+      assert.ok(model.player.x >= 0 && model.player.x <= model.cols, `x stayed in the maze heading ${JSON.stringify(move)}`);
+      assert.ok(model.player.y >= 0 && model.player.y <= model.rows, `y stayed in the maze heading ${JSON.stringify(move)}`);
+      assert.equal(model.isSolid(Math.floor(model.player.x), Math.floor(model.player.y)), false, "the walker never ends a tick inside a wall");
+    }
+  });
+});
+
+test("Lamp: the public state is a string for the shell and does not drift while it is read", () => {
+  withSeededRandom(43, () => {
+    const game = lamp();
+    const state = game.publicState();
+    for (const field of ["title", "description", "side", "status"]) assert.equal(typeof state[field], "string");
+    assert.equal(state.side, game.sideLabel());
+    // The nonvisual panel compares a snapshot taken now with one taken after a
+    // pause, so a value that moves on its own would read as a churn bug.
+    assert.deepEqual(game.publicState(), state);
+    lampDark(game);
+    assert.deepEqual(game.publicState(), game.publicState());
+  });
+});
+
+test("Lamp: the light meter never escapes its bounds, whatever the input does", () => {
+  withSeededRandom(47, () => {
+    const game = lamp();
+    const model = game.model;
+    for (let tick = 0; tick < 2000; tick += 1) {
+      lampStep(game, 1 / 60, { move: { x: tick % 3 === 0 ? 1 : 0, y: tick % 5 === 0 ? -1 : 0 }, lampDown: tick % 7 < 3 });
+      assert.ok(model.light >= 0 && model.light <= LAMP_TUNING.lightMax, `light ${model.light} left its range`);
+      assert.ok(Number.isFinite(model.player.x) && Number.isFinite(model.player.y), "the walker stayed finite");
+      if (model.won || model.lifeLost) { game.reset(); }
+    }
+  });
 });

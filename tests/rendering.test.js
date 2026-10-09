@@ -9,6 +9,7 @@ import { AsteroidsModel } from "../src/games/asteroids/model.js";
 import { MissileModel } from "../src/games/missile/model.js";
 import { ImitationModel } from "../src/games/imitation/model.js";
 import { StarfallModel } from "../src/games/starfall/model.js";
+import { LampModel } from "../src/games/lamp/model.js";
 
 function luminance(hex) {
   const rgb = hex.match(/[\da-f]{2}/gi).slice(0, 3).map((part) => parseInt(part, 16) / 255);
@@ -60,7 +61,7 @@ function recordingContext(width = 800) {
   return { context, text, screen, touched, resize: (next) => { width = next; } };
 }
 
-const models = { snake: SnakeModel, breakout: BreakoutModel, splat: SplatModel, asteroids: AsteroidsModel, missile: MissileModel, imitation: ImitationModel, starfall: StarfallModel };
+const models = { snake: SnakeModel, breakout: BreakoutModel, splat: SplatModel, asteroids: AsteroidsModel, missile: MissileModel, imitation: ImitationModel, starfall: StarfallModel, lamp: LampModel };
 const views = Object.fromEntries(await Promise.all(Object.keys(models).map(async (id) => [id, (await import(`../src/games/${id}/view.js`)).draw])));
 
 function assertDrawnContrast(records, name) {

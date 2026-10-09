@@ -9,6 +9,7 @@ import { SplatGame, SplatModel } from "../src/games/splat/index.js";
 import { StarfallGame } from "../src/games/starfall/index.js";
 import { MissileCommandGame } from "../src/games/missile/index.js";
 import { ImitationGame } from "../src/games/imitation/index.js";
+import { LampGame } from "../src/games/lamp/index.js";
 
 test("models accept configured lives as values for all supported budgets", () => {
   for (let startingLives = 1; startingLives <= 9; startingLives += 1) {
@@ -152,7 +153,7 @@ test("earned Breakout duel lives raise the shared cap without restoring the othe
 
 test("facades declare boot, life restart, ownership, and result capabilities", () => {
   withHost(({ engine }) => {
-    for (const Game of [SnakeGame, BreakoutGame, AsteroidsGame, SplatGame, StarfallGame, MissileCommandGame, ImitationGame]) {
+    for (const Game of [SnakeGame, BreakoutGame, AsteroidsGame, SplatGame, StarfallGame, MissileCommandGame, ImitationGame, LampGame]) {
       const game = new Game();
       engine.load(game);
       assert.equal("engine" in game, false);
@@ -378,7 +379,7 @@ test("Splat puzzle retries preserve layout and end through a single-owner result
 
 test("single-owner host losses exhaust their configured budget without an endless restart", () => {
   withHost(({ engine }) => {
-    for (const Game of [SnakeGame, BreakoutGame, StarfallGame, AsteroidsGame, SplatGame]) {
+    for (const Game of [SnakeGame, BreakoutGame, StarfallGame, AsteroidsGame, SplatGame, LampGame]) {
       const game = new Game();
       engine.setLives(1);
       engine.load(game);

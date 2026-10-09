@@ -65,6 +65,24 @@ export function semanticState(game, engine) {
     snapshot.hazards = m.stars.map((star) => entry(`star-${star.id}`, `Star ${star.id}`, star, `${motion(star)}; radius ${star.radius}`));
     snapshot.targets = m.gems.filter((gem) => !gem.collected).map((gem) => entry(`gem-${gem.id}`, `Gem ${gem.id}`, gem, motion(gem)));
     snapshot.actions = m.side === "stars" ? [action("star", "Send star at x coordinate"), action("gem", "Send gem at x coordinate"), wait] : [action("left", "Move runner left"), action("right", "Move runner right"), wait];
+  } else if (game.id === "lamp") {
+    const tile = (entity) => ({ x: entity.x + 1, y: entity.y + 1 });
+    snapshot.coordinates = `Coordinates are maze tiles: column x 1–${m.cols}; row y 1–${m.rows}, counted from the top left. The maze is black until the lamp is lit, and you cannot walk while it is lit, so a walk action does nothing until the lamp has faded.`;
+    snapshot.objective = "Reach the green exit to win. Pulse the lamp to stand still and reveal the maze: you cannot walk while it is lit, so a pulse is spent looking rather than moving, and you can only walk once it has faded. A gold coin is a point and a cyan wisp refills light. A red hazard spends one life and leaves your light, your coins and your place unchanged; running the light out ends the run.";
+    snapshot.players = [entry("walker", "Your walker", tile(m.player), `light ${Math.round(m.light)} of ${m.lightMax}; coins collected ${m.score}; wisps collected ${m.wispsCollected}; collision grace ${m.invulnerable.toFixed(2)} seconds`)];
+    snapshot.targets = [
+      entry("exit", "Exit", tile(m.exit), "reaching it ends the run as a win"),
+      ...m.coins.filter((coin) => !coin.taken).map((coin, index) => entry(`coin-${index}`, `Coin ${index + 1}`, tile(coin), "uncollected")),
+      ...m.wisps.filter((wisp) => !wisp.taken).map((wisp, index) => entry(`wisp-${index}`, `Light wisp ${index + 1}`, tile(wisp), `uncollected; restores ${m.wispLight} light`))
+    ];
+    snapshot.hazards = m.hazards.map((hazard, index) => entry(`hazard-${index}`, `Hazard ${index + 1}`, tile(hazard), "lethal on touch, and it cannot be seen while the lamp is out"));
+    snapshot.actions = [
+      action("up", "Walk up"), action("down", "Walk down"),
+      action("left", "Walk left"), action("right", "Walk right"),
+      action("pulse", "Pulse the lamp and stand still"),
+      wait
+    ];
+    snapshot.outcome += ` Light ${Math.round(m.light)} of ${m.lightMax}. ${m.lit() ? "The lamp is lit, so you are standing still and the maze is visible." : "The lamp is out, so you are walking blind."}`;
   } else if (game.id === "imitation") {
     const state = game.publicState();
     snapshot.objective = ({ ai: "Chat with the local AI using the Message field and Send button. Load the model first.", human: "Connect a separate browser, then exchange messages using Message and Send.", guess: "Send a prompt, then decide whether the mystery reply is AI or Human using the guess buttons. Restart round begins another mystery.", provide: "Connect to a guesser in another browser and provide human replies using Message and Send.", write: "Load the AI model, then submit text with Message and Send for AI, Human, or Unclear classification. Read the result in Chat messages." })[m.side] || game.description;
@@ -115,7 +133,8 @@ export function performSemanticAction(engine, command) {
   const countsBefore = {
     rocks: m.asteroids?.length, stars: m.stars?.length, gems: m.gems?.length,
     ammo: m.bases?.[m.selectedBattery]?.missiles, batteryAlive: m.bases?.[m.selectedBattery]?.alive,
-    shotClock: m.shotClock, gemCooldown: m.gemSpawnCooldown
+    shotClock: m.shotClock, gemCooldown: m.gemSpawnCooldown,
+    lampLit: m.lit?.()
   };
   const stepped = engine.assistanceStep(seconds, (dt, first) => {
     let input = {};
@@ -125,9 +144,16 @@ export function performSemanticAction(engine, command) {
     if (game.id === "asteroids") input = { turn: id === "left" ? -1 : id === "right" ? 1 : 0, thrust: ["thrust", "aim-thrust"].includes(id) ? 1 : 0, fire: first && ["fire", "aim-fire"].includes(id), pointer: id.startsWith("aim-") ? { x, y, down: id === "aim-thrust" } : null, spawnAsteroid: first && id === "rock" ? { x, y } : null };
     if (game.id === "missile") input = { aim: id === "intercept" ? { x, y } : null, launch: first && id === "intercept", attack: first && id === "attack" ? { x, y, clicked: true } : null };
     if (game.id === "starfall") input = { mode: "keyboard", keyDirection: id === "left" ? -1 : id === "right" ? 1 : 0, spawnStar: first && id === "star" ? { x: Math.max(20, Math.min(780, x)) } : null, spawnGem: first && id === "gem" ? { x } : null };
+    // One rising/falling edge on a single flag is all the lamp needs, so the
+    // pulse and the walks drive the model exactly as a key does.
+    if (game.id === "lamp") input = { move: directions[id] ?? null, lampDown: id === "pulse" };
     m.update(dt, input);
   });
   if (!stepped) return "No step performed. Choose a duration between 0 and 1 second.";
+  // Silence would read as a broken control, so say the rule that stopped it.
+  if (game.id === "lamp" && countsBefore.lampLit && directions[id]) {
+    return "That walk did not move: the lamp was lit, and you cannot walk while it is lit. Time advanced and the pulse burned light; wait for it to fade, or read the updated light and hazard list first.";
+  }
   if (id === "rock" && countsBefore.rocks >= 8) return "Asteroid limit reached; time advanced without sending another.";
   if (id === "star" && countsBefore.stars >= 12) return "Star limit reached; time advanced without sending another.";
   if (id === "gem" && countsBefore.gems >= 12) return "Gem limit reached; time advanced without sending another.";

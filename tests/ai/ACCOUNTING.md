@@ -1,6 +1,9 @@
 # Seeded outcome accounting (#53, #58)
 
 The four event-based fixtures drain each model's bounded `eventLog` every update.
+Lamp is not here: it has no opponent and therefore no `eventLog`. Its outcome
+events (coin scored, wisp refilled, hazard spent a life, light ran out, exit
+reached) are asserted directly against the model in `tests/models.test.js`.
 Entities have deterministic IDs, and Missile/Starfall entities keep their first
 terminal outcome. An array shrinking or a score changing is not evidence of an
 interception, impact, dodge, collection, or clearance.

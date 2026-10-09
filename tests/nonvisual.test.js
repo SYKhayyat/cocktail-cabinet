@@ -8,6 +8,8 @@ import { SplatGame } from "../src/games/splat.js";
 import { AsteroidsGame } from "../src/games/asteroids.js";
 import { MissileCommandGame } from "../src/games/missile.js";
 import { StarfallGame } from "../src/games/starfall.js";
+import { LampGame } from "../src/games/lamp.js";
+import { LAMP_TUNING } from "../src/games/lamp/model.js";
 
 // Use the real lifecycle and stepping APIs without starting a renderer.
 function host(Game, side) {
@@ -25,7 +27,7 @@ function perform(engine, action, target = "", extra = {}) {
   return performSemanticAction(engine, { action, target, x: 400, y: 250, seconds: 0.1, ...extra });
 }
 
-for (const Game of [SnakeGame, BreakoutGame, SplatGame, AsteroidsGame, MissileCommandGame, StarfallGame]) {
+for (const Game of [SnakeGame, BreakoutGame, SplatGame, AsteroidsGame, MissileCommandGame, StarfallGame, LampGame]) {
   const catalogue = new Game();
   for (const mode of catalogue.modes.filter((item) => item.available !== false)) {
     test(`${catalogue.id}/${mode.value}: actual entities, objective, outcome, actionable step`, () => {
@@ -128,6 +130,39 @@ test("Starfall keyboard actions send both hazards and gem lures", () => {
   perform(engine, "gem", "", { x: 700 });
   assert.ok(engine.game.model.gems.length);
   assert.match(semanticState(engine.game, engine).targets[0].text, /Gem/);
+});
+
+test("Lamp names the exit, hazards and pickups, and explains a walk the lamp refused", () => {
+  const engine = host(LampGame);
+  const m = engine.game.model;
+  const state = semanticState(engine.game, engine);
+  assert.match(state.objective, /cannot walk while it is lit/, "the freeze is stated where a player reads the rules");
+  assert.ok(state.targets.some((item) => item.id === "exit"));
+  assert.ok(state.targets.some((item) => item.id.startsWith("coin-")));
+  assert.ok(state.targets.some((item) => item.id.startsWith("wisp-")));
+  assert.equal(state.hazards.length, m.hazards.length);
+  assert.match(state.hazards[0].text, /Hazard/);
+  assert.ok(state.actions.some((item) => item.id === "pulse"));
+
+  // The round opens lit, so a walk here must be refused rather than silently
+  // doing nothing and reading as a broken control.
+  assert.equal(m.lit(), true);
+  assert.match(perform(engine, "right"), /did not move.*cannot walk while it is lit/s);
+  assert.equal(m.light, LAMP_TUNING.lightMax, "and the round's one free reveal cost nothing");
+
+  // Once the lamp has faded, the same action walks.
+  for (let tick = 0; tick < 400 && m.lit(); tick += 1) m.update(1 / 60, { move: null, lampDown: false });
+  assert.equal(m.lit(), false);
+  const before = m.player.x;
+  assert.match(perform(engine, "right"), /performed/);
+  assert.notEqual(m.player.x, before, "and the walk moves once the lamp is out");
+
+  // A refusal outside the free reveal still costs the light the pulse spent.
+  perform(engine, "pulse");
+  assert.equal(m.lit(), true, "the pulse action lights the lamp");
+  const lit = m.light;
+  assert.match(perform(engine, "left"), /did not move.*cannot walk while it is lit/s);
+  assert.ok(m.light < lit, "a paid pulse burns light even when the walk it accompanied was refused");
 });
 
 test("Paused, stopped, disabled, invalid time and stale targets never act", () => {

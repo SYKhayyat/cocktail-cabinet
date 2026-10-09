@@ -122,7 +122,7 @@ async function openPage(url, contextId = browserContextId) {
   await page.command("Network.setCacheDisabled", { cacheDisabled: true });
   await page.command('Page.addScriptToEvaluateOnNewDocument', { source: `globalThis.__policyViolations = []; addEventListener('securitypolicyviolation', event => { let resource = event.blockedURI; try { const url = new URL(resource); resource = url.origin + url.pathname; } catch {} __policyViolations.push({ directive: event.effectiveDirective, resource, disposition: event.disposition }); });` });
   await page.command("Page.navigate", { url: `${url}${url.includes("?") ? "&" : "?"}smoke=${Date.now()}${Math.random()}` });
-  await waitFor(page, "document.readyState === 'complete' && document.querySelectorAll('.game-card').length === 7 && !!globalThis.__cocktailCabinet", "cabinet boot");
+  await waitFor(page, "document.readyState === 'complete' && document.querySelectorAll('.game-card').length === 8 && !!globalThis.__cocktailCabinet", "cabinet boot");
   return { target, page };
 }
 
@@ -286,7 +286,8 @@ const GAME_CARDS = [
   { id: "asteroids", modes: ["ship", "versus", "rocks"] },
   { id: "missile", modes: ["defender", "attacker"] },
   { id: "imitation", modes: ["ai", "human", "guess", "provide", "write"] },
-  { id: "starfall", modes: ["runner", "stars"] }
+  { id: "starfall", modes: ["runner", "stars"] },
+  { id: "lamp", modes: ["walk"] }
 ];
 
 async function testBootAndDescriptors(page) {
@@ -296,7 +297,7 @@ async function testBootAndDescriptors(page) {
     status: document.querySelector('#roundStatus').textContent,
     statsHidden: document.querySelector('#gameStats').hidden
   }))()`);
-  assertEqual(report.cards.length, 7, "seven game cards render");
+  assertEqual(report.cards.length, 8, "eight game cards render");
   assertEqual(report.lives, "3/3", "lives start at 3/3");
   assertEqual(report.status, "Press New game to start", "the cabinet opens in the ready state");
   assertEqual(report.statsHidden, false, "score and lives are visible on the arcade games");
@@ -928,9 +929,9 @@ async function testEveryModeSurvivesPlay(page, step) {
     });
     return out;
   })()`);
-  assertEqual(catalogue.length, 20, "twenty modes are reachable through the UI");
+  assertEqual(catalogue.length, 21, "twenty-one modes are reachable through the UI");
 
-  // Select, play, and inspect one mode at a time: selecting all twenty up
+  // Select, play, and inspect one mode at a time: selecting all twenty-one up
   // front would leave only the last one loaded when the frames are driven.
   for (const entry of catalogue) {
     await selectMode(page, entry.index, entry.mode);
@@ -1719,7 +1720,7 @@ async function main() {
 
     const suites = [
       ["boot, descriptors, and mode catalogue", () => testBootAndDescriptors(first.page)],
-      ["mode-aware control hints for all twenty modes", () => testModeAwareHints(first.page)],
+      ["mode-aware control hints for all twenty-one modes", () => testModeAwareHints(first.page)],
       ["mode switch reopens the cabinet instead of auto-starting", () => testModeSwitchReopensTheCabinet(first.page, step)],
       ["focused live announcements under high-rate DOM updates", () => testFocusedAnnouncements(first.page, step)],
       ["native keyboard button activation without game side effects", () => testNativeKeyboardButtons(first.page)],
@@ -1728,7 +1729,7 @@ async function main() {
       ["pause and continue around the countdown", () => testPauseDuringCountdown(first.page, step)],
       ["keyboard and pointer controls", () => testKeyboardAndPointerControls(first.page, step)],
       ["retained retry pressure and late-score human recovery", () => testRetryPressureAndRecovery(first.page, step)],
-      ["all twenty modes load and run", () => testEveryModeSurvivesPlay(first.page, step)],
+      ["all twenty-one modes load and run", () => testEveryModeSurvivesPlay(first.page, step)],
       ["life loss, game over, and restart", () => testGameOverAndRestart(first.page, step)],
       ["Splat builder tools", () => testSplatBuilderTools(first.page, step)],
       ["native keyboard authoring and emulated touch pan/cancel", () => testSplatNativeEditor(first.page, step)],
