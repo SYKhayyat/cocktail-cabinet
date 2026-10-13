@@ -508,7 +508,7 @@ test("the overlay names what ended the game rather than a score and a life count
   const game = new TwistGame();
   game.reset();
   assert.equal(game.resultHeading(), "ROUND OVER");
-  assert.match(game.overlayStatus(), /No line yet/);
+  assert.equal(game.overlayStatus(), "", "a round that has not started has no status to report");
   assert.equal(game.lifecycle.lifeState().owner, "none", "a board of marks has no lives to spend");
 
   const duel = new TwistGame();
@@ -725,7 +725,7 @@ test("every shape is drawn inside the cell it belongs to", () => {
   game.model.cells.fill(2);
   game.model.cells[4] = 0;
   game.model.cursor = 4;
-  game.model.lastMove = 8;
+  game.model.usingKeyboard = true;
   game.draw(context);
 
   const { originX, originY, tile } = game.model.layout();
@@ -818,10 +818,11 @@ test("X is drawn as two crossing strokes and O as a ring", () => {
 test("the keyboard cursor stays out of the way of a pointer", () => {
   // Drawn always, it put brackets around the middle cell of a fresh board, which
   // read as a cell in some other state rather than as a cursor.
-  const cursorBars = (hover, over) => {
+  const cursorBars = (hover, over, keyboard) => {
     const game = new TwistGame();
     game.reset();
     game.model.hover = hover;
+    game.model.usingKeyboard = keyboard;
     if (over) { game.model.cells[0] = 1; game.model.cells[1] = 1; game.model.act("place", 2); }
     const { originX, originY, tile } = game.model.layout();
     let count = 0;
@@ -843,9 +844,10 @@ test("the keyboard cursor stays out of the way of a pointer", () => {
     return count;
   };
 
-  assert.equal(cursorBars(-1, false), 8, "four corners of two arms each, for a keyboard player");
-  assert.equal(cursorBars(0, false), 0, "and nothing at all once a pointer is over the board");
-  assert.equal(cursorBars(-1, true), 0, "nor once the round is over, where it would sit under the result box");
+  assert.equal(cursorBars(-1, false, false), 0, "not at all until the player has actually used the keys");
+  assert.equal(cursorBars(-1, false, true), 8, "four corners of two arms each, once they have");
+  assert.equal(cursorBars(0, false, true), 0, "and nothing once a pointer is over the board again");
+  assert.equal(cursorBars(-1, true, true), 0, "nor once the round is over, where it would sit under the result box");
 });
 
 test("the board draws in every state it can reach", () => {
@@ -898,4 +900,85 @@ test("the board draws in every state it can reach", () => {
   for (const [cell, mark] of [[2, 1], [4, 2], [6, 1], [3, 2], [1, 1], [5, 2], [7, 1], [8, 2], [0, 1]]) full.model.place(cell, mark);
   full.draw(context);
   assert.equal(full.model.drew, true, "and a full board with no line is drawn as a draw");
+});
+
+test("holding an arrow steps the cursor, it does not fling it across the board", () => {
+  // The cabinet reports which keys are held and steps every frame, so stepping
+  // per frame sent the cursor from one edge to the other in a sixth of a second:
+  // one tap landed wherever you happened to release it.
+  const game = new TwistGame();
+  game.setSettings({ cols: 7, rows: 7, line: 3, preview: false });
+  game.reset();
+  const start = game.model.cursor;
+  const hold = (key, frames) => {
+    game.update(1 / 60, engineInput({ keys: [key], pressed: frames === 1 ? [key] : [] }));
+  };
+
+  hold("ArrowLeft", 1);
+  assert.equal(game.model.cursor, start - 1, "one press moves exactly one cell");
+  hold("ArrowRight", 1);
+  assert.equal(game.model.cursor, start, "and back again");
+
+  // Held without a fresh press: it waits before it starts repeating, so a key
+  // held a moment longer than a tap still means one cell.
+  const before = game.model.cursor;
+  for (let frame = 0; frame < 20; frame += 1) hold("ArrowLeft", 0);
+  assert.equal(game.model.cursor, before, "held for a third of a second, under the repeat delay");
+
+  // Then it repeats -- at a rate a person can aim, not once per frame. Half a
+  // second is four or five cells, where per-frame stepping would be thirty.
+  const held = game.model.cursor;
+  for (let frame = 0; frame < 30; frame += 1) hold("ArrowLeft", 0);
+  const moved = held - game.model.cursor;
+  assert.ok(moved >= 1, `a held key repeated at all, moving ${moved} cells`);
+  assert.ok(moved <= 8, `a held key for half a second moved ${moved} cells, which is per-frame stepping`);
+
+  // Releasing resets, so the next press steps once rather than continuing to
+  // repeat from wherever the last one left off. Rightwards, because the run
+  // above has already walked the cursor to the left edge.
+  game.update(1 / 60, engineInput());
+  const reset = game.model.cursor;
+  hold("ArrowRight", 1);
+  assert.equal(game.model.cursor, reset + 1);
+});
+
+test("the cursor can be moved diagonally, which a one-key-at-a-time reading cannot", () => {
+  const game = new TwistGame();
+  game.setSettings({ cols: 5, rows: 5, line: 3, preview: false });
+  game.reset();
+  const start = game.model.cursor;
+  game.update(1 / 60, engineInput({ keys: ["ArrowRight", "ArrowDown"], pressed: ["ArrowRight", "ArrowDown"] }));
+  assert.equal(game.model.columnOf(game.model.cursor), game.model.columnOf(start) + 1);
+  assert.equal(game.model.rowOf(game.model.cursor), game.model.rowOf(start) + 1);
+});
+
+test("the cursor stops at the edge of the board rather than wrapping or sticking", () => {
+  const game = new TwistGame();
+  game.reset();
+  game.model.cursor = 0;
+  game.update(1 / 60, engineInput({ keys: ["ArrowLeft"], pressed: ["ArrowLeft"] }));
+  assert.equal(game.model.cursor, 0, "already at the left edge");
+  game.update(1 / 60, engineInput({ keys: ["ArrowUp"], pressed: ["ArrowUp"] }));
+  assert.equal(game.model.cursor, 0, "already at the top edge");
+});
+
+test("the keyboard cursor only exists once the keyboard is in use", () => {
+  const game = new TwistGame();
+  game.reset();
+  assert.equal(game.model.cursorVisible, false, "not on a board nobody has touched");
+
+  game.update(1 / 60, engineInput({ keys: ["ArrowLeft"], pressed: ["ArrowLeft"] }));
+  assert.equal(game.model.usingKeyboard, true);
+  assert.equal(game.model.cursorVisible, true, "and then it is, for a keyboard player");
+
+  // The pointer crossing the board takes it back, and moving away again does not
+  // bring the crown back -- which is what made it flicker at the canvas edge.
+  game.update(1 / 60, engineInput({ pointer: { ...overCell(game, 4), moved: true } }));
+  assert.equal(game.model.usingKeyboard, false);
+  assert.equal(game.model.cursorVisible, false);
+  game.update(1 / 60, engineInput({ pointer: { x: -50, y: -50 } }));
+  assert.equal(game.model.cursorVisible, false, "and stays away while the pointer is off the board");
+
+  game.update(1 / 60, engineInput({ keys: ["ArrowLeft"], pressed: ["ArrowLeft"] }));
+  assert.equal(game.model.cursorVisible, true, "until the keys are used again");
 });

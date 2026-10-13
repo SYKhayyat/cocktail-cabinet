@@ -31,6 +31,11 @@ export const TWIST_TUNING = Object.freeze({
   // on the way back to the cell you played, short enough that it never becomes
   // permanent decoration.
   flipFlash: 0.5,
+  // A key held down moves one cell, waits, and then repeats at this rate. The
+  // cabinet's input reports what is held and steps every frame, so without a
+  // repeat rule a held arrow crosses the whole board in a sixth of a second.
+  keyRepeatDelay: 0.4,
+  keyRepeatRate: 0.13,
   // The computer waits before it moves even when it has already decided. A move
   // that lands the instant your own lands feels like the board played itself,
   // and the pause is what makes it feel like an opponent thinking.
@@ -122,6 +127,11 @@ export class TwistModel {
     this.cursor = 4;
     this.hover = -1;
     this.pinned = -1;
+    // Whether the player is steering with the keys. The keyboard cursor is drawn
+    // only while this is true: drawn always it marks the middle of an empty
+    // board, and drawn whenever the pointer is off the board it blinks in and out
+    // as the mouse crosses the edge of the canvas.
+    this.usingKeyboard = false;
     this.flash = new Map();
     this.outcome = null;
     this.hintRemaining = TWIST_TUNING.hintSeconds;
@@ -314,6 +324,12 @@ export class TwistModel {
   }
 
   isEmpty(cell) { return cell >= 0 && cell < this.cells.length && this.cells[cell] === EMPTY; }
+
+  // Whether the keyboard cursor is worth drawing at all. A pointer over the board
+  // is the cursor already, and a round that has ended has nowhere to move to.
+  get cursorVisible() {
+    return this.usingKeyboard && !this.over && this.hover < 0 && this.isEmpty(this.cursor);
+  }
 
   // ---------------------------------------------------------------
   // Rules
@@ -685,8 +701,15 @@ export class TwistModel {
       return;
     }
     if (this.hintRemaining > 0) this.hintRemaining = Math.max(0, this.hintRemaining - dt);
-    if (input.hover !== undefined) this.hover = input.hover;
-    if (input.move) this.moveCursor(input.move.x, input.move.y);
+    if (input.hover !== undefined) {
+      this.hover = input.hover;
+      // Touching the board puts the pointer back in charge of pointing.
+      if (this.hover >= 0) this.usingKeyboard = false;
+    }
+    if (input.move) {
+      this.moveCursor(input.move.x, input.move.y);
+      this.usingKeyboard = true;
+    }
     if (input.act) this.act(input.act.kind, input.act.cell);
     this.stepComputer(dt);
   }

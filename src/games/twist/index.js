@@ -63,9 +63,10 @@ export class TwistGame {
     return winner === model.humanMark ? "YOU WIN" : "COMPUTER WINS";
   }
   // The ready and end overlay prints "Score: 0   Lives: 3/3" for every game.
-  // This one has neither, and a board of marks reporting a score of zero and a
-  // life budget it does not have is worse than saying what is actually true.
-  overlayStatus() { return this.model.over ? this.model.outcomeLine() : "No line yet — place a mark."; }
+  // This one has neither, so it supplies the line it does have -- the outcome --
+  // and nothing at all before there is one. A round that has not started has no
+  // status to report, and the overlay already says what to do about it.
+  overlayStatus() { return this.model.over ? this.model.outcomeLine() : ""; }
   sideLabel() { return this.model.sideLabel(); }
   controlHint() { return this.controller.controlHint(); }
   update(dt, input) {

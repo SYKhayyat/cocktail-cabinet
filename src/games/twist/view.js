@@ -7,7 +7,6 @@ const CELL_EMPTY = "#101a2e";
 const CELL_TAKEN = "#16233c";
 const GRID = "#243349";
 const WIN = "#fbbf24";
-const LAST_MOVE = "#f8fafc";
 
 // The two marks are told apart by hue and by shape, never by colour alone: X is
 // drawn as a cross and O as a ring, so the board is still readable to a player
@@ -51,7 +50,6 @@ export function draw(model, context) {
   drawGrid(context, model, layout);
   drawFlashes(context, model, layout);
   if (winning) drawWin(context, model, layout, winning, tile);
-  drawLastMove(context, model, layout, tile);
   drawCursor(context, model, layout);
 
   drawHeader(context, model);
@@ -164,26 +162,12 @@ function drawWin(context, model, layout, winning, tile) {
   context.globalAlpha = 1;
 }
 
-// A dot in the corner of the cell just played, so the eye has somewhere to
-// return to. Deliberately small: it is a memory aid, not a highlight.
-function drawLastMove(context, model, layout, tile) {
-  if (model.lastMove < 0) return;
-  const rect = cellRect(layout, model.lastMove, model);
-  context.fillStyle = LAST_MOVE;
-  context.globalAlpha = 0.85;
-  context.beginPath();
-  context.arc(rect.x + rect.size * 0.19, rect.y + rect.size * 0.19, Math.max(2, tile * 0.045), 0, Math.PI * 2);
-  context.fill();
-  context.globalAlpha = 1;
-}
-
 // The keyboard cursor, and only that. A pointer sitting over the board is the
 // cursor already, and marking the cell as well made the centre of a fresh board
 // look like a marked-up cell rather than an empty one. Nor is it drawn once the
 // round is over, where it would sit exactly where the host draws its result box.
 function drawCursor(context, model, layout) {
-  if (model.over || model.hover >= 0) return;
-  if (model.cells[model.cursor] !== EMPTY || model.lastMove === model.cursor) return;
+  if (!model.cursorVisible) return;
   const rect = cellRect(layout, model.cursor, model);
   context.fillStyle = CANVAS_PALETTE.muted;
   const arm = Math.max(3, rect.size * 0.17);

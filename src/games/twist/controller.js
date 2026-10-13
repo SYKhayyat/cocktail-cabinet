@@ -1,5 +1,11 @@
 import { TWIST_TUNING } from "./model.js";
 
+// Every key that moves the cursor. Listed so that "was this key pressed this
+// frame" is one question asked one way rather than nine asked four times.
+const CURSOR_KEYS = Object.freeze([
+  "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "a", "d", "w", "s"
+]);
+
 // The tap-versus-hold split is the whole of this file's judgement.
 //
 // With the preview setting off -- which is how it ships -- a tap places a mark
@@ -67,15 +73,6 @@ export class TwistController {
     const keyDown = input.keys.has(" ") || input.keys.has("Enter");
     const tapping = this.model.previewEnabled ? "preview" : "place";
 
-    let move = null;
-    if (input.keys.has("ArrowLeft") || input.keys.has("a")) move = { x: -1, y: 0 };
-    else if (input.keys.has("ArrowRight") || input.keys.has("d")) move = { x: 1, y: 0 };
-    else if (input.keys.has("ArrowUp") || input.keys.has("w")) move = { x: 0, y: -1 };
-    else if (input.keys.has("ArrowDown") || input.keys.has("s")) move = { x: 0, y: 1 };
-
-    // Read the pointer only while it is genuinely over the board. A pointer
-    // sitting still off the edge of the canvas must not pin a preview to a cell
-    // the player is not looking at.
     const pointerCell = pointer.moved || pointer.down || pointer.clicked
       ? this.model.cellAt(pointer.x, pointer.y)
       : -1;
@@ -100,6 +97,44 @@ export class TwistController {
       act = { kind: tapping, cell: pointerCell };
     }
 
-    this.model.update(dt, { hover: pointerCell, move, act });
+    this.model.update(dt, { hover: pointerCell, move: this.stepCursor(dt, input), act });
+  }
+
+  // Stepping the cursor.
+  //
+  // input.keys is what is *held*, not what was pressed, and update runs every
+  // frame -- so stepping on every frame a key is down moves the cursor the width
+  // of the board in a sixth of a second. That is not a cursor, and on the default
+  // 3x3 it means one tap lands on an edge whichever way you meant to go.
+  //
+  // So a key moves once on press, waits, and then repeats at a steady rate. Both
+  // axes are read independently, so a key held diagonally moves diagonally.
+  stepCursor(dt, input) {
+    const { keys, pressed } = input;
+    const held = {
+      x: (keys.has("ArrowRight") || keys.has("d") ? 1 : 0) - (keys.has("ArrowLeft") || keys.has("a") ? 1 : 0),
+      y: (keys.has("ArrowDown") || keys.has("s") ? 1 : 0) - (keys.has("ArrowUp") || keys.has("w") ? 1 : 0)
+    };
+    if (!held.x && !held.y) {
+      this.keyRepeat = 0;
+      this.repeating = false;
+      return null;
+    }
+    const fresh = CURSOR_KEYS.some((key) => pressed.has(key));
+    let move = null;
+    if (fresh) {
+      this.keyRepeat = 0;
+      this.repeating = false;
+      move = held;
+    } else {
+      this.keyRepeat += dt;
+      const interval = this.repeating ? TWIST_TUNING.keyRepeatRate : TWIST_TUNING.keyRepeatDelay;
+      if (this.keyRepeat >= interval) {
+        this.keyRepeat = 0;
+        this.repeating = true;
+        move = held;
+      }
+    }
+    return move;
   }
 }
