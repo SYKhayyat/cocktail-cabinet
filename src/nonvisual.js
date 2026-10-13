@@ -86,7 +86,7 @@ export function semanticState(game, engine) {
     ];
     snapshot.outcome += ` Light ${Math.round(m.light)} of ${m.lightMax}. ${m.lit() ? "The lamp is lit, so you are standing still and the maze is visible." : "The lamp is out, so you are walking blind."}`;
     if (m.side === "continue") snapshot.outcome += ` Mazes cleared ${m.mazesCleared}; the light carries into the next one.`;
-  } else if (game.id === "skew") {
+  } else if (game.id === "twist") {
     const tile = (cell) => ({ x: (cell % m.cols) + 1, y: Math.floor(cell / m.cols) + 1 });
     snapshot.coordinates = `Coordinates are cells: column x 1–${m.cols}; row y 1–${m.rows}, counted from the top left. One action places exactly one mark and turns over every diagonally adjacent mark. Time advances only after an action when assistance is enabled.`;
     snapshot.objective = m.over
@@ -153,7 +153,7 @@ export function performSemanticAction(engine, command) {
   }
   if (id === "apple" && (!Number.isInteger(x) || !Number.isInteger(y) || x < 1 || x > m.cols || y < 1 || y > m.rows)) return "Enter a cell within the board bounds.";
   if (id === "apple" && m.isOccupiedCell(x - 1, y - 1)) return "That cell is occupied by the snake; choose a free cell.";
-  if (game.id === "skew" && id === "place") {
+  if (game.id === "twist" && id === "place") {
     if (!Number.isInteger(x) || !Number.isInteger(y) || x < 1 || x > m.cols || y < 1 || y > m.rows) return "Enter a cell within the board bounds.";
     // The computer's mark is not the player's to spend. Saying so beats letting
     // an action quietly play the opponent's turn for it.
@@ -180,10 +180,10 @@ export function performSemanticAction(engine, command) {
     // One rising/falling edge on a single flag is all the lamp needs, so the
     // pulse and the walks drive the model exactly as a key does.
     if (game.id === "lamp") input = { move: directions[id] ?? null, lampDown: id === "pulse", lampTap: id === "pulse" };
-    // A Skew placement is one discrete act, not a force held over a second, so
+    // A Twist placement is one discrete act, not a force held over a second, so
     // it belongs on the first tick only. Time still advances, which is what lets
     // the computer take its turn on a wait.
-    if (game.id === "skew" && id === "place" && first) input = { act: { kind: "place", cell: m.index(x - 1, y - 1) } };
+    if (game.id === "twist" && id === "place" && first) input = { act: { kind: "place", cell: m.index(x - 1, y - 1) } };
     m.update(dt, input);
   });
   if (!stepped) return "No step performed. Choose a duration between 0 and 1 second.";
@@ -197,6 +197,6 @@ export function performSemanticAction(engine, command) {
   if (id === "gem" && countsBefore.gemCooldown > seconds / Math.ceil(seconds * 60)) return "Gem cooldown active; time advanced without sending another.";
   if (["fire", "aim-fire"].includes(id) && countsBefore.shotClock > seconds / Math.ceil(seconds * 60)) return "Firing cooldown active; time advanced without firing.";
   if (id === "intercept" && (!countsBefore.ammo || !countsBefore.batteryAlive)) return "Battery unavailable or empty; time advanced without launch.";
-  if (game.id === "skew" && id === "place") return "Mark placed. Read the updated board: diagonally adjacent marks have turned over, and whoever holds a line now has won.";
+  if (game.id === "twist" && id === "place") return "Mark placed. Read the updated board: diagonally adjacent marks have turned over, and whoever holds a line now has won.";
   return `${selected.label} performed. ${game.id === "snake" ? "One snake move" : `Up to ${seconds} seconds`} advanced; read the updated state for collisions and outcomes.`;
 }

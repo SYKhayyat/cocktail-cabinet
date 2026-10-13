@@ -35,7 +35,7 @@ Each game's controls are defined by its controller and rendered into the
 | **Imitation** | `ai` — Chat with AI; `human` — Chat with a player; `guess` — Guess; `provide` — Provide; `write` — Classify | Enter sends a message (AI/Human), prompt (Guess), response (Provide), or classification sample (Classify). Guess only: Click AI/Human after the mystery reply |
 | **Starfall** | `runner` — Solo (runner); `stars` — Stars (send hazards) | Runner: Arrows, WASD, or Mouse to guide the runner. Stars: Click to send a star; Drag for sideways velocity; Double-click to send a gem; Hold to send gems |
 | **Lamp** | `walk` — Solo (walk blind); `continue` — Chained (clear mazes back to back) | Arrows or WASD to walk blind; Space or Click to pulse the lamp; Hold to keep it lit |
-| **Skew** | `duo` — Two players (X and O on this device); `first` — Computer is X, you are O; `second` — You are X, computer is O | Arrows or WASD to move the cursor; Space, Enter or Click to place your mark; Mouse also places |
+| **Tic Tac Toe Twist** | `duo` — Two players (X and O on this device); `first` — Computer is X, you are O; `second` — You are X, computer is O | Arrows or WASD to move the cursor; Space, Enter or Click to place your mark; Mouse also places |
 
 Lamp's settings panel offers four difficulties — Small, Medium, Big and Huge,
 which run from a 21x13 maze to a 53x31 one — or Custom, which hands the numbers
@@ -43,9 +43,9 @@ back. Choosing a difficulty greys the number fields out and shows what it set.
 One checkbox, **Some hazards patrol**, makes every third hazard walk its
 corridor and turn around at the walls; it is off by default.
 
-Skew's settings panel sets the board (3–7 by 3–7) and the number in a row that
-wins, which is clamped to the shortest side so the board can never ask for a
-line it cannot hold. It ships with the preview **off**, which is the point: a tap
+Tic Tac Toe Twist has a settings panel for the board (3–7 by 3–7) and for the
+number in a row that wins, which is clamped to the shortest side so the board
+can never ask for a line it cannot hold. It ships with the preview **off**, which is the point: a tap
 places a mark and the turns it causes are a surprise you learn from. Turning
 **Show the flips before you place** on makes the mechanic inspectable and the
 move two gestures — a tap pins a preview of the cells that would turn over, and

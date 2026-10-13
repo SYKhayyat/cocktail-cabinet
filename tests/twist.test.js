@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SkewGame } from "../src/games/skew.js";
-import { SkewModel, SKEW_TUNING } from "../src/games/skew/model.js";
+import { TwistGame } from "../src/games/twist.js";
+import { TwistModel, TWIST_TUNING } from "../src/games/twist/model.js";
 
 const board = (cols, rows, marks = {}, line = 3) => {
-  const model = new SkewModel();
+  const model = new TwistModel();
   model.setSettings({ cols, rows, line, preview: false });
   model.reset();
   for (const [cell, mark] of Object.entries(marks)) model.cells[Number(cell)] = mark;
@@ -78,7 +78,7 @@ test("turns match the reference rule over random positions on every board shape"
   try {
     for (const [cols, rows] of [[3, 3], [3, 5], [5, 3], [4, 4], [6, 6], [7, 7]]) {
       Math.random = seeded(4242);
-      const model = new SkewModel();
+      const model = new TwistModel();
       model.setSettings({ cols, rows, line: Math.min(cols, rows), preview: false });
       model.reset();
       const diagonals = model.diagonals.map((list) => [...list]);
@@ -201,7 +201,7 @@ test("a line wins horizontally, vertically and on both diagonals", () => {
 // ---------------------------------------------------------------------
 
 test("the objective is clamped to the board rather than refused, so no board is unwinnable", () => {
-  const model = new SkewModel();
+  const model = new TwistModel();
   assert.deepEqual(model.validateSettings({ cols: 7, rows: 7, line: 7, preview: false }), { cols: 7, rows: 7, line: 7, preview: false });
   // Asking for five on a 3x3 is a request the board cannot honour, so it is
   // shortened rather than refused -- a refusal would leave the shell showing a
@@ -216,7 +216,7 @@ test("the objective is clamped to the board rather than refused, so no board is 
 });
 
 test("the preview ships off, and the settings panel is the only place it changes", () => {
-  const model = new SkewModel();
+  const model = new TwistModel();
   assert.equal(model.previewEnabled, false);
   assert.equal(model.act("preview", 4), false, "pinning does nothing while the preview is off");
   model.setSettings({ preview: true });
@@ -229,7 +229,7 @@ test("the preview ships off, and the settings panel is the only place it changes
 });
 
 test("a board that shrinks is rebuilt with lines that fit it", () => {
-  const model = new SkewModel();
+  const model = new TwistModel();
   model.setSettings({ cols: 6, rows: 6, line: 5 });
   model.reset();
   assert.equal(model.lines.length, 32);
@@ -284,7 +284,7 @@ test("the computer only ever returns an empty cell, or nothing at all", () => {
     Math.random = seeded(7);
     for (const [cols, rows, line] of [[3, 3, 3], [4, 4, 4], [7, 7, 6]]) {
       for (let trial = 0; trial < 200; trial += 1) {
-        const model = new SkewModel();
+        const model = new TwistModel();
         model.setSettings({ cols, rows, line, preview: false });
         model.reset();
         for (let cell = 0; cell < cols * rows; cell += 1) model.cells[cell] = Math.floor(Math.random() * 4) === 0 ? 0 : 1;
@@ -307,7 +307,7 @@ test("the default board is a draw, which is what the reference solver proved", (
     Math.random = seeded(1234);
     const tally = { X: 0, O: 0, draw: 0, unfinished: 0 };
     for (let game = 0; game < 150; game += 1) {
-      const model = new SkewModel();
+      const model = new TwistModel();
       model.setSettings({ cols: 3, rows: 3, line: 3, preview: false });
       model.reset();
       let guard = 0;
@@ -331,7 +331,7 @@ test("the search is bounded by the board and the depth, and cannot grow", () => 
   // positions it may look at -- a stopwatch would only ever be a flaky proxy
   // for that, and would fail on a loaded machine for no good reason.
   for (const [cols, rows, line] of [[3, 3, 3], [4, 4, 4], [5, 5, 5], [6, 6, 5], [7, 7, 6]]) {
-    const model = new SkewModel();
+    const model = new TwistModel();
     model.setSettings({ cols, rows, line, preview: false });
     const cells = cols * rows;
     let worst = 0;
@@ -354,7 +354,7 @@ test("a move on the largest board is quick enough to sit behind the computer's p
   // A deliberately loose smoke test, not the bound above: if the search ever
   // became quadratic this is what would notice, and it must leave generous room
   // for a loaded machine so it never fails for the wrong reason.
-  const model = new SkewModel();
+  const model = new TwistModel();
   model.setSettings({ cols: 7, rows: 7, line: 6, preview: false });
   const started = process.hrtime.bigint();
   for (let run = 0; run < 20; run += 1) {
@@ -366,7 +366,7 @@ test("a move on the largest board is quick enough to sit behind the computer's p
 });
 
 test("the computer waits before it moves, and moves on its own turn only", () => {
-  const game = new SkewGame();
+  const game = new TwistGame();
   game.setSide("second");
   game.reset();
   const idle = { keys: new Set(), pressed: new Set(), pointer: { x: -1, y: -1, down: false, clicked: false } };
@@ -386,13 +386,13 @@ test("the computer waits before it moves, and moves on its own turn only", () =>
 });
 
 test("the computer opens the game when it is the first player", () => {
-  const game = new SkewGame();
+  const game = new TwistGame();
   game.setSide("first");
   game.reset();
   const idle = { keys: new Set(), pressed: new Set(), pointer: { x: -1, y: -1, down: false, clicked: false } };
   assert.equal(game.model.computerMark, 1, "the computer is X");
   assert.equal(game.model.turn, 1);
-  assert.equal(game.model.computerPause, SKEW_TUNING.computerPause, "and it waits even for the opening move");
+  assert.equal(game.model.computerPause, TWIST_TUNING.computerPause, "and it waits even for the opening move");
   for (let tick = 0; tick < 90 && game.model.turn === 1; tick += 1) game.update(1 / 60, idle);
   assert.equal(game.model.turn, 2);
   assert.ok(game.model.lastMove >= 0);
@@ -468,7 +468,7 @@ test("the computer takes a win that is on the board", () => {
     Math.random = seeded(99);
     let withAWin = 0;
     for (let trial = 0; trial < 3000; trial += 1) {
-      const model = new SkewModel();
+      const model = new TwistModel();
       model.setSettings({ cols: 4, rows: 4, line: 3, preview: false });
       model.reset();
       for (let cell = 0; cell < 16; cell += 1) model.cells[cell] = Math.floor(Math.random() * 4) === 0 ? 0 : 1 + Math.floor(Math.random() * 2);
@@ -492,7 +492,7 @@ test("the computer takes a win that is on the board", () => {
 });
 
 test("there is no score while the game is played, and the outcome once it is over", () => {
-  const game = new SkewGame();
+  const game = new TwistGame();
   game.reset();
   assert.equal(game.score, "", "a number invented for the readout would be worse than an empty one");
   const model = board(3, 3, { 0: 1, 1: 1 });
@@ -504,13 +504,13 @@ test("there is no score while the game is played, and the outcome once it is ove
 });
 
 test("the overlay names what ended the game rather than a score and a life count", () => {
-  const game = new SkewGame();
+  const game = new TwistGame();
   game.reset();
   assert.equal(game.resultHeading(), "ROUND OVER");
   assert.match(game.overlayStatus(), /No line yet/);
   assert.equal(game.lifecycle.lifeState().owner, "none", "a board of marks has no lives to spend");
 
-  const duel = new SkewGame();
+  const duel = new TwistGame();
   duel.reset();
   const won = board(3, 3, { 0: 1, 1: 1 });
   duel.model.outcome = { winner: 1, cells: [0, 1, 2] };
@@ -518,7 +518,7 @@ test("the overlay names what ended the game rather than a score and a life count
   assert.equal(duel.resultHeading(), "X WINS", "on one device the mark wins the headline");
   assert.match(duel.winMessage(), /You take the row 1/);
 
-  const versus = new SkewGame();
+  const versus = new TwistGame();
   versus.setSide("second");
   versus.reset();
   versus.model.outcome = { winner: 1, cells: [0, 1, 2] };
@@ -568,7 +568,7 @@ test("the game describes itself to a player who cannot see the board", () => {
   assert.match(model.description, /turn over|turns over/i);
   assert.match(model.description, /diagonal/i);
   const state = model.publicState();
-  assert.equal(state.title, "Skew");
+  assert.equal(state.title, "Tic Tac Toe Twist", "the shell, the card and the public state all agree on the name");
   assert.match(state.status, /X to move/);
   model.place(4);
   assert.match(model.publicState().status, /O to move/);
@@ -594,7 +594,7 @@ const overCell = (game, cell) => {
 };
 
 test("with the preview off, one gesture places a mark", () => {
-  const game = new SkewGame();
+  const game = new TwistGame();
   game.reset();
   assert.equal(game.model.previewEnabled, false, "the preview ships off: a tap places, and that is the whole verb");
   game.update(1 / 60, engineInput({ pointer: { ...overCell(game, 4), clicked: true, moved: true } }));
@@ -607,7 +607,7 @@ test("with the preview off, one gesture places a mark", () => {
 });
 
 test("with the preview on, a tap pins the flips and a hold places", () => {
-  const game = new SkewGame();
+  const game = new TwistGame();
   game.setSettings({ preview: true });
   game.reset();
   assert.equal(game.model.previewEnabled, true);
@@ -631,7 +631,7 @@ test("with the preview on, a tap pins the flips and a hold places", () => {
 test("the release at the end of a long press is not also a tap", () => {
   // One deliberate press that placed a mark and then pinned a preview of a move
   // already made is a control that reads as two.
-  const game = new SkewGame();
+  const game = new TwistGame();
   game.setSettings({ preview: true });
   game.reset();
   const at4 = overCell(game, 4);
@@ -645,7 +645,7 @@ test("the release at the end of a long press is not also a tap", () => {
 test("a pinned preview is the cell a hold places, wherever the pointer has wandered to", () => {
   // Pinning is a choice. Committing some other cell because the hand drifted
   // would make the preview a suggestion about a move that is not the one shown.
-  const game = new SkewGame();
+  const game = new TwistGame();
   game.setSettings({ preview: true });
   game.reset();
   game.update(1 / 60, engineInput({ pointer: { ...overCell(game, 8), clicked: true, moved: true } }));
@@ -657,7 +657,7 @@ test("a pinned preview is the cell a hold places, wherever the pointer has wande
 });
 
 test("the keyboard does the same two things the pointer does", () => {
-  const game = new SkewGame();
+  const game = new TwistGame();
   game.setSettings({ preview: true });
   game.reset();
   game.update(1 / 60, engineInput({ keys: ["Enter"], pressed: ["Enter"] }));
@@ -669,7 +669,7 @@ test("the keyboard does the same two things the pointer does", () => {
 });
 
 test("a pointer resting off the board never pins a cell", () => {
-  const game = new SkewGame();
+  const game = new TwistGame();
   game.setSettings({ preview: true });
   game.reset();
   game.update(1 / 60, engineInput({ pointer: { x: 2, y: 2, clicked: true, moved: true } }));
@@ -680,7 +680,7 @@ test("a pointer resting off the board never pins a cell", () => {
 test("the preview shows the cursor when no pointer is over the board", () => {
   // Turning the preview on must help a keyboard player too, or it would help
   // exactly the players who need it least.
-  const game = new SkewGame();
+  const game = new TwistGame();
   game.setSettings({ preview: true });
   game.reset();
   game.update(1 / 60, engineInput({ keys: ["ArrowLeft"], pressed: ["ArrowLeft"] }));
@@ -690,11 +690,11 @@ test("the preview shows the cursor when no pointer is over the board", () => {
 });
 
 test("the hint says which gesture is which, and changes with the setting", () => {
-  const off = new SkewGame();
+  const off = new TwistGame();
   off.reset();
   assert.match(off.controlHint().map((hint) => hint.label).join(" "), /place your mark/);
   assert.doesNotMatch(off.controlHint().map((hint) => hint.label).join(" "), /pin/);
-  const on = new SkewGame();
+  const on = new TwistGame();
   on.setSettings({ preview: true });
   on.reset();
   assert.match(on.controlHint().map((hint) => hint.label).join(" "), /pin a preview/);
@@ -718,7 +718,7 @@ test("the board draws in every state it can reach", () => {
     set: (target, key, value) => { target[key] = value; return true; }
   });
 
-  const game = new SkewGame();
+  const game = new TwistGame();
   game.setSettings({ preview: true });
   game.reset();
   game.draw(context);
@@ -735,7 +735,7 @@ test("the board draws in every state it can reach", () => {
   game.draw(context);
 
   // A completed line, drawn with the line highlighted.
-  const won = new SkewGame();
+  const won = new TwistGame();
   won.setSettings({ preview: true });
   won.reset();
   won.model.cells[1] = 1;
@@ -746,7 +746,7 @@ test("the board draws in every state it can reach", () => {
   assert.equal(won.model.over, true, "a completed line is drawn with the line highlighted");
   assert.deepEqual(won.model.outcome.cells, [0, 1, 2]);
 
-  const full = new SkewGame();
+  const full = new TwistGame();
   full.reset();
   for (const [cell, mark] of [[2, 1], [4, 2], [6, 1], [3, 2], [1, 1], [5, 2], [7, 1], [8, 2], [0, 1]]) full.model.place(cell, mark);
   full.draw(context);

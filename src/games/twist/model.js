@@ -1,6 +1,6 @@
 import { installEvents } from "../../events.js";
 
-// Skew looks like tic-tac-toe and is not. Placing a mark turns over every cell
+// Tic Tac Toe Twist looks like tic-tac-toe and is not. Placing a mark turns over every cell
 // diagonally adjacent to it -- your own marks become your opponent's and theirs
 // become yours -- and the line that wins is the one that exists when the move
 // settles, whoever happens to be holding it. A move can therefore hand the
@@ -14,8 +14,8 @@ export const BOARD_WIDTH = 800;
 export const BOARD_HEIGHT = 560;
 
 // Bands reserved above and below the board for the turn readout and the hint.
-export const SKEW_TOP = 52;
-export const SKEW_BOTTOM = 48;
+export const TWIST_TOP = 52;
+export const TWIST_BOTTOM = 48;
 
 export const EMPTY = 0;
 export const X = 1;
@@ -23,7 +23,7 @@ export const O = 2;
 
 // Feel, not content. Exported and frozen so a test can assert the model never
 // writes to them, and so a designer can reach them without hunting.
-export const SKEW_TUNING = Object.freeze({
+export const TWIST_TUNING = Object.freeze({
   // A tap toggles the preview and a hold places, so a press has to be measured
   // rather than read. This is the same threshold Lamp uses for its hold, chosen
   // because it is already the cabinet's idea of "deliberate".
@@ -48,13 +48,13 @@ export const SKEW_TUNING = Object.freeze({
 // The three ways to play. The cabinet gives every game one dropdown, so the
 // opponent choice and the "who starts" choice are two entries of the same list
 // rather than a dropdown plus a second control.
-export const SKEW_MODES = [
+export const TWIST_MODES = [
   { value: "duo", label: "Two players — X and O on this device" },
   { value: "first", label: "Computer is X — you are O" },
   { value: "second", label: "You are X — computer is O" }
 ];
 
-export const SKEW_SETTINGS = {
+export const TWIST_SETTINGS = {
   cols: { label: "Board width", min: 3, max: 7, step: 1, default: 3 },
   rows: { label: "Board height", min: 3, max: 7, step: 1, default: 3 },
   // The objective is bounded by the board: a line cannot be longer than the
@@ -86,7 +86,7 @@ const LINE_WEIGHTS = Object.freeze([0, 1, 4, 18, 60, 200, 620, 1800]);
 //
 // Deeper is measurably *worse*, not better, and it is worth saying why rather
 // than shipping the first number that was tried. The evaluation counts marks in
-// live lines, and in Skew that is not a measure of goodness: a placement can be
+// live lines, and here that is not a measure of goodness: a placement can be
 // the losing move precisely because it builds a line. Looking further ahead
 // trusts that count more, so it walks into positions the shallow search refuses.
 // Measured over 400 games of each on the default board, against another engine
@@ -102,11 +102,11 @@ const DIAGONALS = Object.freeze([[-1, -1], [1, -1], [-1, 1], [1, 1]]);
 
 const markName = (mark) => (mark === X ? "X" : "O");
 
-export class SkewModel {
+export class TwistModel {
   constructor() {
     installEvents(this);
-    this.id = "skew";
-    this.title = "Skew";
+    this.id = "twist";
+    this.title = "Tic Tac Toe Twist";
     this.description = "It looks like tic-tac-toe and it is not. Place your mark on an empty cell and every cell diagonally adjacent to it turns over: your marks become your opponent's and theirs become yours. Empty cells stay empty. Then look for a line. Whoever is holding a line when the move settles has won -- including when your own flip handed it to them. First to get the chosen number in a row takes the game.";
     this.side = "duo";
     this.gameOver = false;
@@ -125,7 +125,7 @@ export class SkewModel {
     this.pinned = -1;
     this.flash = new Map();
     this.outcome = null;
-    this.hintRemaining = SKEW_TUNING.hintSeconds;
+    this.hintRemaining = TWIST_TUNING.hintSeconds;
     this.computerPause = 0;
     // Positions the last search looked at. Not used to make a decision -- the
     // tree is bounded by the board and the depth, not by a node budget -- but
@@ -134,9 +134,9 @@ export class SkewModel {
     this.applyPendingSettings();
   }
 
-  get modes() { return SKEW_MODES; }
-  get sides() { return SKEW_MODES.map((mode) => mode.value); }
-  get settings() { return SKEW_SETTINGS; }
+  get modes() { return TWIST_MODES; }
+  get sides() { return TWIST_MODES.map((mode) => mode.value); }
+  get settings() { return TWIST_SETTINGS; }
   get over() { return this.gameOver || this.won; }
   get size() { return this.cols * this.rows; }
   // 0 means neither side is the computer, which is the two-player mode.
@@ -148,7 +148,7 @@ export class SkewModel {
   get humanMark() { return this.computerMark ? 3 - this.computerMark : EMPTY; }
   get computerTurn() { return !this.over && this.computerMark !== EMPTY && this.turn === this.computerMark; }
 
-  sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || SKEW_MODES[0].label; }
+  sideLabel() { return this.modes.find((mode) => mode.value === this.side)?.label || TWIST_MODES[0].label; }
   // The host restarts the round itself when the side changes, so this only
   // records the choice. Changing it mid-game would swap who is sitting where,
   // which is not a thing a board of marks can do halfway through.
@@ -165,7 +165,7 @@ export class SkewModel {
   // quietly ignoring, which is the worse of the two failures.
   validateSettings(values = {}) {
     const read = (name) => {
-      const descriptor = SKEW_SETTINGS[name];
+      const descriptor = TWIST_SETTINGS[name];
       const value = Number(values[name]);
       if (!Number.isInteger(value) || value < descriptor.min || value > descriptor.max) return null;
       return value;
@@ -271,14 +271,14 @@ export class SkewModel {
 
   layout() {
     const width = BOARD_WIDTH - 48;
-    const height = BOARD_HEIGHT - SKEW_TOP - SKEW_BOTTOM;
+    const height = BOARD_HEIGHT - TWIST_TOP - TWIST_BOTTOM;
     const tile = Math.min(width / this.cols, height / this.rows);
     return {
       tile,
       width,
       height,
       originX: (BOARD_WIDTH - tile * this.cols) / 2,
-      originY: SKEW_TOP + (height - tile * this.rows) / 2
+      originY: TWIST_TOP + (height - tile * this.rows) / 2
     };
   }
 
@@ -405,10 +405,10 @@ export class SkewModel {
     this.lifeLost = false;
     this.won = false;
     this.drew = false;
-    this.hintRemaining = SKEW_TUNING.hintSeconds;
+    this.hintRemaining = TWIST_TUNING.hintSeconds;
     // The computer does not move the instant the board appears, even when it
     // opens the game.
-    this.computerPause = this.computerTurn ? SKEW_TUNING.computerPause : 0;
+    this.computerPause = this.computerTurn ? TWIST_TUNING.computerPause : 0;
   }
 
   place(cell, mark = this.turn) {
@@ -422,7 +422,7 @@ export class SkewModel {
     this.emit("place");
 
     if (turned.length) {
-      for (const near of turned) this.flash.set(near, SKEW_TUNING.flipFlash);
+      for (const near of turned) this.flash.set(near, TWIST_TUNING.flipFlash);
       // A centre cell rearranging four marks is a different event from one or
       // two turning over, and the player should hear the difference as well as
       // see it: the size of the change is the decision being made.
@@ -445,7 +445,7 @@ export class SkewModel {
     }
 
     this.turn = 3 - mark;
-    if (this.computerTurn) this.computerPause = SKEW_TUNING.computerPause;
+    if (this.computerTurn) this.computerPause = TWIST_TUNING.computerPause;
     return true;
   }
 
@@ -592,7 +592,7 @@ export class SkewModel {
       const changed = [cell, ...turned];
       const outcome = this.checkOutcome(cells, changed, mark);
       let score;
-      if (outcome) score = outcome.winner === mark ? SKEW_TUNING.winScore : -SKEW_TUNING.winScore;
+      if (outcome) score = outcome.winner === mark ? TWIST_TUNING.winScore : -TWIST_TUNING.winScore;
       else score = -this.negamax(cells, 3 - mark, depth - 1, -beta, -alpha);
       this.undoMove(cells, cell, turned);
       if (score > best) best = score;
@@ -621,14 +621,14 @@ export class SkewModel {
       const changed = [cell, ...turned];
       const outcome = this.checkOutcome(cells, changed, mark);
       let score;
-      if (outcome) score = outcome.winner === mark ? SKEW_TUNING.winScore : -SKEW_TUNING.winScore;
+      if (outcome) score = outcome.winner === mark ? TWIST_TUNING.winScore : -TWIST_TUNING.winScore;
       else score = -this.negamax(cells, 3 - mark, depth - 1, -Infinity, -alpha);
       this.undoMove(cells, cell, turned);
       scored.push({ cell, score });
       if (score > alpha) alpha = score;
       // Nothing beats a forced win, so the rest of the root is not worth
       // looking at. This is also what keeps the opening move cheap.
-      if (alpha >= SKEW_TUNING.winScore) break;
+      if (alpha >= TWIST_TUNING.winScore) break;
     }
     if (!scored.length) return -1;
     // Equal-scoring moves are genuinely equal and the computer takes one of them

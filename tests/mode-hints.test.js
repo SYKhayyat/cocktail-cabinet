@@ -8,13 +8,13 @@ import { MissileCommandGame } from "../src/games/missile.js";
 import { StarfallGame } from "../src/games/starfall.js";
 import { ImitationGame } from "../src/games/imitation.js";
 import { LampGame } from "../src/games/lamp.js";
-import { SkewGame } from "../src/games/skew.js";
+import { TwistGame } from "../src/games/twist.js";
 
 const input = (key, pointer = {}) => ({ keys: new Set(key ? [key] : []), pressed: new Set(key ? [key] : []), mode: "keyboard", pointer: { x: 200, y: 200, ...pointer } });
 const text = (game) => game.controlHint().map(({ keys, label }) => `${keys.join(" ")} ${label}`).join("; ");
 
 test("every mode hint describes its own role, not an inactive sibling", () => {
-  for (const Game of [SnakeGame, BreakoutGame, SplatGame, AsteroidsGame, MissileCommandGame, StarfallGame, ImitationGame, LampGame, SkewGame]) {
+  for (const Game of [SnakeGame, BreakoutGame, SplatGame, AsteroidsGame, MissileCommandGame, StarfallGame, ImitationGame, LampGame, TwistGame]) {
     const game = new Game();
     for (const mode of game.modes.filter(({ available }) => available !== false)) {
       game.model.side = mode.value;
@@ -35,7 +35,7 @@ test("every mode hint describes its own role, not an inactive sibling", () => {
     // The freeze is the rule most likely to read as a bug, so the hint has to
     // say it rather than leaving it to be discovered.
     [LampGame, "walk", /walk blind.*Arrows|ArrowUp.*walk blind/s, /place/],
-    [SkewGame, "duo", /Click place your mark/, /pin a preview/]
+    [TwistGame, "duo", /Click place your mark/, /pin a preview/]
   ]) {
     const game = new Game(); game.model.side = side;
     assert.match(text(game), expected);

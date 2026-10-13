@@ -1,4 +1,4 @@
-import { SKEW_TUNING } from "./model.js";
+import { TWIST_TUNING } from "./model.js";
 
 // The tap-versus-hold split is the whole of this file's judgement.
 //
@@ -17,7 +17,7 @@ import { SKEW_TUNING } from "./model.js";
 // The pointer and the keyboard are tracked as two separate gestures. They never
 // overlap in real play, and keeping them apart is what stops a release from one
 // being swallowed by a hold from the other.
-export class SkewController {
+export class TwistController {
   constructor(model) {
     this.model = model;
     this.pointerHold = 0;
@@ -84,14 +84,14 @@ export class SkewController {
     this.pointerHold = pointer.down ? this.pointerHold + dt : 0;
 
     let act = null;
-    if (keyDown && this.keyHold >= SKEW_TUNING.holdDelay && !this.keyPlaced) {
+    if (keyDown && this.keyHold >= TWIST_TUNING.holdDelay && !this.keyPlaced) {
       this.keyPlaced = true;
       act = { kind: "place", cell: this.commitTarget(-1) };
     } else if (!keyDown && this.keyPlaced) {
       this.keyPlaced = false;
     } else if (input.pressed.has(" ") || input.pressed.has("Enter")) {
       act = { kind: tapping, cell: this.model.cursor };
-    } else if (pointer.down && this.pointerHold >= SKEW_TUNING.holdDelay && !this.pointerPlaced) {
+    } else if (pointer.down && this.pointerHold >= TWIST_TUNING.holdDelay && !this.pointerPlaced) {
       this.pointerPlaced = true;
       act = { kind: "place", cell: this.commitTarget(pointerCell) };
     } else if (!pointer.down && this.pointerPlaced) {

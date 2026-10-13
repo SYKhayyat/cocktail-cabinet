@@ -8,7 +8,7 @@ import { AsteroidsGame } from "../src/games/asteroids/index.js";
 import { MissileCommandGame } from "../src/games/missile/index.js";
 import { StarfallGame } from "../src/games/starfall/index.js";
 import { LampGame } from "../src/games/lamp/index.js";
-import { SkewGame } from "../src/games/skew/index.js";
+import { TwistGame } from "../src/games/twist/index.js";
 
 function seeded(seed) {
   let state = seed >>> 0;
@@ -36,7 +36,7 @@ test("seeded arcade lifecycle/input fuzz preserves finite state, bounds, and rou
       Math.random = seeded(seed);
       const engine = new GameEngine(canvas);
       try {
-        for (const Game of [SnakeGame, BreakoutGame, SplatGame, AsteroidsGame, MissileCommandGame, StarfallGame, LampGame, SkewGame]) {
+        for (const Game of [SnakeGame, BreakoutGame, SplatGame, AsteroidsGame, MissileCommandGame, StarfallGame, LampGame, TwistGame]) {
           const game = new Game();
           engine.load(game);
           for (const mode of game.modes) {
@@ -63,7 +63,7 @@ test("seeded arcade lifecycle/input fuzz preserves finite state, bounds, and rou
               });
               engine.frame(engine.lastTime + 1000 / 60);
               frames += 1;
-              // Most games hold a running number. Skew has nothing to count, so
+              // Most games hold a running number. Twist has nothing to count, so
               // it holds a string the cabinet renders blank while the game is
               // played and the outcome once it is over. What matters here is the
               // same for both: never NaN, never undefined, never an object.

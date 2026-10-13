@@ -122,7 +122,7 @@ async function openPage(url, contextId = browserContextId) {
   await page.command("Network.setCacheDisabled", { cacheDisabled: true });
   await page.command('Page.addScriptToEvaluateOnNewDocument', { source: `globalThis.__policyViolations = []; addEventListener('securitypolicyviolation', event => { let resource = event.blockedURI; try { const url = new URL(resource); resource = url.origin + url.pathname; } catch {} __policyViolations.push({ directive: event.effectiveDirective, resource, disposition: event.disposition }); });` });
   await page.command("Page.navigate", { url: `${url}${url.includes("?") ? "&" : "?"}smoke=${Date.now()}${Math.random()}` });
-  await waitFor(page, "document.readyState === 'complete' && document.querySelectorAll('.game-card').length === 8 && !!globalThis.__cocktailCabinet", "cabinet boot");
+  await waitFor(page, "document.readyState === 'complete' && document.querySelectorAll('.game-card').length === 9 && !!globalThis.__cocktailCabinet", "cabinet boot");
   return { target, page };
 }
 
@@ -288,8 +288,13 @@ const GAME_CARDS = [
   { id: "imitation", modes: ["ai", "human", "guess", "provide", "write"] },
   { id: "starfall", modes: ["runner", "stars"] },
   { id: "lamp", modes: ["walk", "continue"] },
-  { id: "skew", modes: ["duo", "first", "second"] }
+  { id: "twist", modes: ["duo", "first", "second"] }
 ];
+
+// Derived, never counted by hand. Three copies of this number were checked into
+// the file, and adding a game meant finding all three; a fourth would have been
+// found only by the suite failing on a number that was never wrong in itself.
+const MODE_COUNT = GAME_CARDS.reduce((total, game) => total + game.modes.length, 0);
 
 async function testBootAndDescriptors(page) {
   const report = await page.evaluate(`(() => ({
@@ -994,9 +999,9 @@ async function testEveryModeSurvivesPlay(page, step) {
     });
     return out;
   })()`);
-  assertEqual(catalogue.length, 22, "twenty-two modes are reachable through the UI");
+  assertEqual(catalogue.length, MODE_COUNT, "every registered mode is reachable through the UI");
 
-  // Select, play, and inspect one mode at a time: selecting all twenty-two up
+  // Select, play, and inspect one mode at a time: selecting every mode up
   // front would leave only the last one loaded when the frames are driven.
   for (const entry of catalogue) {
     await selectMode(page, entry.index, entry.mode);
@@ -1014,6 +1019,7 @@ async function testEveryModeSurvivesPlay(page, step) {
         hasState: Boolean(game?.publicState()),
         status: document.querySelector('#roundStatus').textContent,
         score: document.querySelector('#score').textContent,
+        reported: String(game?.score ?? ''),
         canvasSized: canvas.width > 0 && canvas.height > 0,
         errors: (globalThis.__pageErrors || []).length
       };
@@ -1024,7 +1030,11 @@ async function testEveryModeSurvivesPlay(page, step) {
     assert(health.hasState, `${label} exposes public state`);
     assert(health.canvasSized, `${label} has a sized canvas`);
     assertEqual(health.errors, 0, `${label} raised no page errors`);
-    assert(typeof health.score === "string" && health.score.length > 0, `${label} shows a score`);
+    // The readout must show what the game reports, rather than always showing a
+    // number: Tic Tac Toe Twist has nothing to count while it is played and says
+    // so with a blank readout, which is a wired-up readout and not a broken one.
+    assert(typeof health.score === "string", `${label} shows a score readout`);
+    assertEqual(health.score, health.reported, `${label} readout shows what the game reports`);
     assert(health.status.length > 0, `${label} shows a status line`);
   }
 }
@@ -1785,7 +1795,7 @@ async function main() {
 
     const suites = [
       ["boot, descriptors, and mode catalogue", () => testBootAndDescriptors(first.page)],
-      ["mode-aware control hints for all twenty-two modes", () => testModeAwareHints(first.page)],
+      [`mode-aware control hints for all ${MODE_COUNT} modes`, () => testModeAwareHints(first.page)],
       ["mode switch reopens the cabinet instead of auto-starting", () => testModeSwitchReopensTheCabinet(first.page, step)],
       ["focused live announcements under high-rate DOM updates", () => testFocusedAnnouncements(first.page, step)],
       ["native keyboard button activation without game side effects", () => testNativeKeyboardButtons(first.page)],
@@ -1794,7 +1804,7 @@ async function main() {
       ["pause and continue around the countdown", () => testPauseDuringCountdown(first.page, step)],
       ["keyboard and pointer controls", () => testKeyboardAndPointerControls(first.page, step)],
       ["retained retry pressure and late-score human recovery", () => testRetryPressureAndRecovery(first.page, step)],
-      ["all twenty-two modes load and run", () => testEveryModeSurvivesPlay(first.page, step)],
+      [`all ${MODE_COUNT} modes load and run`, () => testEveryModeSurvivesPlay(first.page, step)],
       ["life loss, game over, and restart", () => testGameOverAndRestart(first.page, step)],
       ["Splat builder tools", () => testSplatBuilderTools(first.page, step)],
       ["native keyboard authoring and emulated touch pan/cancel", () => testSplatNativeEditor(first.page, step)],

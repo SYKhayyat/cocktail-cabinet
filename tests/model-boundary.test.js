@@ -31,7 +31,7 @@ test("all arcade models import and step without a browser, renderer, or engine",
       ["snake", "SnakeModel"], ["breakout", "BreakoutModel"],
       ["splat", "SplatModel"], ["asteroids", "AsteroidsModel"],
       ["missile", "MissileModel"], ["starfall", "StarfallModel"], ["lamp", "LampModel"],
-      ["skew", "SkewModel"]
+      ["twist", "TwistModel"]
     ];
     for (const [name, type] of models) {
       const module = await import("./src/games/" + name + "/model.js");

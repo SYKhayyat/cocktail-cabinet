@@ -1,5 +1,5 @@
 import { CANVAS_PALETTE, drawText } from "../../rendering.js";
-import { BOARD_WIDTH, BOARD_HEIGHT, EMPTY, X, O, SKEW_TUNING } from "./model.js";
+import { BOARD_WIDTH, BOARD_HEIGHT, EMPTY, X, O, TWIST_TUNING } from "./model.js";
 
 // Colours that are drawn rather than announced. The contract for text is the
 // shared palette and its 4.5:1 threshold; these only ever fill shapes.
@@ -119,7 +119,7 @@ function drawFlashes(context, model, layout) {
   for (const [cell, remaining] of model.flash) {
     const rect = cellRect(layout, cell, model);
     const mark = model.cells[cell];
-    const amount = Math.max(0, Math.min(1, remaining / SKEW_TUNING.flipFlash));
+    const amount = Math.max(0, Math.min(1, remaining / TWIST_TUNING.flipFlash));
     context.fillStyle = MARK_COLOURS[mark];
     context.globalAlpha = amount * 0.55;
     context.fillRect(rect.x + 1, rect.y + 1, rect.size - 2, rect.size - 2);

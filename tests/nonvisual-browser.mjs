@@ -79,14 +79,17 @@ try {
     assert.deepEqual(await page.evaluate("__nonvisualErrors"), [], "No page exceptions on keyboard action");
     return page.evaluate("document.querySelector('#nonvisualFeedback').textContent");
   }
-  const catalogue = await page.evaluate("Array.from(__cocktailCabinet.games, ([id, game]) => ({id, modes: game.modes.filter(mode => mode.available !== false)}))");
+  const catalogue = await page.evaluate("Array.from(__cocktailCabinet.games, ([id, game]) => ({id, title: game.title, modes: game.modes.filter(mode => mode.available !== false)}))");
   let modeCount = 0;
   for (const [card, game] of catalogue.entries()) {
     await button(`.game-card:nth-child(${card + 1})`);
     for (const mode of game.modes) {
       await choose("#sideSelect", mode.value);
       const text = await axText();
-      assert.ok(text.includes(`heading: ${game.id === "missile" ? "Missile Command" : game.id[0].toUpperCase() + game.id.slice(1)}: ${mode.label}`), `${game.id}/${mode.value} mode-aware AX heading`);
+      // The heading is the game's own title. Deriving a display name from the id
+      // here meant every rename had to be applied in a third place as well, and
+      // two ids already disagree with their title.
+      assert.ok(text.includes(`heading: ${game.title}: ${mode.label}`), `${game.id}/${mode.value} mode-aware AX heading`);
       assert.ok(text.includes("Players and protected objects"));
       assert.ok(text.includes("Hazards and moving objects"));
       assert.ok(text.includes("Targets and editable objects"));
