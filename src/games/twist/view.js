@@ -74,11 +74,18 @@ function drawMark(context, rect, mark, tile) {
   const reach = tile * 0.28;
   context.fillStyle = MARK_COLOURS[mark];
   if (mark === X) {
-    context.save();
-    context.translate(centreX, centreY);
-    context.rotate(Math.PI / 4);
-    context.fillRect(-reach, -tile * 0.055, reach * 2, tile * 0.11);
-    context.restore();
+    const bar = tile * 0.11;
+    // Two bars at right angles, which is what makes it an X. One bar rotated
+    // forty-five degrees is a slash. Each bar is drawn at an absolute angle from
+    // its own save: rotating twice in sequence would compound them, and a
+    // cross drawn that way is a diagonal meeting a horizontal bar.
+    for (const turn of [Math.PI / 4, (Math.PI * 3) / 4]) {
+      context.save();
+      context.translate(centreX, centreY);
+      context.rotate(turn);
+      context.fillRect(-reach, -bar / 2, reach * 2, bar);
+      context.restore();
+    }
   } else {
     context.lineWidth = tile * 0.11;
     context.strokeStyle = MARK_COLOURS[mark];
@@ -170,22 +177,21 @@ function drawLastMove(context, model, layout, tile) {
   context.globalAlpha = 1;
 }
 
-// Corner brackets rather than an outline. An outline would look like the win
-// highlight and the cell border, and a dashed one needs a drawing call no other
-// view in the cabinet makes. Brackets are the conventional "this is selected"
-// shape and read as a cursor from across the board.
+// The keyboard cursor, and only that. A pointer sitting over the board is the
+// cursor already, and marking the cell as well made the centre of a fresh board
+// look like a marked-up cell rather than an empty one. Nor is it drawn once the
+// round is over, where it would sit exactly where the host draws its result box.
 function drawCursor(context, model, layout) {
-  // Not drawn once the round is over: there is no cell left to move into, and the
-  // brackets sit exactly where the host draws its result box.
-  if (model.over || model.cells[model.cursor] !== EMPTY || model.lastMove === model.cursor) return;
+  if (model.over || model.hover >= 0) return;
+  if (model.cells[model.cursor] !== EMPTY || model.lastMove === model.cursor) return;
   const rect = cellRect(layout, model.cursor, model);
-  context.fillStyle = CANVAS_PALETTE.secondary;
-  const arm = Math.max(3, rect.size * 0.26);
-  const edge = Math.max(2, rect.size * 0.045);
-  const near = rect.x + 4;
-  const far = rect.x + rect.size - 4;
-  const top = rect.y + 4;
-  const bottom = rect.y + rect.size - 4;
+  context.fillStyle = CANVAS_PALETTE.muted;
+  const arm = Math.max(3, rect.size * 0.17);
+  const edge = Math.max(1.5, rect.size * 0.03);
+  const near = rect.x + 5;
+  const far = rect.x + rect.size - 5;
+  const top = rect.y + 5;
+  const bottom = rect.y + rect.size - 5;
   // Each corner is an arm along one edge and a thickness along the other. The
   // x and y are relative to the cell, which is why they are offset by the cell
   // here: drawing them in the cell's own coordinates pins the cursor to the top
@@ -216,10 +222,8 @@ function drawFooter(context, model, layout) {
   // stops being read.
   if (model.hintRemaining > 0 && !model.over) {
     const centreY = layout.originY + (layout.tile * model.rows) / 2;
-    drawText(context, "Placing a mark turns over every diagonal neighbour", centreX, centreY - 6, 17, CANVAS_PALETTE.warning, "center");
-    // Stated without naming X or O, because the human is not always X and the
-    // rule is about whose mark it is, not which letter is on the board.
-    drawText(context, "yours become theirs and theirs become yours — empty cells stay empty", centreX, centreY + 20, 13, CANVAS_PALETTE.secondary, "center");
+    drawText(context, "A mark turns over every mark diagonally beside it", centreX, centreY - 6, 17, CANVAS_PALETTE.warning, "center");
+    drawText(context, "each one becomes the other mark — empty cells stay empty", centreX, centreY + 20, 14, CANVAS_PALETTE.secondary, "center");
   }
   drawText(context, model.statusText(), 20, BOARD_HEIGHT - 16, 13, CANVAS_PALETTE.secondary);
   // Which move is being offered, because with the preview on the placement is

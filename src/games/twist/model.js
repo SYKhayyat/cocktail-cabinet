@@ -1,11 +1,10 @@
 import { installEvents } from "../../events.js";
 
-// Tic Tac Toe Twist looks like tic-tac-toe and is not. Placing a mark turns over every cell
-// diagonally adjacent to it -- your own marks become your opponent's and theirs
-// become yours -- and the line that wins is the one that exists when the move
-// settles, whoever happens to be holding it. A move can therefore hand the
-// opponent the game, which is the whole game and the reason a preview is worth
-// having.
+// Tic Tac Toe Twist looks like tic-tac-toe and is not. Placing a mark turns over
+// every mark diagonally beside it, and the line that wins is the one standing
+// when the move settles, whoever happens to be holding it. A move can therefore
+// hand the opponent the game, which is the whole game and the reason a preview
+// is worth having.
 
 // The drawing surface is the same fixed 800x560 canvas every other game uses,
 // which CSS scales. The model works in cells and never learns a pixel size; the
@@ -107,7 +106,7 @@ export class TwistModel {
     installEvents(this);
     this.id = "twist";
     this.title = "Tic Tac Toe Twist";
-    this.description = "It looks like tic-tac-toe and it is not. Place your mark on an empty cell and every cell diagonally adjacent to it turns over: your marks become your opponent's and theirs become yours. Empty cells stay empty. Then look for a line. Whoever is holding a line when the move settles has won -- including when your own flip handed it to them. First to get the chosen number in a row takes the game.";
+    this.description = "It looks like tic-tac-toe and it is not. Place a mark on an empty cell and every mark diagonally beside it turns into the other mark. Empty cells stay empty. Then look for a line: whoever is holding one when the move settles has won, including when your own turn-over handed it to them. First to get the chosen number in a row takes the game.";
     this.side = "duo";
     this.gameOver = false;
     this.lifeLost = false;

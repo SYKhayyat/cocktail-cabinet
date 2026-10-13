@@ -566,7 +566,7 @@ test("the rule is stated once on the board and then it stops being said", () => 
 
 test("the game describes itself to a player who cannot see the board", () => {
   const model = board(4, 4);
-  assert.match(model.description, /turn over|turns over/i);
+  assert.match(model.description, /turns? (over|into)/i);
   assert.match(model.description, /diagonal/i);
   const state = model.publicState();
   assert.equal(state.title, "Tic Tac Toe Twist", "the shell, the card and the public state all agree on the name");
@@ -744,6 +744,108 @@ test("every shape is drawn inside the cell it belongs to", () => {
   for (const [x, y, w, h] of shapes.filter((args) => args.length === 4)) {
     assert.ok(x >= 0 && y >= 0 && x + w <= 800 && y + h <= 560, `a shape at ${x},${y} falls off the canvas`);
   }
+});
+
+test("X is drawn as two crossing strokes and O as a ring", () => {
+  // The X was drawn as one bar rotated forty-five degrees, which is a slash: the
+  // comment said two crossing strokes and the code drew one. Nothing caught it,
+  // because a slash is still a shape in the right cell and still meets contrast.
+  // Count the rectangles inside the marked cell, remembering the rotation each
+  // was drawn at.
+  const strokesFor = (mark) => {
+    const game = new TwistGame();
+    game.reset();
+    game.model.cells.fill(0);
+    game.model.cells[4] = mark;
+    game.model.hover = 0;
+    // The opening reminder is text over the middle of the board, and its
+    // backplates are wide and thin rectangles too. This is about marks.
+    game.model.hintRemaining = 0;
+    const { originX, originY, tile } = game.model.layout();
+    const seen = [];
+    // A canvas transform, with the save and restore that make it meaningful:
+    // without those, every rotate after a save still counts, and a shape drawn
+    // at an absolute angle looks like a cumulative one.
+    let transform = { rotation: 0, x: 0, y: 0 };
+    const stack = [];
+    const context = new Proxy({}, {
+      get: (target, key) => {
+        if (key === "measureText") return (value) => ({ width: String(value).length * 7 });
+        if (key === "canvas") return { width: 800, height: 560 };
+        if (key === "rotate") return (angle) => { transform = { ...transform, rotation: transform.rotation + angle }; };
+        // The bars are drawn about a translated origin, so the recorded
+        // coordinates are relative to the cell centre until this is undone.
+        if (key === "translate") return (dx, dy) => { transform = { ...transform, x: dx, y: dy }; };
+        if (key === "save") return () => { stack.push(transform); };
+        if (key === "restore") return () => { transform = stack.pop() ?? { rotation: 0, x: 0, y: 0 }; };
+        if (key in target) return target[key];
+        if (key === "stroke") return () => seen.push({ kind: "ring" });
+        if (key === "fillRect") {
+          return (x, y, w, h) => {
+            // A stroke, not a cell: wide and thin, and centred on the marked cell.
+            const left = x + transform.x;
+            const top = y + transform.y;
+            const centreX = originX + tile * 1.5;
+            const centreY = originY + tile * 1.5;
+            const centred = Math.abs(left + w / 2 - centreX) < tile * 0.2
+              && Math.abs(top + h / 2 - centreY) < tile * 0.2;
+            if (centred && w > tile * 0.4 && h < tile * 0.25) {
+              seen.push({ kind: "bar", rotation: transform.rotation, width: w, height: h });
+            }
+          };
+        }
+        return () => {};
+      },
+      set: (target, key, value) => { target[key] = value; return true; }
+    });
+    game.draw(context);
+    return seen;
+  };
+
+  const x = strokesFor(1);
+  const bars = x.filter((entry) => entry.kind === "bar");
+  assert.equal(bars.length, 2, `X drew ${bars.length} bars, not two`);
+  assert.equal(x.filter((entry) => entry.kind === "ring").length, 0, "and no ring");
+  // Ninety degrees apart, which is what makes a cross rather than a thicker bar.
+  const angles = bars.map((bar) => Math.round(((bar.rotation * 180) / Math.PI) % 180));
+  assert.equal(Math.abs(angles[1] - angles[0]), 90, `the two bars are ${angles} degrees apart, not 90`);
+
+  const o = strokesFor(2);
+  assert.equal(o.filter((entry) => entry.kind === "ring").length, 1, "O is a ring");
+  assert.equal(o.filter((entry) => entry.kind === "bar").length, 0, "and not a cross");
+});
+
+test("the keyboard cursor stays out of the way of a pointer", () => {
+  // Drawn always, it put brackets around the middle cell of a fresh board, which
+  // read as a cell in some other state rather than as a cursor.
+  const cursorBars = (hover, over) => {
+    const game = new TwistGame();
+    game.reset();
+    game.model.hover = hover;
+    if (over) { game.model.cells[0] = 1; game.model.cells[1] = 1; game.model.act("place", 2); }
+    const { originX, originY, tile } = game.model.layout();
+    let count = 0;
+    const context = new Proxy({}, {
+      get: (target, key) => {
+        if (key === "measureText") return (value) => ({ width: String(value).length * 7 });
+        if (key === "canvas") return { width: 800, height: 560 };
+        if (key in target) return target[key];
+        if (key === "fillRect") {
+          return (x, y, w, h) => {
+            if (w < tile * 0.3 && h < tile * 0.3) count += 1;
+          };
+        }
+        return () => {};
+      },
+      set: (target, key, value) => { target[key] = value; return true; }
+    });
+    game.draw(context);
+    return count;
+  };
+
+  assert.equal(cursorBars(-1, false), 8, "four corners of two arms each, for a keyboard player");
+  assert.equal(cursorBars(0, false), 0, "and nothing at all once a pointer is over the board");
+  assert.equal(cursorBars(-1, true), 0, "nor once the round is over, where it would sit under the result box");
 });
 
 test("the board draws in every state it can reach", () => {
