@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { TwistGame } from "../src/games/twist.js";
 import { TwistModel, TWIST_TUNING } from "../src/games/twist/model.js";
+import { semanticState } from "../src/nonvisual.js";
 
 const board = (cols, rows, marks = {}, line = 3) => {
   const model = new TwistModel();
@@ -555,19 +556,60 @@ test("the flash marks which cells changed, and it fades even after the game ends
   assert.equal(winning.flash.size, 0, "and it still clears");
 });
 
-test("the rule is stated once on the board and then it stops being said", () => {
+test("the rule is said once, not once per place it can be read", () => {
+  // It was on the board and in the description above the board at the same
+  // time, so the sentence could never leave the screen no matter what the board
+  // did -- which is what "the text never goes away" turned out to be.
+  const game = new TwistGame();
+  game.reset();
+  assert.doesNotMatch(game.description, /diagonally beside it/i, "the description hooks, it does not teach");
+  assert.doesNotMatch(game.description, /turns? over/i, "and it does not say the rule twice in two places");
+  assert.match(game.description, /tic-tac-toe/, "it says what the game looks like, which is the hook");
+
+  // And what the description does not say, the board says once, and then stops.
+  const model = game.model;
+  assert.equal(model.ruleStated, false);
+  const drawn = [];
+  const context = new Proxy({}, {
+    get: (target, key) => {
+      if (key === "measureText") return (value) => ({ width: String(value).length * 7 });
+      if (key === "canvas") return { width: 800, height: 560 };
+      if (key in target) return target[key];
+      if (key === "fillText") return (value) => drawn.push(String(value));
+      return () => {};
+    },
+    set: (target, key, value) => { target[key] = value; return true; }
+  });
+  game.draw(context);
+  assert.equal(drawn.filter((line) => /diagonally beside it/.test(line)).length, 1, "stated exactly once");
+  game.model.place(0);
+  drawn.length = 0;
+  game.draw(context);
+  assert.equal(drawn.filter((line) => /diagonally beside it/.test(line)).length, 0, "and gone after the first mark");
+});
+
+test("the rule is stated until the first mark is placed, and not a moment longer", () => {
+  // It used to run on a timer, which meant it was still on the board on the
+  // second move -- and laid across the middle, it covered the very cells the
+  // player was reading to decide. It now lasts exactly as long as it can help.
   const model = board(3, 3);
-  assert.ok(model.hintRemaining > 0, "the turn-over rule is invisible until it has cost a mark");
-  for (let tick = 0; tick < 60 * 12; tick += 1) model.update(1 / 60, {});
-  assert.equal(model.hintRemaining, 0);
+  assert.equal(model.ruleStated, false, "the turn-over rule is invisible until it has cost a mark");
+  for (let tick = 0; tick < 60 * 120; tick += 1) model.update(1 / 60, {});
+  assert.equal(model.ruleStated, false, "and an untouched board still needs telling");
   model.place(0);
-  assert.equal(model.hintRemaining, 0, "and a game already under way does not bring it back");
+  assert.equal(model.ruleStated, true, "the first mark puts it away");
+
+  const fresh = board(3, 3);
+  assert.equal(fresh.ruleStated, false, "a new round states it again");
+  fresh.reset();
+  assert.equal(fresh.ruleStated, false);
 });
 
 test("the game describes itself to a player who cannot see the board", () => {
   const model = board(4, 4);
-  assert.match(model.description, /turns? (over|into)/i);
-  assert.match(model.description, /diagonal/i);
+  // The blurb hooks and the board teaches, so the rule a player who cannot see
+  // the board needs has to be somewhere permanent. It is the semantic objective,
+  // which the nonvisual panel reads out on demand.
   const state = model.publicState();
   assert.equal(state.title, "Tic Tac Toe Twist", "the shell, the card and the public state all agree on the name");
   assert.match(state.status, /X to move/);
@@ -981,4 +1023,22 @@ test("the keyboard cursor only exists once the keyboard is in use", () => {
 
   game.update(1 / 60, engineInput({ keys: ["ArrowLeft"], pressed: ["ArrowLeft"] }));
   assert.equal(game.model.cursorVisible, true, "until the keys are used again");
+});
+
+test("the rule is still there in full for a player who cannot read the board", () => {
+  // It was moved out of the blurb so it would stop being on screen twice. It has
+  // to survive that somewhere permanent, and the nonvisual objective is the only
+  // place a player who cannot see the board will ever be told.
+  const game = new TwistGame();
+  game.reset();
+  const objective = semanticState(game, {
+    lifecycle: { resultState: () => ({ ended: false, heading: "" }), lifeState: () => ({ owner: "none" }) },
+    lives: 3, maxLives: 3, ready: false, paused: false, assistanceOutcome: ""
+  }).objective;
+  assert.match(objective, /turns over every mark diagonally beside it/i, "the rule, in full");
+  assert.match(objective, /each becoming the other mark/i);
+  assert.match(objective, /empty cells stay empty/i);
+  assert.match(objective, /3 in a row/i, "and what the objective actually is");
+  assert.match(objective, /your own turn-over handed it to them/i, "including the rule that loses games");
+  assert.match(objective, /full board with no line is a draw/i);
 });

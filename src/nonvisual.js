@@ -92,7 +92,7 @@ export function semanticState(game, engine) {
     snapshot.objective = m.over
       ? m.outcomeMessage()
       : m.side === "duo"
-        ? `Take ${m.line} in a row to win. Placing a mark turns over every diagonally adjacent mark: yours become your opponent's and theirs become yours. Empty cells stay empty. Whoever holds a line when the move settles has won, including when your own flip handed it to them. A full board with no line is a draw.`
+        ? `Take ${m.line} in a row to win. Placing a mark turns over every mark diagonally beside it, each becoming the other mark. Empty cells stay empty. Whoever holds a line when the move settles has won, including when your own turn-over handed it to them. A full board with no line is a draw.`
         : m.computerMark === m.turn
           ? `You are ${m.turn === 1 ? "X" : "O"}. The computer is the other mark. Take ${m.line} in a row to win. Placing a mark turns over every diagonally adjacent mark, so a move can complete a line for either side. A full board with no line is a draw.`
           : `The computer is ${m.computerMark === 1 ? "X" : "O"} and you are ${m.turn === 1 ? "X" : "O"}. Take ${m.line} in a row to win. Placing a mark turns over every diagonally adjacent mark, so a move can complete a line for either side. A full board with no line is a draw.`;

@@ -40,10 +40,6 @@ export const TWIST_TUNING = Object.freeze({
   // that lands the instant your own lands feels like the board played itself,
   // and the pause is what makes it feel like an opponent thinking.
   computerPause: 0.5,
-  // The rule is invisible until it has cost you a mark, so it is stated once, on
-  // the board, for the first few seconds of every round. It expires on purpose:
-  // an instruction that never goes away stops being read.
-  hintSeconds: 8,
   // A win is worth more than any line weight, so the search can tell a forced
   // win from a merely hopeful position without a table lookup.
   winScore: 1_000_000
@@ -111,7 +107,7 @@ export class TwistModel {
     installEvents(this);
     this.id = "twist";
     this.title = "Tic Tac Toe Twist";
-    this.description = "It looks like tic-tac-toe and it is not. Place a mark on an empty cell and every mark diagonally beside it turns into the other mark. Empty cells stay empty. Then look for a line: whoever is holding one when the move settles has won, including when your own turn-over handed it to them. First to get the chosen number in a row takes the game.";
+    this.description = "It looks like tic-tac-toe and it is not. Placing a mark changes more than the one cell. The board states the rule before your first move, and then stops saying it. First to get the chosen number in a row takes the game.";
     this.side = "duo";
     this.gameOver = false;
     this.lifeLost = false;
@@ -134,7 +130,11 @@ export class TwistModel {
     this.usingKeyboard = false;
     this.flash = new Map();
     this.outcome = null;
-    this.hintRemaining = TWIST_TUNING.hintSeconds;
+    // Whether the rule has been stated on the board. It lasts until the first
+    // mark is placed and not a moment longer: the first move is the last moment
+    // it can be useful, and every second after that it is covering cells the
+    // player needs to see.
+    this.ruleStated = false;
     this.computerPause = 0;
     // Positions the last search looked at. Not used to make a decision -- the
     // tree is bounded by the board and the depth, not by a node budget -- but
@@ -420,7 +420,7 @@ export class TwistModel {
     this.lifeLost = false;
     this.won = false;
     this.drew = false;
-    this.hintRemaining = TWIST_TUNING.hintSeconds;
+    this.ruleStated = false;
     // The computer does not move the instant the board appears, even when it
     // opens the game.
     this.computerPause = this.computerTurn ? TWIST_TUNING.computerPause : 0;
@@ -430,6 +430,7 @@ export class TwistModel {
     if (this.over || !this.isEmpty(cell)) return false;
     const turned = this.applyMove(this.cells, cell, mark);
     this.lastMove = cell;
+    this.ruleStated = true;
     this.pinned = -1;
     // The hover is cleared because it described a board that no longer exists:
     // the flips it showed have already happened.
@@ -466,7 +467,7 @@ export class TwistModel {
 
   settle(outcome) {
     this.outcome = outcome ? { ...outcome } : null;
-    this.hintRemaining = 0;
+    this.ruleStated = true;
     const winner = outcome ? outcome.winner : EMPTY;
     // The outcome is announced here rather than left to the facade's won/gameOver
     // setters, because a model setting its own flags never passes through them:
@@ -696,11 +697,7 @@ export class TwistModel {
       if (left <= 0) this.flash.delete(cell);
       else this.flash.set(cell, left);
     }
-    if (this.over) {
-      this.hintRemaining = 0;
-      return;
-    }
-    if (this.hintRemaining > 0) this.hintRemaining = Math.max(0, this.hintRemaining - dt);
+    if (this.over) return;
     if (input.hover !== undefined) {
       this.hover = input.hover;
       // Touching the board puts the pointer back in charge of pointing.

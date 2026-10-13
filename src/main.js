@@ -463,7 +463,13 @@ const engine = new GameEngine(canvas, {
       renderChat(engine.game);
     }
   },
-  onScore: (value) => { score.textContent = value; },
+  onScore: (value) => {
+    score.textContent = value;
+    // A game with nothing to count leaves the readout empty, and an empty box
+    // under the word "Score" reads as a bug rather than as an absence. The
+    // outcome appears in it when there is one.
+    score.closest("div").hidden = value === "";
+  },
   onLives: (value, maximum) => {
     lives.textContent = `${value}/${maximum}`;
     if (displayedPendingLives !== engine.pendingLives) {

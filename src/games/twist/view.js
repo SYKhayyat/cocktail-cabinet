@@ -53,7 +53,7 @@ export function draw(model, context) {
   drawCursor(context, model, layout);
 
   drawHeader(context, model);
-  drawFooter(context, model, layout);
+  drawFooter(context, model);
 }
 
 function drawGrid(context, model, layout) {
@@ -199,15 +199,16 @@ function drawHeader(context, model) {
   drawText(context, `${model.cols}×${model.rows} · ${model.line} in a row`, BOARD_WIDTH - 20, 32, 14, CANVAS_PALETTE.secondary, "right");
 }
 
-function drawFooter(context, model, layout) {
+function drawFooter(context, model) {
   const centreX = BOARD_WIDTH / 2;
-  // The rule is invisible until it has cost a mark, so it is said once, on the
-  // board, and then it is never said again. An instruction that never goes away
-  // stops being read.
-  if (model.hintRemaining > 0 && !model.over) {
-    const centreY = layout.originY + (layout.tile * model.rows) / 2;
-    drawText(context, "A mark turns over every mark diagonally beside it", centreX, centreY - 6, 17, CANVAS_PALETTE.warning, "center");
-    drawText(context, "each one becomes the other mark — empty cells stay empty", centreX, centreY + 20, 14, CANVAS_PALETTE.secondary, "center");
+  // The rule is stated below the board, never over it. Laid across the middle of
+  // the board it covered the cells the player was reading to decide, on a large
+  // board it covered the centre outright, and it was still there on the second
+  // move -- long after it had stopped being news.
+  if (!model.ruleStated) {
+    drawText(context, "A mark turns over every mark diagonally beside it", centreX, BOARD_HEIGHT - 38, 14, CANVAS_PALETTE.warning, "center");
+    drawText(context, "each one becomes the other mark \u2014 empty cells stay empty", centreX, BOARD_HEIGHT - 18, 13, CANVAS_PALETTE.secondary, "center");
+    return;
   }
   drawText(context, model.statusText(), 20, BOARD_HEIGHT - 16, 13, CANVAS_PALETTE.secondary);
   // Which move is being offered, because with the preview on the placement is
@@ -215,7 +216,7 @@ function drawFooter(context, model, layout) {
   const verb = model.over
     ? ""
     : model.previewEnabled
-      ? "tap to pin the flips · hold to place"
+      ? "tap to pin the flips \u00b7 hold to place"
       : "click or Space to place";
   if (verb) drawText(context, verb, BOARD_WIDTH - 20, BOARD_HEIGHT - 16, 13, CANVAS_PALETTE.muted, "right");
 }
