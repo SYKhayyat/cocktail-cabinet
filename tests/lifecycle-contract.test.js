@@ -10,6 +10,7 @@ import { StarfallGame } from "../src/games/starfall/index.js";
 import { MissileCommandGame } from "../src/games/missile/index.js";
 import { ImitationGame } from "../src/games/imitation/index.js";
 import { LampGame } from "../src/games/lamp/index.js";
+import { SkewGame } from "../src/games/skew/index.js";
 
 test("models accept configured lives as values for all supported budgets", () => {
   for (let startingLives = 1; startingLives <= 9; startingLives += 1) {
@@ -153,7 +154,7 @@ test("earned Breakout duel lives raise the shared cap without restoring the othe
 
 test("facades declare boot, life restart, ownership, and result capabilities", () => {
   withHost(({ engine }) => {
-    for (const Game of [SnakeGame, BreakoutGame, AsteroidsGame, SplatGame, StarfallGame, MissileCommandGame, ImitationGame, LampGame]) {
+    for (const Game of [SnakeGame, BreakoutGame, AsteroidsGame, SplatGame, StarfallGame, MissileCommandGame, ImitationGame, LampGame, SkewGame]) {
       const game = new Game();
       engine.load(game);
       assert.equal("engine" in game, false);
@@ -162,8 +163,11 @@ test("facades declare boot, life restart, ownership, and result capabilities", (
       assert.equal(typeof game.lifecycle.resultState, "function");
       assert.equal(engine.ready, Game !== ImitationGame);
       assert.equal(engine.stopped, Game !== ImitationGame);
-      assert.equal(Boolean(game.lifecycle.restartAfterLife), ![MissileCommandGame, ImitationGame].includes(Game));
-      assert.equal(game.lifecycle.lifeState().owner, [MissileCommandGame, ImitationGame].includes(Game) ? "none" : "host");
+      // Skew is in the third list because a board of marks has no life budget:
+      // you lose the game, you do not spend a life and carry on.
+      const noLives = [MissileCommandGame, ImitationGame, SkewGame];
+      assert.equal(Boolean(game.lifecycle.restartAfterLife), !noLives.includes(Game), Game.name);
+      assert.equal(game.lifecycle.lifeState().owner, noLives.includes(Game) ? "none" : "host", Game.name);
     }
   });
 });
@@ -379,6 +383,7 @@ test("Splat puzzle retries preserve layout and end through a single-owner result
 
 test("single-owner host losses exhaust their configured budget without an endless restart", () => {
   withHost(({ engine }) => {
+    // Only games whose lives the host owns. Skew is out: it has none to exhaust.
     for (const Game of [SnakeGame, BreakoutGame, StarfallGame, AsteroidsGame, SplatGame, LampGame]) {
       const game = new Game();
       engine.setLives(1);

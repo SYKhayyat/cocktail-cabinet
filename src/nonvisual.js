@@ -86,6 +86,29 @@ export function semanticState(game, engine) {
     ];
     snapshot.outcome += ` Light ${Math.round(m.light)} of ${m.lightMax}. ${m.lit() ? "The lamp is lit, so you are standing still and the maze is visible." : "The lamp is out, so you are walking blind."}`;
     if (m.side === "continue") snapshot.outcome += ` Mazes cleared ${m.mazesCleared}; the light carries into the next one.`;
+  } else if (game.id === "skew") {
+    const tile = (cell) => ({ x: (cell % m.cols) + 1, y: Math.floor(cell / m.cols) + 1 });
+    snapshot.coordinates = `Coordinates are cells: column x 1–${m.cols}; row y 1–${m.rows}, counted from the top left. One action places exactly one mark and turns over every diagonally adjacent mark. Time advances only after an action when assistance is enabled.`;
+    snapshot.objective = m.over
+      ? m.outcomeMessage()
+      : m.side === "duo"
+        ? `Take ${m.line} in a row to win. Placing a mark turns over every diagonally adjacent mark: yours become your opponent's and theirs become yours. Empty cells stay empty. Whoever holds a line when the move settles has won, including when your own flip handed it to them. A full board with no line is a draw.`
+        : m.computerMark === m.turn
+          ? `You are ${m.turn === 1 ? "X" : "O"}. The computer is the other mark. Take ${m.line} in a row to win. Placing a mark turns over every diagonally adjacent mark, so a move can complete a line for either side. A full board with no line is a draw.`
+          : `The computer is ${m.computerMark === 1 ? "X" : "O"} and you are ${m.turn === 1 ? "X" : "O"}. Take ${m.line} in a row to win. Placing a mark turns over every diagonally adjacent mark, so a move can complete a line for either side. A full board with no line is a draw.`;
+    snapshot.players = [entry("turn", `${m.turn === 1 ? "X" : "O"} to move`, tile(m.lastMove < 0 ? m.cursor : m.lastMove), `${m.lastMove < 0 ? "no mark placed yet" : "last move"}`)];
+    snapshot.targets = [];
+    for (let cell = 0; cell < m.cells.length; cell += 1) {
+      const mark = m.cells[cell];
+      if (!mark) continue;
+      const detail = `${mark === 1 ? "X" : "O"}`;
+      snapshot.targets.push(entry(`cell-${cell}`, `Cell ${cell}`, tile(cell), `${detail}${cell === m.lastMove ? "; last move placed here" : ""}`));
+    }
+    snapshot.hazards = m.previewCell() >= 0
+      ? [{ id: "preview", text: `Preview pinned on cell ${m.previewCell()}: column ${(m.previewCell() % m.cols) + 1}, row ${Math.floor(m.previewCell() / m.cols) + 1}. Placing there would turn over ${m.diagonals[m.previewCell()].filter((cell) => m.cells[cell]).length || "no"} adjacent marks.` }]
+      : [];
+    snapshot.actions = [action("place", "Place your mark at coordinates"), wait];
+    if (m.over) snapshot.outcome = m.outcomeMessage();
   } else if (game.id === "imitation") {
     const state = game.publicState();
     snapshot.objective = ({ ai: "Chat with the local AI using the Message field and Send button. Load the model first.", human: "Connect a separate browser, then exchange messages using Message and Send.", guess: "Send a prompt, then decide whether the mystery reply is AI or Human using the guess buttons. Restart round begins another mystery.", provide: "Connect to a guesser in another browser and provide human replies using Message and Send.", write: "Load the AI model, then submit text with Message and Send for AI, Human, or Unclear classification. Read the result in Chat messages." })[m.side] || game.description;
@@ -130,6 +153,13 @@ export function performSemanticAction(engine, command) {
   }
   if (id === "apple" && (!Number.isInteger(x) || !Number.isInteger(y) || x < 1 || x > m.cols || y < 1 || y > m.rows)) return "Enter a cell within the board bounds.";
   if (id === "apple" && m.isOccupiedCell(x - 1, y - 1)) return "That cell is occupied by the snake; choose a free cell.";
+  if (game.id === "skew" && id === "place") {
+    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 1 || x > m.cols || y < 1 || y > m.rows) return "Enter a cell within the board bounds.";
+    // The computer's mark is not the player's to spend. Saying so beats letting
+    // an action quietly play the opponent's turn for it.
+    if (m.computerTurn) return "It is the computer's turn. Choose wait and it will move.";
+    if (!m.isEmpty(m.index(x - 1, y - 1))) return "That cell already holds a mark; choose an empty one.";
+  }
   if (id === "attack" && (!target || !/^(city|battery)-/.test(target.id))) return "Choose a named city or battery to attack.";
   if (id === "attack" && !(target.id.startsWith("city-") ? m.cities[Number(target.id.slice(5))] : m.bases[Number(target.id.slice(8))]).alive) return "That target is already destroyed. Choose a live target.";
   const directions = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
@@ -150,6 +180,10 @@ export function performSemanticAction(engine, command) {
     // One rising/falling edge on a single flag is all the lamp needs, so the
     // pulse and the walks drive the model exactly as a key does.
     if (game.id === "lamp") input = { move: directions[id] ?? null, lampDown: id === "pulse", lampTap: id === "pulse" };
+    // A Skew placement is one discrete act, not a force held over a second, so
+    // it belongs on the first tick only. Time still advances, which is what lets
+    // the computer take its turn on a wait.
+    if (game.id === "skew" && id === "place" && first) input = { act: { kind: "place", cell: m.index(x - 1, y - 1) } };
     m.update(dt, input);
   });
   if (!stepped) return "No step performed. Choose a duration between 0 and 1 second.";
@@ -163,5 +197,6 @@ export function performSemanticAction(engine, command) {
   if (id === "gem" && countsBefore.gemCooldown > seconds / Math.ceil(seconds * 60)) return "Gem cooldown active; time advanced without sending another.";
   if (["fire", "aim-fire"].includes(id) && countsBefore.shotClock > seconds / Math.ceil(seconds * 60)) return "Firing cooldown active; time advanced without firing.";
   if (id === "intercept" && (!countsBefore.ammo || !countsBefore.batteryAlive)) return "Battery unavailable or empty; time advanced without launch.";
+  if (game.id === "skew" && id === "place") return "Mark placed. Read the updated board: diagonally adjacent marks have turned over, and whoever holds a line now has won.";
   return `${selected.label} performed. ${game.id === "snake" ? "One snake move" : `Up to ${seconds} seconds`} advanced; read the updated state for collisions and outcomes.`;
 }

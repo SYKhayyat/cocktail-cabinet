@@ -20,6 +20,7 @@ import { MissileCommandGame } from "../src/games/missile/index.js";
 import { ImitationGame } from "../src/games/imitation/index.js";
 import { StarfallGame } from "../src/games/starfall/index.js";
 import { LampGame } from "../src/games/lamp/index.js";
+import { SkewGame } from "../src/games/skew/index.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const readme = readFileSync(join(root, "README.md"), "utf8");
@@ -32,7 +33,8 @@ const GAMES = [
   { id: "missile", label: "Missile Command", game: new MissileCommandGame() },
   { id: "imitation", label: "Imitation", game: new ImitationGame() },
   { id: "starfall", label: "Starfall", game: new StarfallGame() },
-  { id: "lamp", label: "Lamp", game: new LampGame() }
+  { id: "lamp", label: "Lamp", game: new LampGame() },
+  { id: "skew", label: "Skew", game: new SkewGame() }
 ];
 
 // Normalises a single control hint key into the vocabulary the README uses.

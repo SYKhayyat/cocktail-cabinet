@@ -8,7 +8,7 @@ import * as host from "../src/engine.js";
 import { checkModelBoundary } from "../scripts/check-model-boundary.mjs";
 
 test("the complete arcade model dependency graph stays model-safe", async () => {
-  assert.equal(await checkModelBoundary(), 10);
+  assert.equal(await checkModelBoundary(), 11);
 });
 
 test("neutral helpers retain identical engine compatibility exports", () => {
@@ -30,7 +30,8 @@ test("all arcade models import and step without a browser, renderer, or engine",
     const models = [
       ["snake", "SnakeModel"], ["breakout", "BreakoutModel"],
       ["splat", "SplatModel"], ["asteroids", "AsteroidsModel"],
-      ["missile", "MissileModel"], ["starfall", "StarfallModel"], ["lamp", "LampModel"]
+      ["missile", "MissileModel"], ["starfall", "StarfallModel"], ["lamp", "LampModel"],
+      ["skew", "SkewModel"]
     ];
     for (const [name, type] of models) {
       const module = await import("./src/games/" + name + "/model.js");

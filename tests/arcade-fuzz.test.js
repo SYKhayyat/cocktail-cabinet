@@ -8,6 +8,7 @@ import { AsteroidsGame } from "../src/games/asteroids/index.js";
 import { MissileCommandGame } from "../src/games/missile/index.js";
 import { StarfallGame } from "../src/games/starfall/index.js";
 import { LampGame } from "../src/games/lamp/index.js";
+import { SkewGame } from "../src/games/skew/index.js";
 
 function seeded(seed) {
   let state = seed >>> 0;
@@ -35,7 +36,7 @@ test("seeded arcade lifecycle/input fuzz preserves finite state, bounds, and rou
       Math.random = seeded(seed);
       const engine = new GameEngine(canvas);
       try {
-        for (const Game of [SnakeGame, BreakoutGame, SplatGame, AsteroidsGame, MissileCommandGame, StarfallGame, LampGame]) {
+        for (const Game of [SnakeGame, BreakoutGame, SplatGame, AsteroidsGame, MissileCommandGame, StarfallGame, LampGame, SkewGame]) {
           const game = new Game();
           engine.load(game);
           for (const mode of game.modes) {
@@ -62,7 +63,14 @@ test("seeded arcade lifecycle/input fuzz preserves finite state, bounds, and rou
               });
               engine.frame(engine.lastTime + 1000 / 60);
               frames += 1;
-              assert.ok(Number.isFinite(game.score) && game.score >= 0, `${game.id}/${mode.value} seed ${seed} score`);
+              // Most games hold a running number. Skew has nothing to count, so
+              // it holds a string the cabinet renders blank while the game is
+              // played and the outcome once it is over. What matters here is the
+              // same for both: never NaN, never undefined, never an object.
+              const sane = typeof game.score === "number"
+                ? Number.isFinite(game.score) && game.score >= 0
+                : typeof game.score === "string";
+              assert.ok(sane, `${game.id}/${mode.value} seed ${seed} score ${JSON.stringify(game.score)}`);
               assert.ok(engine.maxLives >= 1 && engine.maxLives <= 9);
               const life = engine.lifecycle.lifeState();
               if (life.owner === "host") assert.ok(engine.lives >= 0 && engine.lives <= engine.maxLives);

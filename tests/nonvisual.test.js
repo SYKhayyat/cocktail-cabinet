@@ -9,6 +9,7 @@ import { AsteroidsGame } from "../src/games/asteroids.js";
 import { MissileCommandGame } from "../src/games/missile.js";
 import { StarfallGame } from "../src/games/starfall.js";
 import { LampGame } from "../src/games/lamp.js";
+import { SkewGame } from "../src/games/skew.js";
 import { LAMP_TUNING } from "../src/games/lamp/model.js";
 
 // Use the real lifecycle and stepping APIs without starting a renderer.
@@ -27,7 +28,7 @@ function perform(engine, action, target = "", extra = {}) {
   return performSemanticAction(engine, { action, target, x: 400, y: 250, seconds: 0.1, ...extra });
 }
 
-for (const Game of [SnakeGame, BreakoutGame, SplatGame, AsteroidsGame, MissileCommandGame, StarfallGame, LampGame]) {
+for (const Game of [SnakeGame, BreakoutGame, SplatGame, AsteroidsGame, MissileCommandGame, StarfallGame, LampGame, SkewGame]) {
   const catalogue = new Game();
   for (const mode of catalogue.modes.filter((item) => item.available !== false)) {
     test(`${catalogue.id}/${mode.value}: actual entities, objective, outcome, actionable step`, () => {

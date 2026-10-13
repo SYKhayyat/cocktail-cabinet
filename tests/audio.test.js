@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { createAudio, RECIPES, SOUNDED_GAMES } from "../src/audio.js";
 import { installEvents } from "../src/events.js";
 import { LampGame } from "../src/games/lamp.js";
+import { SkewGame } from "../src/games/skew.js";
 import { LampModel } from "../src/games/lamp/model.js";
 import { MissileModel } from "../src/games/missile/model.js";
 import { SnakeGame } from "../src/games/snake.js";
@@ -65,7 +66,7 @@ const noAudio = () => createAudio({ contextFactory: () => null });
 
 const GAMES = {
   snake: SnakeGame, breakout: BreakoutGame, splat: SplatGame,
-  asteroids: AsteroidsGame, missile: MissileCommandGame, starfall: StarfallGame, lamp: LampGame
+  asteroids: AsteroidsGame, missile: MissileCommandGame, starfall: StarfallGame, lamp: LampGame, skew: SkewGame
 };
 
 // Drives a game hard enough to reach every outcome it can reach, and reports
@@ -174,7 +175,7 @@ test("a sound that repeats faster than its gap is dropped rather than stacked", 
 
 test("every sounded game has a recipe for every event it emits", () => {
   // A typo in an event name would otherwise be a silence nobody notices.
-  const games = { snake: new SnakeGame(), breakout: new BreakoutGame(), splat: new SplatGame(), asteroids: new AsteroidsGame(), missile: new MissileCommandGame(), starfall: new StarfallGame(), lamp: new LampGame() };
+  const games = { snake: new SnakeGame(), breakout: new BreakoutGame(), splat: new SplatGame(), asteroids: new AsteroidsGame(), missile: new MissileCommandGame(), starfall: new StarfallGame(), lamp: new LampGame(), skew: new SkewGame() };
   for (const [id, game] of Object.entries(games)) {
     assert.ok(SOUNDED_GAMES.includes(id), `${id} is on the sounded list`);
     game.reset();

@@ -1,6 +1,6 @@
 # Cocktail Cabinet
 
-A static, framework-free arcade cabinet with eight games. Every game gives you a
+A static, framework-free arcade cabinet with nine games. Every game gives you a
 human side and a machine side, starts gently, and gets more active as the score
 rises. There is no build step, no server code, and no API key.
 
@@ -35,12 +35,33 @@ Each game's controls are defined by its controller and rendered into the
 | **Imitation** | `ai` — Chat with AI; `human` — Chat with a player; `guess` — Guess; `provide` — Provide; `write` — Classify | Enter sends a message (AI/Human), prompt (Guess), response (Provide), or classification sample (Classify). Guess only: Click AI/Human after the mystery reply |
 | **Starfall** | `runner` — Solo (runner); `stars` — Stars (send hazards) | Runner: Arrows, WASD, or Mouse to guide the runner. Stars: Click to send a star; Drag for sideways velocity; Double-click to send a gem; Hold to send gems |
 | **Lamp** | `walk` — Solo (walk blind); `continue` — Chained (clear mazes back to back) | Arrows or WASD to walk blind; Space or Click to pulse the lamp; Hold to keep it lit |
+| **Skew** | `duo` — Two players (X and O on this device); `first` — Computer is X, you are O; `second` — You are X, computer is O | Arrows or WASD to move the cursor; Space, Enter or Click to place your mark; Mouse also places |
 
 Lamp's settings panel offers four difficulties — Small, Medium, Big and Huge,
 which run from a 21x13 maze to a 53x31 one — or Custom, which hands the numbers
 back. Choosing a difficulty greys the number fields out and shows what it set.
 One checkbox, **Some hazards patrol**, makes every third hazard walk its
 corridor and turn around at the walls; it is off by default.
+
+Skew's settings panel sets the board (3–7 by 3–7) and the number in a row that
+wins, which is clamped to the shortest side so the board can never ask for a
+line it cannot hold. It ships with the preview **off**, which is the point: a tap
+places a mark and the turns it causes are a surprise you learn from. Turning
+**Show the flips before you place** on makes the mechanic inspectable and the
+move two gestures — a tap pins a preview of the cells that would turn over, and
+holding places it.
+
+The computer looks two plies deep, which is enough to see the pattern this game
+is actually about — a placement that turns over your opponent's threat and builds
+one of your own in the same move — and no more. That is a deliberate choice
+rather than the default one: the reference solver proves the small boards
+exactly (3x3 with a line of 3 is a draw, 4x4 with a line of 4 is a second-player
+win), and a search that trusted its own evaluation further ahead than two plies
+measured *worse* against those proven values, not better. So it is beatable by a
+player who thinks a move further, and it never throws a won game away on purpose.
+Its whole search is a few thousand positions — 0.5ms on the default board, 40ms
+on the largest — which is why there is no time budget, no worker and no way for
+it to stall a frame.
 
 In Missile Command, Left/Right selects which of the three batteries fires. Space
 and clicking both launch an interceptor at the current crosshair; in Attacker
@@ -67,7 +88,7 @@ keyboard recovery window. Flipped computer tuning is unchanged.
 
 ## Architecture
 
-One game per folder. No game file knows the other seven exist.
+One game per folder. No game file knows the other eight exist.
 
 ```
 index.html          cabinet shell and controls

@@ -3,7 +3,7 @@ import { resolve, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const games = ["snake", "breakout", "splat", "asteroids", "missile", "starfall", "lamp"];
+const games = ["snake", "breakout", "splat", "asteroids", "missile", "starfall", "lamp", "skew"];
 const allowed = new Set(["src/geometry.js", "src/decisions.js", "src/events.js"]);
 for (const game of games) allowed.add(`src/games/${game}/model.js`);
 

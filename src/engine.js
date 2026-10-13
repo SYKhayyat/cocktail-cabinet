@@ -381,8 +381,13 @@ export class GameEngine {
       const heading = this.ready ? "READY" : this.countdown > 0 ? "GET READY" : result.ended ? result.heading : "PAUSED";
       const instruction = this.ready ? "Press New game to start" : this.countdown > 0 ? `Starting in ${Math.ceil(this.countdown)}…` : result.ended ? result.instruction : "Press Continue to resume";
       const lifeText = life.owner === "none" ? "No life budget" : life.players ? `You: ${life.players.human}    Computer: ${life.players.computer}` : `Lives: ${life.owner === "game" ? life.remaining : this.lives}/${this.maxLives}`;
+      // Most games have a score and a life budget, and the line below says both.
+      // A game with neither would otherwise read as one whose score is zero and
+      // whose lives are being counted, so a game may supply the whole line. The
+      // engine still has no idea what any of it refers to.
+      const statLine = this.game.overlayStatus?.() ?? `Score: ${this.game.score}    ${lifeText}`;
       drawText(this.context, heading, 400, 275, 24, CANVAS_PALETTE.warning, "center");
-      drawText(this.context, `Score: ${this.game.score}    ${lifeText}`, 400, 310, 16, CANVAS_PALETTE.text, "center");
+      drawText(this.context, statLine, 400, 310, 16, CANVAS_PALETTE.text, "center");
       drawText(this.context, instruction, 400, 340, 14, CANVAS_PALETTE.secondary, "center");
     }
     this.input.pressed.clear();

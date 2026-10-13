@@ -287,7 +287,8 @@ const GAME_CARDS = [
   { id: "missile", modes: ["defender", "attacker"] },
   { id: "imitation", modes: ["ai", "human", "guess", "provide", "write"] },
   { id: "starfall", modes: ["runner", "stars"] },
-  { id: "lamp", modes: ["walk", "continue"] }
+  { id: "lamp", modes: ["walk", "continue"] },
+  { id: "skew", modes: ["duo", "first", "second"] }
 ];
 
 async function testBootAndDescriptors(page) {
@@ -297,7 +298,7 @@ async function testBootAndDescriptors(page) {
     status: document.querySelector('#roundStatus').textContent,
     statsHidden: document.querySelector('#gameStats').hidden
   }))()`);
-  assertEqual(report.cards.length, 8, "eight game cards render");
+  assertEqual(report.cards.length, 9, "nine game cards render");
   assertEqual(report.lives, "3/3", "lives start at 3/3");
   assertEqual(report.status, "Press New game to start", "the cabinet opens in the ready state");
   assertEqual(report.statsHidden, false, "score and lives are visible on the arcade games");

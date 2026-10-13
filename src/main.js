@@ -8,6 +8,7 @@ import { MissileCommandGame } from "./games/missile.js";
 import { ImitationGame } from "./games/imitation.js";
 import { StarfallGame } from "./games/starfall.js";
 import { LampGame } from "./games/lamp.js";
+import { SkewGame } from "./games/skew.js";
 import { NonvisualPanel } from "./nonvisual-panel.js";
 import { isAudioMuted, setAudioMuted, setAudioSuppressed, unlockAudio } from "./audio.js";
 
@@ -19,7 +20,8 @@ const gameFactories = [
   ["missile", "Missile Command", "Defend or attack", () => new MissileCommandGame()],
   ["imitation", "Imitation", "Chat with AI or a second tab", () => new ImitationGame()],
   ["starfall", "Starfall", "Dodge or send stars", () => new StarfallGame()],
-  ["lamp", "Lamp", "Walk blind by lantern light", () => new LampGame()]
+  ["lamp", "Lamp", "Walk blind by lantern light", () => new LampGame()],
+  ["skew", "Skew", "Place a mark and turn over its neighbours", () => new SkewGame()]
 ];
 
 const canvas = document.querySelector("#gameCanvas");
@@ -75,6 +77,11 @@ const lampCoins = document.querySelector("#lampCoins");
 const lampHazards = document.querySelector("#lampHazards");
 const lampWisps = document.querySelector("#lampWisps");
 const lampPatrol = document.querySelector("#lampPatrol");
+const skewSettings = document.querySelector("#skewSettings");
+const skewCols = document.querySelector("#skewCols");
+const skewRows = document.querySelector("#skewRows");
+const skewLine = document.querySelector("#skewLine");
+const skewPreview = document.querySelector("#skewPreview");
 const soundButton = document.querySelector("#soundButton");
 let lastChatRevision = -1;
 const announcements = new Announcements(document.querySelector("#announcements"));
@@ -131,7 +138,8 @@ function renderRoundStatus(state) {
 const settingsInputs = {
   snake: { cols: snakeCols, rows: snakeRows, startingLength: snakeLength, wrap: snakeWrap },
   splat: { columnSpacing: splatSpacing },
-  lamp: { preset: lampPreset, cols: lampCols, rows: lampRows, coins: lampCoins, hazards: lampHazards, wisps: lampWisps, patrol: lampPatrol }
+  lamp: { preset: lampPreset, cols: lampCols, rows: lampRows, coins: lampCoins, hazards: lampHazards, wisps: lampWisps, patrol: lampPatrol },
+  skew: { cols: skewCols, rows: skewRows, line: skewLine, preview: skewPreview }
 };
 
 // A setting key is only unique within a game. Snake and Lamp both have `cols`
@@ -140,7 +148,7 @@ const settingsInputs = {
 // renamed it, because the settings panel is shared and both groups are in it.
 // The browser suite caught this; no unit test could, since nothing else reads
 // the markup.
-const settingsGroups = { snake: snakeSettings, splat: splatSettings, lamp: lampSettings };
+const settingsGroups = { snake: snakeSettings, splat: splatSettings, lamp: lampSettings, skew: skewSettings };
 
 function readSettingsInputs(id) {
   const values = {};
@@ -205,7 +213,10 @@ function describeInvalidSettings(id) {
   // The maze is carved on a two-cell lattice, so an even width is a maze the
   // generator cannot build rather than one it will round for you.
   const lampRule = id === "lamp" ? ", maze columns and rows must be odd numbers" : "";
-  return `Use whole numbers within range: ${parts.join(", ")}${snakeLengthRule}${lampRule}.`;
+  // Skew clamps rather than refuses, so a line longer than the board is quietly
+  // shortened. Saying so is better than letting the field disagree with the game.
+  const skewRule = id === "skew" ? ", and a line can never be longer than the shortest side" : "";
+  return `Use whole numbers within range: ${parts.join(", ")}${snakeLengthRule}${lampRule}${skewRule}.`;
 }
 
 const LAMP_NUMBER_KEYS = ["cols", "rows", "coins", "hazards", "wisps"];
@@ -397,11 +408,12 @@ function loadGame(id) {
   screenFrame.hidden = id === "imitation";
   downloadModelButton.hidden = id !== "imitation";
   document.querySelector(".machine").classList.toggle("imitation-layout", id === "imitation");
-  settingsPanel.hidden = !["snake", "splat", "lamp"].includes(id);
+  settingsPanel.hidden = !["snake", "splat", "lamp", "skew"].includes(id);
   settingsTitle.textContent = `${game.title} settings`;
   snakeSettings.hidden = id !== "snake";
   splatSettings.hidden = id !== "splat";
   lampSettings.hidden = id !== "lamp";
+  skewSettings.hidden = id !== "skew";
   const settings = game.validateSettings?.(readSettingsInputs(id));
   if (settings) game.setSettings(settings);
   syncPresetAvailability(id);

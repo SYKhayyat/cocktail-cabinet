@@ -163,12 +163,34 @@ export const RECIPES = Object.freeze({
   // a run ends by running out of lives and never by clearing a board.
   "starfall:lose": arpeggio([392, 349, 294, 220], { type: "square" }),
 
+  // ---- Skew: a mark landing, marks turning over, and the board turning with them.
+  // The flip sounds are two rather than one because how much of the board moved
+  // is the whole of the decision the player is making. One or two marks turning
+  // is a normal move; three or four is a central cell rearranging the position,
+  // and it should not sound like a slightly larger version of the same tick.
+  "skew:place": (ctx, out) => tone(ctx, out, { type: "sine", from: 420, to: 560, duration: 0.05, gain: 0.12 }),
+  "skew:flip": (ctx, out, n) => {
+    tone(ctx, out, { type: "square", from: 700, to: 460, duration: 0.09, gain: 0.09 });
+    noise(ctx, out, n, { duration: 0.09, gain: 0.06, from: 2400, to: 700 });
+  },
+  "skew:turn": (ctx, out, n) => {
+    // Two marks crossing in opposite directions, which is what the board did.
+    tone(ctx, out, { type: "square", from: 520, to: 780, duration: 0.11, gain: 0.1 });
+    tone(ctx, out, { type: "square", from: 790, to: 520, at: 0.03, duration: 0.11, gain: 0.08 });
+    noise(ctx, out, n, { duration: 0.16, gain: 0.08, from: 3200, to: 500 });
+  },
+  "skew:win": arpeggio([523, 659, 784, 1047]),
+  "skew:lose": arpeggio([392, 349, 294, 220], { type: "sawtooth" }),
+  // A draw is neither of those. It gets a level pair that goes nowhere, because
+  // a full board with no line in it is exactly that.
+  "skew:draw": arpeggio([440, 440], { type: "triangle", duration: 0.2, gain: 0.12 }),
+
 });
 
 // Imitation is a conversation, not a simulation: it has no gameplay events to
 // sound, and a chime on every reply would talk over the person you are replying
 // to. It is deliberately absent rather than given an arbitrary blip.
-export const SOUNDED_GAMES = Object.freeze(["snake", "breakout", "splat", "asteroids", "missile", "starfall", "lamp"]);
+export const SOUNDED_GAMES = Object.freeze(["snake", "breakout", "splat", "asteroids", "missile", "starfall", "lamp", "skew"]);
 
 function defaultContextFactory() {
   // Absent in the headless suites, in a browser that refuses audio, or before
