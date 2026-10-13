@@ -175,16 +175,24 @@ function drawLastMove(context, model, layout, tile) {
 // view in the cabinet makes. Brackets are the conventional "this is selected"
 // shape and read as a cursor from across the board.
 function drawCursor(context, model, layout) {
-  if (model.cells[model.cursor] !== EMPTY || model.lastMove === model.cursor) return;
+  // Not drawn once the round is over: there is no cell left to move into, and the
+  // brackets sit exactly where the host draws its result box.
+  if (model.over || model.cells[model.cursor] !== EMPTY || model.lastMove === model.cursor) return;
   const rect = cellRect(layout, model.cursor, model);
   context.fillStyle = CANVAS_PALETTE.secondary;
   const arm = Math.max(3, rect.size * 0.26);
   const edge = Math.max(2, rect.size * 0.045);
-  const near = 4;
-  const far = rect.size - near;
+  const near = rect.x + 4;
+  const far = rect.x + rect.size - 4;
+  const top = rect.y + 4;
+  const bottom = rect.y + rect.size - 4;
+  // Each corner is an arm along one edge and a thickness along the other. The
+  // x and y are relative to the cell, which is why they are offset by the cell
+  // here: drawing them in the cell's own coordinates pins the cursor to the top
+  // left of the canvas instead of to the cell it belongs to.
   for (const [x, y, dx, dy] of [
-    [near, near, 1, 1], [far, near, -1, 1],
-    [near, far, 1, -1], [far, far, -1, -1]
+    [near, top, 1, 1], [far, top, -1, 1],
+    [near, bottom, 1, -1], [far, bottom, -1, -1]
   ]) {
     context.fillRect(x - (dx < 0 ? arm : 0), y - (dy < 0 ? edge : 0), arm, edge);
     context.fillRect(x - (dx < 0 ? edge : 0), y - (dy < 0 ? arm : 0), edge, arm);

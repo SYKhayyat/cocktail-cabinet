@@ -65,7 +65,7 @@ export class TwistGame {
   // The ready and end overlay prints "Score: 0   Lives: 3/3" for every game.
   // This one has neither, and a board of marks reporting a score of zero and a
   // life budget it does not have is worse than saying what is actually true.
-  overlayStatus() { return this.model.over ? this.model.outcomeMessage() : "No line yet — place a mark."; }
+  overlayStatus() { return this.model.over ? this.model.outcomeLine() : "No line yet — place a mark."; }
   sideLabel() { return this.model.sideLabel(); }
   controlHint() { return this.controller.controlHint(); }
   update(dt, input) {

@@ -26,6 +26,7 @@ const gameFactories = [
 
 const canvas = document.querySelector("#gameCanvas");
 const gameCards = document.querySelector("#gameCards");
+const drawerCount = document.querySelector("#drawerCount");
 const title = document.querySelector("#gameTitle");
 const description = document.querySelector("#gameDescription");
 const score = document.querySelector("#score");
@@ -330,6 +331,10 @@ let activeId = "snake";
 const games = new Map(gameFactories.map(([id, , , factory]) => [id, factory()]));
 
 function renderCards() {
+  // "Nine drawers" was hand-written next to the list, so it was correct until a
+  // game was added and then silently wrong. The registry is the only thing that
+  // knows how many there are.
+  drawerCount.textContent = `${gameFactories.length} drawers`;
   gameCards.replaceChildren();
   gameFactories.forEach(([id, name, shortDescription], index) => {
     const button = document.createElement("button");

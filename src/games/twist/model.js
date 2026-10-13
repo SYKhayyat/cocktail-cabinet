@@ -484,17 +484,21 @@ export class TwistModel {
     return { gameOver: true, message: this.outcomeMessage() };
   }
 
+  // The one clause that names the result, with no instruction attached. The host
+  // prints its own "press New game" line underneath the overlay, so repeating it
+  // here just says the same thing twice in the same box.
+  outcomeLine() {
+    if (this.drew || !this.outcome) return "The board filled with no line";
+    return `${markName(this.outcome.winner)} takes ${this.describeLine(this.outcome.cells)}`;
+  }
+
   // One sentence naming what ended the game. A player who has just lost needs to
   // know which row betrayed them, not which three cells did.
   outcomeMessage() {
-    if (this.drew || !this.outcome) return "The board filled with no line. Nobody wins — press New game to try again.";
-    const { winner, cells } = this.outcome;
-    const head = `${markName(winner)} takes the ${this.describeLine(cells)}`;
-    if (this.humanMark) {
-      const yours = winner === this.humanMark;
-      return `${head} — you ${yours ? "win" : "lose"}. Press New game to play again.`;
-    }
-    return `${head}. Press New game to play again.`;
+    const line = this.outcomeLine();
+    if (!this.outcome) return `${line}. Nobody wins — press New game to try again.`;
+    const yours = this.humanMark ? (this.outcome.winner === this.humanMark ? "you win" : "you lose") : "";
+    return `${line}${yours ? ` — ${yours}` : ""}. Press New game to play again.`;
   }
 
   // Names the line in words rather than coordinates, so a player who has just lost
@@ -510,8 +514,8 @@ export class TwistModel {
     // real diagonal as a column.
     if (across === down && across > 0) {
       return this.rowOf(cells[cells.length - 1]) > row
-        ? `diagonal from column ${col + 1}, row ${row + 1}`
-        : `diagonal from column ${this.columnOf(cells[cells.length - 1]) + 1}, row ${row + 1}`;
+        ? `the diagonal from column ${col + 1}, row ${row + 1}`
+        : `the diagonal from column ${this.columnOf(cells[cells.length - 1]) + 1}, row ${row + 1}`;
     }
     if (row === this.rowOf(cells[cells.length - 1])) return `row ${row + 1}`;
     return `column ${col + 1}`;
@@ -519,7 +523,7 @@ export class TwistModel {
 
   winMessage() {
     if (!this.outcome) return "";
-    return `You take the ${this.describeLine(this.outcome.cells)}.`;
+    return `You take ${this.describeLine(this.outcome.cells)}.`;
   }
 
   // ---------------------------------------------------------------

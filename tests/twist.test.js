@@ -129,7 +129,7 @@ test("a player can also complete their own line by turning the opponent's mark o
   assert.equal(model.over, true);
   assert.equal(model.outcome.winner, 1, "X's own turn-over completed X's diagonal");
   assert.deepEqual(model.outcome.cells, [0, 4, 8]);
-  assert.match(model.describeLine(model.outcome.cells), /diagonal from column 1, row 1/);
+  assert.match(model.describeLine(model.outcome.cells), /the diagonal from column 1, row 1/);
 });
 
 test("a move that leaves both sides holding a line is credited to the player who moved", () => {
@@ -169,6 +169,7 @@ test("a line wins horizontally, vertically and on both diagonals", () => {
   assert.equal(horizontal.outcome.winner, 1);
   assert.deepEqual(horizontal.outcome.cells, [0, 1, 2]);
   assert.equal(horizontal.describeLine(horizontal.outcome.cells), "row 1");
+  assert.equal(horizontal.outcomeLine(), "X takes row 1");
 
   const vertical = board(3, 3, { 0: 1, 3: 1 });
   vertical.place(6, 1);
@@ -181,13 +182,13 @@ test("a line wins horizontally, vertically and on both diagonals", () => {
   const downRight = board(3, 3, { 0: 1, 4: 2, 8: 1 });
   downRight.place(2, 1);
   assert.deepEqual(downRight.outcome.cells, [0, 4, 8]);
-  assert.match(downRight.describeLine(downRight.outcome.cells), /diagonal from column 1, row 1/);
+  assert.match(downRight.describeLine(downRight.outcome.cells), /the diagonal from column 1, row 1/);
 
   const downLeft = board(3, 3, { 2: 2, 4: 1, 6: 2 });
   downLeft.turn = 2;
   downLeft.place(0, 2);
   assert.deepEqual(downLeft.outcome.cells, [2, 4, 6]);
-  assert.match(downLeft.describeLine(downLeft.outcome.cells), /diagonal from column 3, row 1/);
+  assert.match(downLeft.describeLine(downLeft.outcome.cells), /the diagonal from column 3, row 1/);
 
   // A line is a line in each direction, and it is not fooled by a gap in it.
   const gapped = board(3, 3, { 0: 1, 2: 1 });
@@ -457,7 +458,7 @@ test("the round-ending sounds are distinct, and a draw never sounds like a loss"
   assert.equal(lost.events.includes("win"), false);
   assert.equal(lost.gameOver, true);
   assert.equal(lost.won, false);
-  assert.match(lost.outcomeMessage(), /O takes the row 1 — you lose/);
+  assert.match(lost.outcomeMessage(), /O takes row 1 — you lose/);
 });
 
 test("the computer takes a win that is on the board", () => {
@@ -516,7 +517,7 @@ test("the overlay names what ended the game rather than a score and a life count
   duel.model.outcome = { winner: 1, cells: [0, 1, 2] };
   duel.model.won = true;
   assert.equal(duel.resultHeading(), "X WINS", "on one device the mark wins the headline");
-  assert.match(duel.winMessage(), /You take the row 1/);
+  assert.match(duel.winMessage(), /You take row 1/);
 
   const versus = new TwistGame();
   versus.setSide("second");
@@ -699,6 +700,50 @@ test("the hint says which gesture is which, and changes with the setting", () =>
   on.reset();
   assert.match(on.controlHint().map((hint) => hint.label).join(" "), /pin a preview/);
   assert.match(on.controlHint().map((hint) => hint.label).join(" "), /place the pinned mark/);
+});
+
+test("every shape is drawn inside the cell it belongs to", () => {
+  // The draw tests elsewhere in the cabinet assert that a frame does not throw
+  // and that its text meets the contrast threshold. Neither can see a shape drawn
+  // in entirely the wrong place: the cursor brackets were written in the cell's
+  // own coordinates, which put them in the top left of the canvas while every
+  // test still passed, and which only looking at the board revealed.
+  const game = new TwistGame();
+  game.reset();
+  const shapes = [];
+  const context = new Proxy({}, {
+    get: (target, key) => {
+      if (key === "measureText") return (value) => ({ width: String(value).length * 7 });
+      if (key === "canvas") return { width: 800, height: 560 };
+      if (key in target) return target[key];
+      return (...args) => shapes.push(args);
+    },
+    set: (target, key, value) => { target[key] = value; return true; }
+  });
+
+  // A board with a mark in every cell but the cursor, so it is drawn.
+  game.model.cells.fill(2);
+  game.model.cells[4] = 0;
+  game.model.cursor = 4;
+  game.model.lastMove = 8;
+  game.draw(context);
+
+  const { originX, originY, tile } = game.model.layout();
+  const cellX = originX + tile;
+  const cellY = originY + tile;
+  const rectangles = shapes.filter((args) => args.length === 4);
+  assert.ok(rectangles.length >= 8, `only ${rectangles.length} rectangles were drawn`);
+  const brackets = rectangles.filter(([, , w, h]) => w < tile * 0.4 && h < tile * 0.4);
+  assert.equal(brackets.length, 8, "four corners of two arms each");
+  for (const [x, y, w, h] of brackets) {
+    assert.ok(x >= cellX - 1 && x + w <= cellX + tile + 1, `a cursor arm sits at x ${x}, outside the cursor cell`);
+    assert.ok(y >= cellY - 1 && y + h <= cellY + tile + 1, `a cursor arm sits at y ${y}, outside the cursor cell`);
+  }
+
+  // And nothing at all is drawn off the edge of the drawing surface.
+  for (const [x, y, w, h] of shapes.filter((args) => args.length === 4)) {
+    assert.ok(x >= 0 && y >= 0 && x + w <= 800 && y + h <= 560, `a shape at ${x},${y} falls off the canvas`);
+  }
 });
 
 test("the board draws in every state it can reach", () => {
